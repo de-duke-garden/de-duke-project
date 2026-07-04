@@ -46,12 +46,17 @@ async def _override_get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-app.dependency_overrides[get_session] = _override_get_session
-
-
 @pytest_asyncio.fixture(autouse=True)
 async def _reset_schema() -> AsyncGenerator[None, None]:
-    """Recreates SQLite-compatible tables before each test for isolation."""
+    """Recreates SQLite-compatible tables before each test for isolation.
+
+    Also re-applies the get_session override on every test, not just once at
+    import time -- other test modules (test_chat.py, test_staff_accounts.py)
+    call app.dependency_overrides.clear() in their own teardown, which would
+    otherwise silently drop this override for every test that runs
+    afterwards in the same pytest session, causing later tests to fall
+    through to the real (unconfigured) Postgres connection."""
+    app.dependency_overrides[get_session] = _override_get_session
     tables = _sqlite_safe_tables()
     async with test_engine.begin() as conn:
         await conn.run_sync(
