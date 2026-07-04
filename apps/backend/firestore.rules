@@ -1,0 +1,94 @@
+// firestore.rules -- FEAT-010 (Real-Time Three-Way Support Chat)
+//
+// *** DRAFT -- NOT YET DEPLOYED ***
+// This file is written against the planned `conversations/{conversationId}`
+// and `conversations/{conversationId}/messages/{messageId}` collections
+// described in schema.md's ChatConversation/ChatMessage entities and
+// architecture.md's Chat Data Store section. It has not been applied to any
+// Firebase project -- `firestore_project_id`/`firebase_service_account_json`
+// in app/core/config.py are still REPLACE_ME. Before this can be deployed
+// (`firebase deploy --only firestore:rules`), a real Firebase project must
+// be provisioned and these rules should be exercised against the Firestore
+// emulator.
+//
+// Auth model: every client authenticates against Firestore using a custom
+// token minted by POST /v1/chat/token (app/services/chat_service.py). That
+// token carries a `role` claim: "client" | "property_management" |
+// "deduke_staff" -- mapped server-side from User.role, never trusted from
+// the client directly.
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return request.auth.token.role;
+    }
+
+    function isStaff() {
+      // deduke_staff and deduke_admin both map to the "deduke_staff" claim
+      // in chat_service.chat_role_for -- staff get full read/write across
+      // every conversation for moderation/escalation (FEAT-010, screens.md
+      // Screen 22 Chat Oversight Module).
+      return isSignedIn() && role() == 'deduke_staff';
+    }
+
+    function isParticipant(conversation) {
+      return isSignedIn() && (
+        request.auth.uid == conversation.data.clientId ||
+        request.auth.uid == conversation.data.propertyManagementId
+      );
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if isStaff() || isParticipant(resource);
+
+      // Conversation documents are created exclusively server-side via the
+      // Firebase Admin SDK (app/services/chat_service.py::create_conversation)
+      // so assignedStaffId is guaranteed null and both participant IDs are
+      // validated against the Primary Database -- clients never create
+      // conversation docs directly.
+      allow create: if false;
+
+      // Participants may update conversation-level metadata (e.g. read
+      // receipts / lastMessageAt bookkeeping) but never reassign
+      // participants or the assigned staff member. Staff may update freely
+      // (e.g. assignedStaffId when picking up an escalation).
+      allow update: if isStaff() || (
+        isParticipant(resource) &&
+        request.resource.data.clientId == resource.data.clientId &&
+        request.resource.data.propertyManagementId == resource.data.propertyManagementId &&
+        request.resource.data.listingId == resource.data.listingId &&
+        request.resource.data.assignedStaffId == resource.data.assignedStaffId
+      );
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isStaff() || isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)));
+
+        // A message may only be authored by one of the two conversation
+        // participants (as themselves, never impersonating the other side)
+        // or by staff (moderation notes / joining an escalated thread).
+        allow create: if isStaff() || (
+          isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId))) &&
+          request.resource.data.senderId == request.auth.uid
+        );
+
+        // Messages are immutable once sent, except for delivery/read status
+        // transitions (sending -> sent -> delivered -> read), which either
+        // side of the conversation -- or staff -- may update.
+        allow update: if (isStaff() || isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)))) &&
+          request.resource.data.body == resource.data.body &&
+          request.resource.data.senderId == resource.data.senderId;
+
+        allow delete: if false;
+      }
+    }
+  }
+}
