@@ -1,10 +1,13 @@
+import { StaffAccountsClient } from "@/components/staff-management/StaffAccountsClient";
+
 export default function Page() {
   return (
     <main className="p-lg">
-      <h1 className="font-heading text-xl font-semibold capitalize">staff management</h1>
+      <h1 className="font-heading text-xl font-semibold">Staff Management</h1>
       <p className="text-text-secondary">
-        Not yet implemented -- owned by its assigned Phase B subagent (see AGENTS.md Dispatch Plan).
+        Invite, deactivate, promote, or demote Staff and Admin accounts (FEAT-033). Admin-only.
       </p>
+      <StaffAccountsClient />
     </main>
   );
 }
