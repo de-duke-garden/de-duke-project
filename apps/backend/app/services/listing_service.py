@@ -1,15 +1,10 @@
 """Business logic for listing creation/update, image handling, and
 availability -- FEAT-004, FEAT-005, FEAT-008.
 
-GAP notes (reported, not fixed here -- see AGENTS.md: shared models under
-app/models/** are read-only for this feature slice):
-  * ShortletListing has no categorical `subtype` field (Hostel/Hotel/1-3BR)
-    needed for FEAT-007's shortlet subtype filter. Recommend adding an
-    indexed `subtype: str` column to ShortletListing.
-  * Neither CommercialListing nor ShortletListing has a `bathrooms` field,
-    needed for FEAT-007. Recommend adding `bathrooms: int` to both.
-  Both are accepted (and silently dropped) in the request schemas so the
-  API contract doesn't have to change again once the columns land.
+
+Note: bathrooms (Commercial + Shortlet) and shortlet subtype were
+confirmed schema.md gaps during Phase B review, backfilled onto the
+shared models and wired up here.
 """
 
 from __future__ import annotations
@@ -112,6 +107,7 @@ async def create_commercial_subtype(
         possession_period_days=possession_period_days,
         size_square_meters=data.size_square_meters,
         property_subtype=data.property_subtype,
+        bathrooms=data.bathrooms,
         legal_documents=data.legal_documents,
     )
     session.add(commercial)
@@ -138,6 +134,8 @@ def create_shortlet_subtype(
         minimum_stay_nights=data.minimum_stay_nights,
         maximum_stay_nights=data.maximum_stay_nights,
         bedrooms=data.bedrooms,
+        bathrooms=data.bathrooms,
+        subtype=data.subtype,
         house_rules=data.house_rules,
         blocked_dates=data.blocked_dates,
     )

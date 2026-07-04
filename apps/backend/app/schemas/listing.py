@@ -38,14 +38,7 @@ class CommercialListingIn(BaseModel):
     size_square_meters: float = Field(gt=0)
     property_subtype: str  # office | shop | home | land
     legal_documents: list[str] = Field(default_factory=list)
-    bathrooms: int | None = Field(
-        default=None,
-        description=(
-            "Not yet a column on CommercialListing -- see GAP note in "
-            "listing_service.py. Accepted here for forward-compat but "
-            "currently dropped, not persisted."
-        ),
-    )
+    bathrooms: int = Field(ge=0)
     rooms: list["CommercialListingRoomIn"] = Field(default_factory=list)
 
     @field_validator("deal_type")
@@ -76,19 +69,17 @@ class ShortletListingIn(BaseModel):
     bedrooms: int = Field(ge=0)
     house_rules: list[str] = Field(default_factory=list)
     blocked_dates: list[str] = Field(default_factory=list)
-    subtype: str | None = Field(
-        default=None,
-        description=(
-            "Not yet a column on ShortletListing -- see GAP note in "
-            "listing_service.py (FEAT-007 subtype filter: Hostel/Hotel/"
-            "1-3BR). Accepted here for forward-compat but currently "
-            "dropped, not persisted."
-        ),
-    )
-    bathrooms: int | None = Field(
-        default=None,
-        description="Not yet a column on ShortletListing -- see GAP note.",
-    )
+    # hostel | hotel | 1_bedroom | 2_bedroom | 3_bedroom
+    subtype: str
+    bathrooms: int = Field(ge=0)
+
+    @field_validator("subtype")
+    @classmethod
+    def _valid_subtype(cls, v: str) -> str:
+        allowed = {"hostel", "hotel", "1_bedroom", "2_bedroom", "3_bedroom"}
+        if v not in allowed:
+            raise ValueError(f"subtype must be one of {sorted(allowed)}")
+        return v
 
 
 class ListingCreateIn(BaseModel):

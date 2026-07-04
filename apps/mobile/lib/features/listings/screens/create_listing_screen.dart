@@ -48,6 +48,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _priceController = TextEditingController();
   final _sizeController = TextEditingController();
   String _propertySubtype = 'office';
+  final _commercialBathroomsController = TextEditingController();
   final _possessionDaysController = TextEditingController();
   final List<CommercialRoom> _rooms = [];
 
@@ -56,6 +57,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _minStayController = TextEditingController();
   final _maxStayController = TextEditingController();
   final _bedroomsController = TextEditingController();
+  final _shortletBathroomsController = TextEditingController();
+  String _shortletSubtype = '1_bedroom';
   final List<String> _houseRules = [];
 
   final List<PendingListingImage> _images = [];
@@ -78,6 +81,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _minStayController.dispose();
     _maxStayController.dispose();
     _bedroomsController.dispose();
+    _commercialBathroomsController.dispose();
+    _shortletBathroomsController.dispose();
     super.dispose();
   }
 
@@ -175,6 +180,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                     : null,
                 sizeSquareMeters: double.tryParse(_sizeController.text) ?? 0,
                 propertySubtype: _propertySubtype,
+                bathrooms: int.tryParse(_commercialBathroomsController.text) ?? 0,
                 rooms: _rooms,
               )
             : null,
@@ -184,6 +190,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 minimumStayNights: int.tryParse(_minStayController.text) ?? 1,
                 maximumStayNights: int.tryParse(_maxStayController.text),
                 bedrooms: int.tryParse(_bedroomsController.text) ?? 0,
+                bathrooms: int.tryParse(_shortletBathroomsController.text) ?? 0,
+                subtype: _shortletSubtype,
                 houseRules: _houseRules,
               )
             : null,
@@ -410,6 +418,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           onChanged: submitting ? null : (v) => setState(() => _propertySubtype = v!),
         ),
         const SizedBox(height: AppSpacing.sm),
+        TextFormField(
+          controller: _commercialBathroomsController,
+          decoration: const InputDecoration(labelText: 'Bathrooms'),
+          keyboardType: TextInputType.number,
+          validator: (v) => (int.tryParse(v ?? '') == null) ? 'Enter a valid number' : null,
+          enabled: !submitting,
+        ),
+        const SizedBox(height: AppSpacing.sm),
         Text('Room breakdown (optional)', style: Theme.of(context).textTheme.bodyMedium),
         ..._rooms.map(
           (r) => ListTile(
@@ -479,6 +495,27 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           keyboardType: TextInputType.number,
           validator: (v) => (int.tryParse(v ?? '') == null) ? 'Enter a valid number' : null,
           enabled: !submitting,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TextFormField(
+          controller: _shortletBathroomsController,
+          decoration: const InputDecoration(labelText: 'Bathrooms'),
+          keyboardType: TextInputType.number,
+          validator: (v) => (int.tryParse(v ?? '') == null) ? 'Enter a valid number' : null,
+          enabled: !submitting,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        DropdownButtonFormField<String>(
+          initialValue: _shortletSubtype,
+          decoration: const InputDecoration(labelText: 'Subtype'),
+          items: const [
+            DropdownMenuItem(value: 'hostel', child: Text('Hostel')),
+            DropdownMenuItem(value: 'hotel', child: Text('Hotel')),
+            DropdownMenuItem(value: '1_bedroom', child: Text('1 Bedroom')),
+            DropdownMenuItem(value: '2_bedroom', child: Text('2 Bedroom')),
+            DropdownMenuItem(value: '3_bedroom', child: Text('3 Bedroom')),
+          ],
+          onChanged: submitting ? null : (v) => setState(() => _shortletSubtype = v!),
         ),
         // Availability calendar (blocked_dates) is edited after creation on
         // the listing edit screen -- TODO: add a calendar widget there.

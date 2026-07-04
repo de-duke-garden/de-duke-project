@@ -72,6 +72,7 @@ class CommercialListingDetails {
     this.possessionPeriodDays,
     required this.sizeSquareMeters,
     required this.propertySubtype,
+    required this.bathrooms,
     this.legalDocuments = const [],
     this.rooms = const [],
   });
@@ -81,6 +82,7 @@ class CommercialListingDetails {
   int? possessionPeriodDays;
   double sizeSquareMeters;
   String propertySubtype; // office | shop | home | land
+  int bathrooms;
   List<String> legalDocuments;
   List<CommercialRoom> rooms;
 
@@ -90,6 +92,7 @@ class CommercialListingDetails {
         'possession_period_days': possessionPeriodDays,
         'size_square_meters': sizeSquareMeters,
         'property_subtype': propertySubtype,
+        'bathrooms': bathrooms,
         'legal_documents': legalDocuments,
         'rooms': rooms.map((r) => r.toJson()).toList(),
       };
@@ -101,6 +104,7 @@ class CommercialListingDetails {
         possessionPeriodDays: json['possession_period_days'] as int?,
         sizeSquareMeters: (json['size_square_meters'] as num).toDouble(),
         propertySubtype: json['property_subtype'] as String,
+        bathrooms: json['bathrooms'] as int? ?? 0,
         legalDocuments: (json['legal_documents'] as List? ?? [])
             .map((e) => e as String)
             .toList(),
@@ -113,6 +117,8 @@ class ShortletListingDetails {
     required this.minimumStayNights,
     this.maximumStayNights,
     required this.bedrooms,
+    required this.bathrooms,
+    required this.subtype,
     this.houseRules = const [],
     this.blockedDates = const [],
   });
@@ -121,6 +127,9 @@ class ShortletListingDetails {
   int minimumStayNights;
   int? maximumStayNights;
   int bedrooms;
+  int bathrooms;
+  // hostel | hotel | 1_bedroom | 2_bedroom | 3_bedroom
+  String subtype;
   List<String> houseRules;
   List<String> blockedDates;
 
@@ -129,6 +138,8 @@ class ShortletListingDetails {
         'minimum_stay_nights': minimumStayNights,
         'maximum_stay_nights': maximumStayNights,
         'bedrooms': bedrooms,
+        'bathrooms': bathrooms,
+        'subtype': subtype,
         'house_rules': houseRules,
         'blocked_dates': blockedDates,
       };
@@ -139,6 +150,8 @@ class ShortletListingDetails {
         minimumStayNights: json['minimum_stay_nights'] as int,
         maximumStayNights: json['maximum_stay_nights'] as int?,
         bedrooms: json['bedrooms'] as int,
+        bathrooms: json['bathrooms'] as int? ?? 0,
+        subtype: json['subtype'] as String? ?? '1_bedroom',
         houseRules:
             (json['house_rules'] as List? ?? []).map((e) => e as String).toList(),
         blockedDates:

@@ -230,11 +230,8 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
   }
 
   Widget _buildBathrooms() {
-    // NOTE: backed by a schema gap on the API side (bathrooms column not yet
-    // present on CommercialListing/ShortletListing -- see
-    // app/services/search_service.py). The control is shown per FEAT-007's
-    // acceptance criteria; applying it is currently a documented no-op
-    // server-side until that column ships.
+    // Bathrooms filter -- backed by CommercialListing.bathrooms /
+    // ShortletListing.bathrooms server-side (app/services/search_service.py).
     return _FilterSection(
       label: 'Bathrooms',
       child: Wrap(

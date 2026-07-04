@@ -191,7 +191,9 @@ class _ListingBody extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
           Text('Property details', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
-          Text('${commercial.propertySubtype} • ${commercial.sizeSquareMeters} sqm'),
+          Text(
+            '${commercial.propertySubtype} • ${commercial.sizeSquareMeters} sqm • ${commercial.bathrooms} bath',
+          ),
           if (commercial.rooms.isNotEmpty)
             ...commercial.rooms.map(
               (r) => Text('${r.level}: ${r.widthMeters}m x ${r.lengthMeters}m'),
@@ -201,7 +203,9 @@ class _ListingBody extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
           Text('Stay details', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
-          Text('${shortlet.bedrooms} bedroom(s) • min ${shortlet.minimumStayNights} night(s)'),
+          Text(
+            '${shortlet.subtype} • ${shortlet.bedrooms} bedroom(s) • ${shortlet.bathrooms} bath • min ${shortlet.minimumStayNights} night(s)',
+          ),
           if (shortlet.houseRules.isNotEmpty)
             ...shortlet.houseRules.map((rule) => Text('• $rule')),
         ],

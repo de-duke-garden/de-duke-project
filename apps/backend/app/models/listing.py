@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from geoalchemy2 import Geography
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, Index
 from sqlmodel import Field, SQLModel
 
 
@@ -51,8 +51,15 @@ class Listing(SQLModel, table=True):
 
     view_count: int = Field(default=0)
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    # Explicit GiST index for location_point -- required for ST_DWithin/<->
+    # performance at scale (FEAT-006/007); not something SQLModel's plain
+    # index=True can express for a Geography column.
+    __table_args__ = (
+        Index("ix_listings_location_point_gist", "location_point", postgresql_using="gist"),
+    )
 
 
 class ListingImage(SQLModel, table=True):
@@ -73,13 +80,16 @@ class CommercialListing(SQLModel, table=True):
     listing_id: str = Field(foreign_key="listings.id", unique=True)
 
     # sale | lease
-    deal_type: str
-    price: float
+    deal_type: str = Field(index=True)
+    price: float = Field(index=True)
     # Null if deal_type == sale. Defaults to 365 if unset on a lease listing.
     possession_period_days: int | None = Field(default=None)
-    size_square_meters: float
+    size_square_meters: float = Field(index=True)
     # office | shop | home | land
     property_subtype: str = Field(index=True)
+    # FEAT-007 filter requirement -- added post-Foundation (was missing from
+    # the initial schema.md transcription; confirmed gap, backfilled here).
+    bathrooms: int = Field(index=True)
     legal_documents: list[str] = Field(default_factory=list, sa_column=Column(JSON))
 
 
@@ -100,10 +110,16 @@ class ShortletListing(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
     listing_id: str = Field(foreign_key="listings.id", unique=True)
 
-    nightly_price: float
+    nightly_price: float = Field(index=True)
     minimum_stay_nights: int
     maximum_stay_nights: int | None = Field(default=None)
     bedrooms: int
+    # FEAT-007 filter requirements -- added post-Foundation (confirmed gaps
+    # from the initial schema.md transcription, backfilled here).
+    bathrooms: int = Field(index=True)
+    # hostel | hotel | 1_bedroom | 2_bedroom | 3_bedroom -- see
+    # app/schemas/search.py::ShortletSubtype for the canonical enum values.
+    subtype: str = Field(index=True)
     house_rules: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     # ISO date strings (e.g. '2026-08-01') blocked on the availability calendar.
     blocked_dates: list[str] = Field(default_factory=list, sa_column=Column(JSON))

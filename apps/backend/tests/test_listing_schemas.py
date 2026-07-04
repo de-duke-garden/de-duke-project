@@ -50,7 +50,11 @@ def test_listing_create_commercial_ok() -> None:
         description="Open plan office",
         location=_location(),
         commercial=CommercialListingIn(
-            deal_type="lease", price=500000, size_square_meters=200, property_subtype="office"
+            deal_type="lease",
+            price=500000,
+            size_square_meters=200,
+            property_subtype="office",
+            bathrooms=2,
         ),
     )
     assert listing.commercial is not None

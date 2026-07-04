@@ -33,15 +33,9 @@ class CommercialSubtype(StrEnum):
 
 
 class ShortletSubtype(StrEnum):
-    """FEAT-005/FEAT-007 call for Hostel/Hotel/1-3 Bedroom shortlet subtypes.
-
-    NOTE: schema.md's ShortletListing entity has no subtype/category field --
-    only `bedrooms: int`. There is no column today distinguishing "Hostel" or
-    "Hotel" from an ordinary N-bedroom shortlet. This enum documents the
-    values FEAT-007 requires; `search_service.py` can only actually filter on
-    `bedrooms` until a `shortlet_subtype` (or equivalent) column is added to
-    ShortletListing. See the schema-gap note in search_service.py.
-    """
+    """FEAT-005/FEAT-007 Hostel/Hotel/1-3 Bedroom shortlet subtypes -- maps
+    directly onto ShortletListing.subtype (backfilled onto the shared model
+    during Phase B review; see app/models/listing.py)."""
 
     hostel = "hostel"
     hotel = "hotel"
@@ -90,10 +84,6 @@ class SearchFilters(BaseModel):
     min_size_sqm: float | None = Field(default=None, ge=0)
     max_size_sqm: float | None = Field(default=None, ge=0)
 
-    # NOTE: no `bathrooms` column exists on CommercialListing/ShortletListing
-    # today (schema-gap, see search_service.py). Accepted here so the API
-    # contract is ready; filter is a no-op (with a logged TODO) until the
-    # column exists.
     bathrooms: int | None = Field(default=None, ge=0)
 
     amenities: list[str] | None = None
@@ -153,7 +143,6 @@ class ListingSearchResult(BaseModel):
     primary_image_url: str | None = None
     created_at: str
 
-    # Populated once the schema gap is closed (see search_service.py).
     bathrooms: int | None = None
 
 

@@ -19,60 +19,26 @@ Not wired here because app/core has no shared Redis client dependency yet
 `get_redis()` dependency exists; the query-building logic below is written to
 be cache-key-friendly (deterministic filter dict -> stable cache key).
 
-KNOWN SCHEMA GAPS (do not fix here -- app/models is shared/read-only):
-1. `bathrooms` -- FEAT-007 requires filtering by bathroom count for both
-   Commercial and Shortlet listings. Neither `CommercialListing` nor
-   `ShortletListing` (app/models/listing.py) has a `bathrooms` column today.
-   The filter below is written against `getattr(CommercialListing,
-   "bathrooms", None)` / `getattr(ShortletListing, "bathrooms", None)` so it
-   is inert (raises no error, filters nothing) until the column exists, at
-   which point deleting the `hasattr` guard is the only change needed.
-   ACTION NEEDED: add `bathrooms: int` to both subtype tables, each with a
-   btree index (`Field(index=True)`), via an expand-contract Alembic
-   migration.
-2. Embedding column for FEAT-031 -- schema.md's prose references vector
-   embeddings for semantic search, but no embedding column/table is defined
-   in schema.md's JSON Schema for Listing, and none exists in
-   app/models/listing.py (see that file's own docstring making the same
-   observation). Per FEAT-031's own acceptance criteria ("degrades gracefully
-   to keyword/filter-only search... within a strict timeout"), this module
-   implements ONLY the keyword/filter-only fallback path -- there is no
-   ranking service to time out against yet, so `semantic_ranking_applied` is
-   always False. ACTION NEEDED: add a `pgvector` `Vector` column (e.g.
-   `Listing.description_embedding`) plus an HNSW/IVFFlat index, and a
-   background worker (SQS-consumed, per architecture.md) that (re)embeds a
-   listing within a few minutes of publish/edit, before real semantic ranking
-   can be implemented.
-3. Shortlet subtype (Hostel/Hotel/1/2/3 Bedroom) -- FEAT-007 requires
-   filtering shortlet listings by this subtype, but `ShortletListing` only
-   has `bedrooms: int`, with no field distinguishing "Hostel"/"Hotel" from an
-   ordinary N-bedroom unit. The `shortlet_subtype` filter parameter
-   (app/schemas/search.py) currently only maps onto `bedrooms` for the
-   `*_bedroom` enum values and is a no-op for `hostel`/`hotel` until a
-   `shortlet_subtype: str` column (indexed) is added to `ShortletListing`.
+RESOLVED SCHEMA GAPS (were flagged during Phase B review, now fixed):
+- `bathrooms: int` (indexed) added to both CommercialListing and
+  ShortletListing; the filter below queries it directly.
+- `subtype: str` (indexed) added to ShortletListing (hostel/hotel/
+  1-3_bedroom); the shortlet_subtype filter queries it directly.
+- Missing indexes backfilled on app/models/listing.py: Listing.created_at,
+  CommercialListing.deal_type/price/size_square_meters,
+  ShortletListing.nightly_price, and an explicit GiST index on
+  Listing.location_point.
 
-INDEX AUDIT (AGENTS.md: "every filterable/sortable field... backed by a
-database index"), against the current (read-only) models:
-- Listing.listing_type -- indexed (existing).
-- Listing.status -- indexed (existing); always filtered to "active" here.
-- Listing.location_city / location_state -- indexed (existing).
-- Listing.location_point -- Geography column; NEEDS an explicit GiST index
-  (`CREATE INDEX ... USING GIST (location_point)`) for ST_DWithin/<->
-  performance at scale. Not present in the model file or a migration today.
-  ACTION NEEDED.
-- Listing.created_at -- used for "newest" sort and as a keyset pagination
-  tiebreaker; NOT indexed today. ACTION NEEDED (btree index).
-- CommercialListing.property_subtype -- indexed (existing).
-- CommercialListing.deal_type -- NOT indexed today. ACTION NEEDED.
-- CommercialListing.price / ShortletListing.nightly_price -- used for
-  price filtering and "price" sort; NOT indexed today. ACTION NEEDED (btree
-  on each).
-- CommercialListing.size_square_meters -- used for size range filter; NOT
-  indexed today. ACTION NEEDED.
-- bathrooms -- see gap #1 above; index requested alongside the column.
-- HostAccount.status ("verified") -- indexed (existing) via host_type/status
-  columns, used for the "Verified Host" filter (joined through
-  Listing.host_account_id, itself indexed).
+REMAINING GAP: Embedding column for FEAT-031 -- schema.md's prose references
+vector embeddings for semantic search, but no embedding column/table is
+defined in schema.md's JSON Schema for Listing. Per FEAT-031's own
+acceptance criteria ("degrades gracefully to keyword/filter-only search...
+within a strict timeout"), this module implements ONLY the keyword/filter-only
+fallback path -- there is no ranking service to time out against yet, so
+`semantic_ranking_applied` is always False. Adding real semantic ranking
+needs a `pgvector` `Vector` column (e.g. `Listing.description_embedding`)
+plus an HNSW/IVFFlat index and a background (re)embedding worker -- deferred
+pending product sign-off, not implemented here.
 - amenities / legal_documents (JSON array columns) -- containment filtering
   (`amenities @> ['parking']`) on a JSON column is not index-friendly at
   Postgres scale; ACTION NEEDED: consider a GIN index if these columns are
@@ -154,13 +120,7 @@ def _build_base_query(filters: SearchFilters) -> tuple[Select, CommercialListing
         query = query.where(commercial.property_subtype == filters.commercial_subtype.value)
 
     if filters.shortlet_subtype is not None:
-        bedroom_map = {"1_bedroom": 1, "2_bedroom": 2, "3_bedroom": 3}
-        bedrooms = bedroom_map.get(filters.shortlet_subtype.value)
-        if bedrooms is not None:
-            query = query.where(shortlet.bedrooms == bedrooms)
-        # "hostel"/"hotel" cannot be filtered until ShortletListing gains a
-        # subtype column (see module docstring, gap #3) -- intentionally a
-        # no-op rather than raising, per graceful-degradation conventions.
+        query = query.where(shortlet.subtype == filters.shortlet_subtype.value)
 
     if filters.min_price is not None or filters.max_price is not None:
         price_conditions = []
@@ -185,20 +145,10 @@ def _build_base_query(filters: SearchFilters) -> tuple[Select, CommercialListing
     if filters.max_size_sqm is not None:
         query = query.where(commercial.size_square_meters <= filters.max_size_sqm)
 
-    # bathrooms -- schema gap #1. Guarded so this never raises AttributeError
-    # if the column is absent; becomes a real filter the moment it's added.
     if filters.bathrooms is not None:
-        commercial_bathrooms = getattr(commercial, "bathrooms", None)
-        shortlet_bathrooms = getattr(shortlet, "bathrooms", None)
-        if commercial_bathrooms is not None or shortlet_bathrooms is not None:
-            conditions = [
-                col == filters.bathrooms
-                for col in (commercial_bathrooms, shortlet_bathrooms)
-                if col is not None
-            ]
-            query = query.where(or_(*conditions))
-        # else: TODO(schema) -- bathrooms column not yet added; filter is a
-        # documented no-op until then (see module docstring gap #1).
+        query = query.where(
+            or_(commercial.bathrooms == filters.bathrooms, shortlet.bathrooms == filters.bathrooms)
+        )
 
     if filters.legal_documents:
         for doc in filters.legal_documents:
@@ -320,9 +270,9 @@ async def search_listings(
         is_commercial = listing.listing_type == "commercial"
         bathrooms_value = None
         if is_commercial and commercial is not None:
-            bathrooms_value = getattr(commercial, "bathrooms", None)
+            bathrooms_value = commercial.bathrooms
         elif not is_commercial and shortlet is not None:
-            bathrooms_value = getattr(shortlet, "bathrooms", None)
+            bathrooms_value = shortlet.bathrooms
 
         results.append(
             ListingSearchResult(
