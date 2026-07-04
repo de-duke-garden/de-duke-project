@@ -5,6 +5,22 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/listings/data/listing_repository.dart';
+import '../../features/listings/screens/create_listing_screen.dart';
+import '../../features/listings/screens/listing_detail_screen.dart';
+import '../api/api_client.dart';
+import '../auth/session_store.dart';
+
+// TODO: replace with real DI (e.g. Provider/Riverpod) once a shared
+// composition root exists; this is a minimal, additive wiring so the
+// listings feature's routes are independently functional. Base URL should
+// come from build-time config, not be hardcoded, once that lands.
+final ApiClient _listingsApiClient = ApiClient(
+  baseUrl: 'https://api.deduke.example',
+  sessionStore: SessionStore(),
+);
+final ListingRepository _listingRepository = ListingRepository(_listingsApiClient);
+
 class _PlaceholderScreen extends StatelessWidget {
   const _PlaceholderScreen({required this.routeName});
 
@@ -27,8 +43,17 @@ final GoRouter appRouter = GoRouter(
     GoRoute(path: '/become-host', builder: (context, state) => const _PlaceholderScreen(routeName: 'Become a Host')),
     GoRoute(path: '/home', builder: (context, state) => const _PlaceholderScreen(routeName: 'Home / Discovery')),
     GoRoute(path: '/search', builder: (context, state) => const _PlaceholderScreen(routeName: 'Search Results')),
-    GoRoute(path: '/listings/:id', builder: (context, state) => const _PlaceholderScreen(routeName: 'Listing Detail')),
-    GoRoute(path: '/listings/create', builder: (context, state) => const _PlaceholderScreen(routeName: 'Create Listing')),
+    GoRoute(
+      path: '/listings/:id',
+      builder: (context, state) => ListingDetailScreen(
+        listingId: state.pathParameters['id']!,
+        repository: _listingRepository,
+      ),
+    ),
+    GoRoute(
+      path: '/listings/create',
+      builder: (context, state) => CreateListingScreen(repository: _listingRepository),
+    ),
     GoRoute(path: '/chat/:conversationId', builder: (context, state) => const _PlaceholderScreen(routeName: 'Chat Conversation')),
     GoRoute(path: '/booking/:listingId', builder: (context, state) => const _PlaceholderScreen(routeName: 'Booking Confirmation')),
     GoRoute(path: '/checkout/:transactionId', builder: (context, state) => const _PlaceholderScreen(routeName: 'Checkout')),
