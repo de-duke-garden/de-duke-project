@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* De-Duke Admin Console -- base tokens applied at the root; per-page
+   overrides should never hardcode colors outside tailwind.config.ts. */
+:root {
+  --focus-ring: 2px solid #0F6E5C;
+}
+
+*:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}

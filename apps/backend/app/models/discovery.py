@@ -1,0 +1,48 @@
+"""SavedSearch + ShareableSummary + ListingAnalytics -- schema.md."""
+
+from datetime import UTC, date, datetime
+from uuid import uuid4
+
+from sqlmodel import Field, SQLModel
+
+
+class SavedSearch(SQLModel, table=True):
+    __tablename__ = "saved_searches"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    label: str
+    location_query: str
+    radius_km: float
+    # commercial | shortlet | null
+    listing_type: str | None = Field(default=None)
+    min_price: float | None = Field(default=None)
+    max_price: float | None = Field(default=None)
+    verified_only: bool = Field(default=False)
+    alerts_enabled: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ShareableSummary(SQLModel, table=True):
+    __tablename__ = "shareable_summaries"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    listing_id: str = Field(foreign_key="listings.id", index=True)
+    created_by_id: str = Field(foreign_key="users.id")
+    share_token: str = Field(unique=True, index=True)
+    is_revoked: bool = Field(default=False)
+    expires_at: datetime | None = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ListingAnalytics(SQLModel, table=True):
+    __tablename__ = "listing_analytics"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    listing_id: str = Field(foreign_key="listings.id", index=True)
+    range_start: date
+    range_end: date
+    view_count: int = Field(default=0)
+    inquiry_count: int = Field(default=0)
+    average_response_time_minutes: float | None = Field(default=None)
+    closed_at: datetime | None = Field(default=None)

@@ -8,3 +8,26 @@ docs/De-Duke/
 *.tfvars
 !*.tfvars.example
 crash.log
+
+# Python / backend
+**/__pycache__/
+**/.venv/
+**/.pytest_cache/
+**/*.egg-info/
+**/.ruff_cache/
+**/.mypy_cache/
+apps/backend/.env
+
+# Node / Next.js apps
+**/node_modules/
+**/.next/
+**/out/
+**/.eslintcache
+
+# Flutter / Dart
+apps/mobile/.dart_tool/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+apps/mobile/build/
+apps/mobile/.pub-cache/
+apps/mobile/*.iml
