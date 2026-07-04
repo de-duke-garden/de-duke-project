@@ -54,6 +54,3 @@ ignore = ["B008"]  # Depends(...) in argument defaults is the idiomatic FastAPI 
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
