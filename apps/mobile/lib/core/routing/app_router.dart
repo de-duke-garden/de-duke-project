@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/listings/data/listing_repository.dart';
 import '../../features/listings/screens/create_listing_screen.dart';
 import '../../features/listings/screens/listing_detail_screen.dart';
+import '../../features/search/screens/search_results_screen.dart';
 import '../api/api_client.dart';
 import '../auth/session_store.dart';
 
@@ -42,7 +43,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(path: '/auth/signup', builder: (context, state) => const _PlaceholderScreen(routeName: 'Sign Up')),
     GoRoute(path: '/become-host', builder: (context, state) => const _PlaceholderScreen(routeName: 'Become a Host')),
     GoRoute(path: '/home', builder: (context, state) => const _PlaceholderScreen(routeName: 'Home / Discovery')),
-    GoRoute(path: '/search', builder: (context, state) => const _PlaceholderScreen(routeName: 'Search Results')),
+    GoRoute(
+      path: '/search',
+      builder: (context, state) => SearchResultsScreen(initialQuery: state.uri.queryParameters['q']),
+    ),
     GoRoute(
       path: '/listings/:id',
       builder: (context, state) => ListingDetailScreen(
