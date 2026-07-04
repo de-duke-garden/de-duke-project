@@ -4,6 +4,7 @@ first release (AGENTS.md, architecture.md API Contract Stability)."""
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    account_deletion,
     auth,
     bookings,
     chat_auth,
@@ -20,6 +21,9 @@ from app.api.v1 import (
 router = APIRouter(prefix="/v1")
 router.include_router(auth.router, prefix="/auth", tags=["auth"])
 router.include_router(host_accounts.router, prefix="/host-accounts", tags=["host-accounts"])
+router.include_router(
+    account_deletion.router, prefix="/account-deletion", tags=["account-deletion"]
+)
 router.include_router(listings.router, prefix="/listings", tags=["listings"])
 router.include_router(moderation.router, prefix="/moderation", tags=["moderation"])
 router.include_router(search.router, prefix="/search", tags=["search"])
