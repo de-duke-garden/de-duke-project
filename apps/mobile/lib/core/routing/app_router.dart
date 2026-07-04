@@ -5,6 +5,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/search/screens/search_results_screen.dart';
+
 class _PlaceholderScreen extends StatelessWidget {
   const _PlaceholderScreen({required this.routeName});
 
@@ -26,7 +28,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(path: '/auth/signup', builder: (context, state) => const _PlaceholderScreen(routeName: 'Sign Up')),
     GoRoute(path: '/become-host', builder: (context, state) => const _PlaceholderScreen(routeName: 'Become a Host')),
     GoRoute(path: '/home', builder: (context, state) => const _PlaceholderScreen(routeName: 'Home / Discovery')),
-    GoRoute(path: '/search', builder: (context, state) => const _PlaceholderScreen(routeName: 'Search Results')),
+    GoRoute(
+      path: '/search',
+      builder: (context, state) => SearchResultsScreen(initialQuery: state.uri.queryParameters['q']),
+    ),
     GoRoute(path: '/listings/:id', builder: (context, state) => const _PlaceholderScreen(routeName: 'Listing Detail')),
     GoRoute(path: '/listings/create', builder: (context, state) => const _PlaceholderScreen(routeName: 'Create Listing')),
     GoRoute(path: '/chat/:conversationId', builder: (context, state) => const _PlaceholderScreen(routeName: 'Chat Conversation')),
