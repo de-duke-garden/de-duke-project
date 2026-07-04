@@ -31,3 +31,4 @@ apps/mobile/.flutter-plugins-dependencies
 apps/mobile/build/
 apps/mobile/.pub-cache/
 apps/mobile/*.iml
+*.tsbuildinfo

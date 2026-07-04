@@ -20,6 +20,28 @@ def test_register_with_email_and_password(client: TestClient) -> None:
     assert body["role"] == "seeker"
 
 
+def test_me_returns_current_user_identity(client: TestClient) -> None:
+    """GET /v1/auth/me resolves the caller's identity from their token --
+    used by the Admin Web Console's session layer."""
+    register = client.post(
+        "/v1/auth/register",
+        json={"full_name": "Amaka Okafor", "email": "me-check@example.com", "password": "supersecret1"},
+    )
+    token = register.json()["access_token"]
+
+    response = client.get("/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["email"] == "me-check@example.com"
+    assert body["role"] == "seeker"
+    assert body["is_active"] is True
+
+
+def test_me_requires_authentication(client: TestClient) -> None:
+    response = client.get("/v1/auth/me")
+    assert response.status_code in (401, 403)  # HTTPBearer rejects missing credentials
+
+
 def test_register_duplicate_email_rejected(client: TestClient) -> None:
     client.post(
         "/v1/auth/register",

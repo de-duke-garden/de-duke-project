@@ -3,13 +3,16 @@
 Router stays thin; all logic lives in app.services.auth_service per AGENTS.md.
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.core.security import CurrentUser, get_current_user
+from app.models.user import User
 from app.schemas.auth import (
     AuthTokenResponse,
+    CurrentUserResponse,
     ForgotPasswordRequest,
     LoginRequest,
     RefreshRequest,
@@ -21,6 +24,33 @@ from app.schemas.auth import (
 from app.services import auth_service
 
 router = APIRouter()
+
+
+@router.get("/me", response_model=CurrentUserResponse)
+async def get_me(
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> CurrentUserResponse:
+    """Resolves the caller's identity from their access token.
+
+    Used by server-side consumers (e.g. the Admin Web Console's session
+    layer) that need to validate a session and read the current role
+    without holding the JWT signing secret themselves -- they call this
+    endpoint with the bearer token instead of decoding the JWT locally.
+    """
+    result = await session.execute(select(User).where(User.id == current_user.user_id))
+    user = result.scalars().first()
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=401, detail="Session is no longer valid.")
+    return CurrentUserResponse(
+        user_id=user.id,
+        role=user.role,
+        full_name=user.full_name,
+        email=user.email,
+        phone_number=user.phone_number,
+        is_verified_host=user.is_verified_host,
+        is_active=user.is_active,
+    )
 
 
 @router.post("/register", response_model=AuthTokenResponse, status_code=status.HTTP_201_CREATED)

@@ -65,6 +65,21 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
+class CurrentUserResponse(BaseModel):
+    """GET /v1/auth/me -- resolves the caller's identity from their access
+    token. Used by server-side consumers (e.g. the Admin Web Console) that
+    need to validate a session and read the current role without holding
+    the JWT signing secret themselves."""
+
+    user_id: str
+    role: str
+    full_name: str
+    email: str | None
+    phone_number: str | None
+    is_verified_host: bool
+    is_active: bool
+
+
 class AuthTokenResponse(BaseModel):
     """Returned on successful register/login/refresh. Session persists across
     app restarts per FEAT-001 -- the mobile client stores access_token in
