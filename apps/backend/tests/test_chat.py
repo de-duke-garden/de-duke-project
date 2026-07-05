@@ -149,9 +149,7 @@ def client() -> TestClient:
 
 
 def _override_current_user(role: UserRole) -> None:
-    app.dependency_overrides[get_current_user] = lambda: CurrentUser(
-        user_id="user-1", role=role
-    )
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(user_id="user-1", role=role)
 
 
 @pytest.fixture(autouse=True)

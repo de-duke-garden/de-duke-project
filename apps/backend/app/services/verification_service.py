@@ -99,8 +99,7 @@ async def submit_host_account(
         upload = files_by_temp_key.get(doc.temp_key)
         if upload is None:
             detail = (
-                f"Missing file for declared document field '{doc.field}' "
-                f"(temp_key={doc.temp_key})."
+                f"Missing file for declared document field '{doc.field}' (temp_key={doc.temp_key})."
             )
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
         document_urls[doc.field] = await _store_file(upload)

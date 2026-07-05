@@ -25,9 +25,7 @@ class TestDeriveStatusForNewListing:
         assert status_value == "under_review"
         assert reason is None
 
-    @pytest.mark.parametrize(
-        "host_type", ["agent", "company", "lawyer", "architect", "surveyor"]
-    )
+    @pytest.mark.parametrize("host_type", ["agent", "company", "lawyer", "architect", "surveyor"])
     def test_non_owner_types_auto_approve(self, host_type: str) -> None:
         status_value, reason = derive_status_for_new_listing(host_type)
         assert status_value == "active"
@@ -67,8 +65,6 @@ class TestDatesOverlap:
     )
 )
 class TestIsListingAvailableIntegration:
-    async def test_conflict_from_transaction(self) -> None:
-        ...
+    async def test_conflict_from_transaction(self) -> None: ...
 
-    async def test_conflict_from_blocked_dates(self) -> None:
-        ...
+    async def test_conflict_from_blocked_dates(self) -> None: ...

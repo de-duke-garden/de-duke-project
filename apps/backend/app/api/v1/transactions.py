@@ -84,9 +84,7 @@ async def get_transaction(
     session: AsyncSession = Depends(get_session),
 ) -> TransactionDetail:
     txn = await _get_owned_transaction(session, transaction_id, current_user.user_id)
-    receipt_result = await session.execute(
-        select(Receipt).where(Receipt.transaction_id == txn.id)
-    )
+    receipt_result = await session.execute(select(Receipt).where(Receipt.transaction_id == txn.id))
     receipt = receipt_result.scalar_one_or_none()
     return TransactionDetail(
         id=txn.id,

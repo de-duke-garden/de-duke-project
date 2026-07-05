@@ -67,11 +67,7 @@ async def _load_listing_bundle(session: AsyncSession, listing_id: str) -> dict:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
 
     images = list(
-        (
-            await session.execute(
-                select(ListingImage).where(ListingImage.listing_id == listing_id)
-            )
-        )
+        (await session.execute(select(ListingImage).where(ListingImage.listing_id == listing_id)))
         .scalars()
         .all()
     )
@@ -238,9 +234,7 @@ async def upload_listing_images_endpoint(
     try:
         meta_list = [ImageMetaIn(**item) for item in json.loads(raw_meta)]
     except (json.JSONDecodeError, ValidationError, TypeError) as exc:
-        raise HTTPException(
-            status_code=422, detail=f"Invalid images_meta: {exc}"
-        ) from exc
+        raise HTTPException(status_code=422, detail=f"Invalid images_meta: {exc}") from exc
 
     created: list[ListingImage] = []
     for meta in meta_list:

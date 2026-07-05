@@ -144,9 +144,7 @@ class TestSearchEndpointValidation:
         assert response.status_code == 422
 
     def test_min_price_over_max_price_returns_422(self) -> None:
-        response = client.get(
-            "/v1/search/listings", params={"min_price": 1000, "max_price": 100}
-        )
+        response = client.get("/v1/search/listings", params={"min_price": 1000, "max_price": 100})
         assert response.status_code == 422
 
 

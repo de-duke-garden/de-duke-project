@@ -41,9 +41,7 @@ async def initiate_checkout(
         )
         txn = result.scalar_one_or_none()
         if txn is None or txn.payer_id != current_user.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
         if not is_hold_active(txn):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -119,8 +117,6 @@ async def paystack_webhook(
             data=payload.get("data", {}),
         )
     except WebhookVerificationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
     return {"status": "ok"}

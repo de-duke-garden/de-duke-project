@@ -21,9 +21,7 @@ def test_queue_requires_auth() -> None:
 
 def test_queue_rejects_non_staff_role() -> None:
     token = _token(UserRole.SEEKER)
-    response = client.get(
-        "/v1/moderation/queue", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get("/v1/moderation/queue", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 403
 
 
