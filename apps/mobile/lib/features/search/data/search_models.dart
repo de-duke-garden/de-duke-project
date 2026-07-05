@@ -19,6 +19,10 @@ enum SortField { price, distance, newest }
 
 enum SortDirection { asc, desc }
 
+extension SortDirectionX on SortDirection {
+  String get apiValue => name;
+}
+
 extension ListingTypeFilterX on ListingTypeFilter {
   String get apiValue => name;
 }

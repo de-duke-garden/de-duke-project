@@ -1,0 +1,5 @@
+
+# FVM Version Cache -- fvm_config.json (pins the Flutter SDK version for the
+# team) IS tracked; only the local SDK symlink/cache is ignored.
+.fvm/flutter_sdk
+.fvm/versions
