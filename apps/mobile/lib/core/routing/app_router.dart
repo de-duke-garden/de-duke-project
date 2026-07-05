@@ -8,6 +8,10 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/screens/auth_screen.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
+import '../../features/become_host/data/host_account_models.dart';
+import '../../features/become_host/data/host_account_repository.dart';
+import '../../features/become_host/screens/document_submission_screen.dart';
+import '../../features/become_host/screens/host_type_selection_screen.dart';
 import '../../features/listings/data/listing_repository.dart';
 import '../../features/listings/screens/create_listing_screen.dart';
 import '../../features/listings/screens/listing_detail_screen.dart';
@@ -30,6 +34,12 @@ final ApiClient _authApiClient = ApiClient(
   sessionStore: SessionStore(),
 );
 final AuthRepository _authRepository = AuthRepository(_authApiClient, SessionStore());
+
+final ApiClient _hostAccountApiClient = ApiClient(
+  baseUrl: 'https://api.deduke.example',
+  sessionStore: SessionStore(),
+);
+final HostAccountRepository _hostAccountRepository = HostAccountRepository(_hostAccountApiClient);
 
 class _PlaceholderScreen extends StatelessWidget {
   const _PlaceholderScreen({required this.routeName});
@@ -60,7 +70,17 @@ final GoRouter appRouter = GoRouter(
       path: '/auth/forgot-password',
       builder: (context, state) => ForgotPasswordScreen(repository: _authRepository),
     ),
-    GoRoute(path: '/become-host', builder: (context, state) => const _PlaceholderScreen(routeName: 'Become a Host')),
+    GoRoute(
+      path: '/become-host',
+      builder: (context, state) => HostTypeSelectionScreen(repository: _hostAccountRepository),
+    ),
+    GoRoute(
+      path: '/become-host/:hostType',
+      builder: (context, state) => DocumentSubmissionScreen(
+        repository: _hostAccountRepository,
+        hostType: hostTypeFromApiValue(state.pathParameters['hostType']!),
+      ),
+    ),
     GoRoute(path: '/home', builder: (context, state) => const _PlaceholderScreen(routeName: 'Home / Discovery')),
     GoRoute(
       path: '/search',
