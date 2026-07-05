@@ -57,3 +57,5 @@ ignore = ["B008"]  # Depends(...) in argument defaults is the idiomatic FastAPI 
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
+explicit_package_bases = true
+mypy_path = "."
