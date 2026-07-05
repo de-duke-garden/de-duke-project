@@ -1,0 +1,46 @@
+# Admin Web Console -- PR checks (typecheck, lint, build). Deploy to
+# Vercel happens separately in admin-console-deploy.yml on merge to main.
+name: Admin Console CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/admin-console/**"
+      - ".github/workflows/admin-console-ci.yml"
+
+defaults:
+  run:
+    working-directory: apps/admin-console
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/admin-console/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx next lint
+
+      - name: Build
+        # Uses placeholder env values -- this only proves the build compiles,
+        # it does not talk to a real backend/Firebase project. Real values
+        # live in Vercel own project environment variables (see
+        # admin-console-deploy.yml), never in this repo.
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/v1
+          BACKEND_API_URL: http://localhost:8000
+          NEXT_PUBLIC_FIREBASE_API_KEY: build-placeholder
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: build-placeholder
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: build-placeholder
+        run: npm run build

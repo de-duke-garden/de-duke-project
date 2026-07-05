@@ -1,0 +1,40 @@
+# Marketing Website -- PR checks (typecheck, lint, build).
+#
+# architecture.md calls this out as a genuinely separate application with
+# its own lightweight CI/CD, deliberately excluded from the backend
+# pipeline. Kept in this monorepo for now (per project decision), but as
+# its own workflow files scoped to apps/marketing-site/ only, so it never
+# blocks or is blocked by backend/admin-console changes.
+name: Marketing Site CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/marketing-site/**"
+      - ".github/workflows/marketing-site-ci.yml"
+
+defaults:
+  run:
+    working-directory: apps/marketing-site
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/marketing-site/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        # Static export (see architecture.md: SSG, CDN-served) -- no env
+        # vars needed, this app has zero backend/database dependency.
+        run: npm run build

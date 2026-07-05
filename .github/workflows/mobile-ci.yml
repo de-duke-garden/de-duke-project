@@ -1,0 +1,49 @@
+# Flutter mobile app -- static analysis + unit tests on every PR/push
+# touching apps/mobile/. Not part of architecture.md's backend CI/CD
+# pipeline (the mobile app ships to app stores, not this repo's cloud
+# infra) -- this is verification only, no deploy step. App store
+# submission is a manual release process, not automated here.
+name: Mobile CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-ci.yml"
+
+defaults:
+  run:
+    working-directory: apps/mobile
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Matches apps/mobile/.fvmrc -- keep these in sync. CI installs
+          # Flutter directly (fvm itself is a local-dev convenience, not
+          # needed once the exact version is pinned in a CI action).
+          flutter-version: "3.44.4"
+          channel: "stable"
+          cache: true
+
+      - name: Copy env template (no real backend needed for analyze/test)
+        run: cp .env.example.json .env.json
+
+      - run: flutter pub get
+
+      - name: dart format (check only)
+        run: dart format --set-exit-if-changed .
+
+      - run: flutter analyze
+
+      - run: flutter test

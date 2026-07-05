@@ -1,0 +1,215 @@
+# Backend API Service -- build, push, and deploy. Implements the pipeline
+# described in architecture.md's "Infrastructure as Code & CI/CD" section:
+#   1. (backend-ci.yml) tests + static analysis on every PR.
+#   2. Build a container image, push to Amazon ECR.                 <- this file
+#   3. `terraform plan` for review, `terraform apply` when approved. <- this file
+#   4. Rolling deploy to Fargate (terraform apply updates the task
+#      definition's image tag; ECS itself performs the rolling update).
+#   5. Smoke test the live deploy; roll back automatically on failure.
+#
+# ONLY the `development` environment is wired below -- staging/production
+# are not yet scaffolded under infra/environments/ (see infra/README.md).
+# Extend the job matrix once those exist; the docs' "changes land in
+# Staging and are validated there before a Production deploy is
+# triggered" ordering maps directly onto sequential GitHub Environments
+# (`environment: staging` then `environment: production`), each
+# configurable with required-reviewer protection rules in repo
+# Settings -> Environments (not expressible in this YAML file itself).
+#
+# Required GitHub repo configuration (Settings -> Secrets and variables):
+#   Secrets:
+#     AWS_ROLE_TO_ASSUME    - IAM role ARN this workflow assumes via OIDC
+#                             (no long-lived AWS access keys stored in GitHub)
+#     TF_GCP_PROJECT_ID     - infra/environments/development's gcp_project_id
+#     TF_AWS_ACCOUNT_SUFFIX - infra/environments/development's aws_account_suffix
+#   Variables:
+#     AWS_REGION             - e.g. eu-west-1
+#     TF_STATE_BUCKET        - infra/bootstrap's state_bucket_name output
+#     TF_ACM_CERTIFICATE_ARN - (optional, blank until a domain/cert exists)
+#   Environments (Settings -> Environments): `development` (create it even
+#     with no protection rules yet, so the `environment:` key below resolves)
+name: Backend Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/backend/**"
+      - "infra/**"
+      - ".github/workflows/backend-deploy.yml"
+
+permissions:
+  id-token: write # required for AWS OIDC federation (no static access keys)
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.value }}
+      ecr_repository_url: ${{ steps.ecr.outputs.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image tag
+        id: tag
+        # Git SHA, never `latest` -- infra/modules/ecr sets
+        # image_tag_mutability = "IMMUTABLE", so a reused tag would fail to
+        # push on the second deploy.
+        run: echo "value=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve ECR repository URL
+        id: ecr
+        # Name is fixed in infra/modules/ecr/main.tf -- read it directly
+        # instead of requiring a `terraform output` round-trip just to push
+        # an image (terraform apply happens later in this same workflow).
+        run: |
+          REPO_URL=$(aws ecr describe-repositories \
+            --repository-names de-duke/backend-api \
+            --query "repositories[0].repositoryUri" --output text)
+          echo "repository=${REPO_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        working-directory: apps/backend
+        run: |
+          docker build \
+            -t "${{ steps.ecr.outputs.repository }}:${{ steps.tag.outputs.value }}" \
+            .
+
+      - name: Push image
+        run: docker push "${{ steps.ecr.outputs.repository }}:${{ steps.tag.outputs.value }}"
+
+  deploy-development:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: development
+    outputs:
+      previous_image_tag: ${{ steps.previous-tag.outputs.value }}
+      alb_dns_name: ${{ steps.tf-outputs.outputs.alb_dns_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+
+      - name: Capture currently-deployed image tag (for rollback)
+        id: previous-tag
+        run: |
+          CURRENT_TAG=$(aws ecs describe-task-definition \
+            --task-definition development-de-duke-api \
+            --query "taskDefinition.containerDefinitions[0].image" --output text \
+            | sed "s/.*://") || CURRENT_TAG=""
+          echo "value=${CURRENT_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: terraform init
+        working-directory: infra/environments/development
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=development/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="use_lockfile=true"
+
+      - name: terraform plan
+        working-directory: infra/environments/development
+        run: |
+          terraform plan \
+            -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
+            -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
+            -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
+            -var="image_tag=${{ needs.build-and-push.outputs.image_tag }}" \
+            -out=tfplan
+
+      # Gated by the `environment: development` protection rule configured
+      # in repo Settings -> Environments -- add a required reviewer there
+      # for any environment where "terraform apply for approved
+      # infrastructure changes" (architecture.md) should mean a human
+      # actually approves it, not just a green test suite.
+      - name: terraform apply
+        working-directory: infra/environments/development
+        run: terraform apply -auto-approve tfplan
+
+      - name: Capture Terraform outputs
+        id: tf-outputs
+        working-directory: infra/environments/development
+        run: echo "alb_dns_name=$(terraform output -raw alb_dns_name)" >> "$GITHUB_OUTPUT"
+
+  smoke-test:
+    needs: deploy-development
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for rolling deploy to finish, then hit /health/ready
+        # architecture.md step 5: "automated functional smoke tests, plus a
+        # lightweight performance smoke test ... a failure ... triggers an
+        # automatic rollback." This is the functional half; the lightweight
+        # performance subset (Load Testing & Performance Validation) is a
+        # separate, not-yet-built suite -- see roadmap.md's Launch Gate.
+        run: |
+          URL="http://${{ needs.deploy-development.outputs.alb_dns_name }}/health/ready"
+          for i in $(seq 1 10); do
+            if curl -fsS "$URL"; then
+              echo "Smoke test passed."
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
+          echo "Smoke test failed after 10 attempts."
+          exit 1
+
+  rollback:
+    needs: [build-and-push, deploy-development, smoke-test]
+    if: failure() && needs.deploy-development.outputs.previous_image_tag != ''
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+
+      - name: terraform init
+        working-directory: infra/environments/development
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=development/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="use_lockfile=true"
+
+      - name: Re-apply the previously-deployed image tag
+        working-directory: infra/environments/development
+        run: |
+          terraform apply -auto-approve \
+            -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
+            -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
+            -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
+            -var="image_tag=${{ needs.deploy-development.outputs.previous_image_tag }}"

@@ -1,0 +1,54 @@
+# Backend API Service -- PR checks. Per architecture.md's CI/CD pipeline
+# step 1: "Runs automated tests (unit, integration) and static analysis on
+# every pull request." Deploy (build/push/terraform apply) happens only in
+# backend-deploy.yml, triggered separately on merge to main.
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/backend/**"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+defaults:
+  run:
+    working-directory: apps/backend
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Ruff (lint)
+        run: ruff check .
+
+      - name: Ruff (format check)
+        run: ruff format --check .
+
+      - name: mypy
+        # NOTE: the backend currently has ~147 pre-existing strict-mode type
+        # errors accumulated before mypy could actually run here (a module
+        # resolution config bug silently blocked every previous local run).
+        # Non-blocking until a dedicated typing cleanup pass lands -- flip
+        # this to a hard failure once that debt is paid down. Never let a
+        # long-standing, unrelated backlog block unrelated PRs in the
+        # meantime.
+        run: mypy .
+        continue-on-error: true
+
+      - name: pytest
+        run: pytest -q
