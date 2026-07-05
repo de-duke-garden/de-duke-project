@@ -32,61 +32,63 @@ import '../../features/transactions/data/transactions_repository.dart';
 import '../../features/transactions/screens/transaction_history_screen.dart';
 import '../api/api_client.dart';
 import '../auth/session_store.dart';
+import '../config/env.dart';
 
 // TODO: replace with real DI (e.g. Provider/Riverpod) once a shared
 // composition root exists; this is a minimal, additive wiring so each
-// feature's routes are independently functional. Base URL should come
-// from build-time config, not be hardcoded, once that lands.
+// feature's routes are independently functional. Base URL comes from
+// AppConfig.apiBaseUrl (build-time --dart-define-from-file=.env.json),
+// never hardcoded.
 final ApiClient _listingsApiClient = ApiClient(
-  baseUrl: 'https://api.deduke.example',
+  baseUrl: AppConfig.apiBaseUrl,
   sessionStore: SessionStore(),
 );
 final ListingRepository _listingRepository =
     ListingRepository(_listingsApiClient);
 
 final ApiClient _authApiClient = ApiClient(
-  baseUrl: 'https://api.deduke.example',
+  baseUrl: AppConfig.apiBaseUrl,
   sessionStore: SessionStore(),
 );
 final AuthRepository _authRepository =
     AuthRepository(_authApiClient, SessionStore());
 
 final ApiClient _hostAccountApiClient = ApiClient(
-  baseUrl: 'https://api.deduke.example',
+  baseUrl: AppConfig.apiBaseUrl,
   sessionStore: SessionStore(),
 );
 final HostAccountRepository _hostAccountRepository =
     HostAccountRepository(_hostAccountApiClient);
 
 final ApiClient _accountDeletionApiClient = ApiClient(
-  baseUrl: 'https://api.deduke.example',
+  baseUrl: AppConfig.apiBaseUrl,
   sessionStore: SessionStore(),
 );
 final AccountDeletionRepository _accountDeletionRepository =
     AccountDeletionRepository(_accountDeletionApiClient);
 
 final ApiClient _chatApiClient = ApiClient(
-  baseUrl: 'https://api.deduke.example',
+  baseUrl: AppConfig.apiBaseUrl,
   sessionStore: SessionStore(),
 );
 final ChatRepository _chatRepository =
     ChatRepository(chatApi: ChatApi(_chatApiClient));
 
 final ApiClient _bookingApiClient = ApiClient(
-  baseUrl: 'https://api.deduke.example',
+  baseUrl: AppConfig.apiBaseUrl,
   sessionStore: SessionStore(),
 );
 final BookingApi _bookingApi = BookingApi(_bookingApiClient);
 
 final ApiClient _checkoutApiClient = ApiClient(
-  baseUrl: 'https://api.deduke.example',
+  baseUrl: AppConfig.apiBaseUrl,
   sessionStore: SessionStore(),
 );
 final CheckoutRepository _checkoutRepository =
     CheckoutRepository(_checkoutApiClient);
 
 final ApiClient _transactionsApiClient = ApiClient(
-  baseUrl: 'https://api.deduke.example',
+  baseUrl: AppConfig.apiBaseUrl,
   sessionStore: SessionStore(),
 );
 final TransactionsRepository _transactionsRepository =

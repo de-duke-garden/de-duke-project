@@ -33,3 +33,4 @@ apps/mobile/.pub-cache/
 apps/mobile/*.iml
 *.tsbuildinfo
 apps/mobile/.idea/
+apps/mobile/.env.json

@@ -85,7 +85,7 @@ Naming: snake_case for Python modules/files, PascalCase for Dart classes and Pyt
 - Never implement a negotiation/offer/counter-offer UI or endpoint anywhere — all pricing is fixed, per `features.md` FEAT-011's removal note.
 - Enforce role/permission checks server-side, never rely on hiding UI elements client-side (Staff vs Admin, Owner vs professionally-verified host types).
 - Rate limiting and hold-expiry counters live in the shared Cache (Redis) — never per-task in-memory state, since the backend runs as many stateless Fargate tasks.
-- Never commit secrets (`.env`, service account JSON, DB credentials) — use the Secrets Store / local `.env.example` only.
+- Never commit secrets (`.env`, `.env.json`, service account JSON, DB credentials) — use the Secrets Store / local `.env.example` (or `.env.example.json` for mobile) only. Never hardcode a backend URL, API key, or secret directly in source for any app -- always go through the relevant env file.
 - Prefer creating new commits over amending; use feature branches; PRs run tests + lint via GitHub Actions before merge.
 - **Commit messages must follow Conventional Commits** (`type(scope): description`, e.g. `feat(mobile): add host verification upload flow`, `fix(backend): correct commission rounding`). Allowed types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `ci`, `build`. Scope should name the app/module (`mobile`, `backend`, `admin-console`, `marketing-site`, `infra`).
 - Every filterable/sortable field exposed in the UI (FEAT-007) must be backed by a database index — never ship an unindexed "coming soon" filter.
@@ -115,8 +115,10 @@ _To be finalized per app at scaffold time; conventions below:_
 
 **Mobile (`apps/mobile/`):**
 - `flutter pub get` — install dependencies
-- `flutter run` — run app
+- Copy `.env.example.json` → `.env.json` (gitignored) and fill in real values before running; never hardcode config (e.g. `API_BASE_URL`) in Dart source — see `apps/mobile/lib/core/config/env.dart`
+- `flutter run --dart-define-from-file=.env.json` — run app
 - `flutter test` — unit/widget tests
+- `flutter test integration_test/ --dart-define-from-file=.env.json` — integration tests
 - `flutter analyze` — static analysis
 - `dart format --set-exit-if-changed .` — format check
 

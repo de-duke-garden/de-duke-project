@@ -10,15 +10,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/session_store.dart';
+import '../../../core/config/env.dart';
 import '../data/search_models.dart';
 import '../data/search_repository.dart';
 
 /// TODO(shared core): replace with the app-wide ApiClient/base-URL provider
 /// once one exists in core/ -- duplicated minimally here so this feature
-/// slice is runnable standalone without editing shared files.
+/// slice is runnable standalone without editing shared files. Uses the
+/// same AppConfig.apiBaseUrl as the rest of the app so the search feature
+/// never silently points at a different backend host.
 final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient(
-    baseUrl: const String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8000'),
+    baseUrl: AppConfig.apiBaseUrl,
     sessionStore: SessionStore(),
   );
 });
