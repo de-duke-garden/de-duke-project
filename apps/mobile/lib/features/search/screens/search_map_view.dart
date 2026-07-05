@@ -39,15 +39,19 @@ class _SearchMapViewState extends State<SearchMapView> {
   Widget build(BuildContext context) {
     final initialTarget = widget.results.isNotEmpty
         ? LatLng(widget.results.first.latitude, widget.results.first.longitude)
-        : const LatLng(6.5244, 3.3792); // Lagos, Nigeria -- sensible default center
+        : const LatLng(
+            6.5244, 3.3792); // Lagos, Nigeria -- sensible default center
 
     return Stack(
       children: [
         GoogleMap(
-          initialCameraPosition: CameraPosition(target: initialTarget, zoom: 13),
+          initialCameraPosition:
+              CameraPosition(target: initialTarget, zoom: 13),
           onCameraMove: (position) {
             _lastMovedCamera = position;
-            if (!_showSearchThisArea) setState(() => _showSearchThisArea = true);
+            if (!_showSearchThisArea) {
+              setState(() => _showSearchThisArea = true);
+            }
           },
           markers: widget.results
               .map(
@@ -56,7 +60,9 @@ class _SearchMapViewState extends State<SearchMapView> {
                   position: LatLng(result.latitude, result.longitude),
                   infoWindow: InfoWindow(
                     title: result.title,
-                    snippet: result.displayPrice != null ? '₦${result.displayPrice!.toStringAsFixed(0)}' : null,
+                    snippet: result.displayPrice != null
+                        ? '₦${result.displayPrice!.toStringAsFixed(0)}'
+                        : null,
                     onTap: () => widget.onMarkerTap(result.id),
                   ),
                 ),
@@ -75,9 +81,11 @@ class _SearchMapViewState extends State<SearchMapView> {
                   widget.onSearchThisArea(target.latitude, target.longitude);
                   setState(() => _showSearchThisArea = false);
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary),
                 icon: const Icon(Icons.search, color: Colors.white, size: 18),
-                label: const Text('Search this area', style: TextStyle(color: Colors.white)),
+                label: const Text('Search this area',
+                    style: TextStyle(color: Colors.white)),
               ),
             ),
           ),

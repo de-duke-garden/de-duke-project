@@ -62,7 +62,8 @@ class ListingRepository {
       'images_meta': jsonEncode(images.map((i) => i.toMetaJson()).toList()),
     };
     for (final image in images) {
-      formMap['file_${image.tempKey}'] = await MultipartFile.fromFile(image.localPath);
+      formMap['file_${image.tempKey}'] =
+          await MultipartFile.fromFile(image.localPath);
     }
     await _apiClient.dio.post(
       '/v1/listings/$listingId/images',
@@ -85,8 +86,9 @@ class ListingRepository {
     final data = response.data as Map<String, dynamic>;
     return (
       available: data['available'] as bool,
-      conflictingDates:
-          (data['conflicting_dates'] as List? ?? []).map((e) => e as String).toList(),
+      conflictingDates: (data['conflicting_dates'] as List? ?? [])
+          .map((e) => e as String)
+          .toList(),
     );
   }
 }

@@ -16,7 +16,8 @@ Future<void> showSearchFilterSheet({
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (context) => _FilterSheetContent(current: current, onApply: onApply),
+    builder: (context) =>
+        _FilterSheetContent(current: current, onApply: onApply),
   );
 }
 
@@ -53,9 +54,12 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Filters', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  const Text('Filters',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                   TextButton(
-                    onPressed: () => setState(() => _draft = _draft.clearAllFilters()),
+                    onPressed: () =>
+                        setState(() => _draft = _draft.clearAllFilters()),
                     child: const Text('Clear all'),
                   ),
                 ],
@@ -84,8 +88,10 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
                     widget.onApply(_draft);
                     Navigator.of(context).pop();
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                  child: const Text('Apply filters', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary),
+                  child: const Text('Apply filters',
+                      style: TextStyle(color: Colors.white)),
                 ),
               ),
             ],
@@ -131,17 +137,22 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
   }
 
   Widget _buildDealTypeRow() {
-    if (_draft.listingType == ListingTypeFilter.shortlet) return const SizedBox.shrink();
+    if (_draft.listingType == ListingTypeFilter.shortlet) {
+      return const SizedBox.shrink();
+    }
     return _FilterSection(
       label: 'Deal type',
       child: Wrap(
         spacing: AppSpacing.sm,
         children: DealTypeFilter.values.map((dealType) {
           return ChoiceChip(
-            label: Text(dealType.name[0].toUpperCase() + dealType.name.substring(1)),
+            label: Text(
+                dealType.name[0].toUpperCase() + dealType.name.substring(1)),
             selected: _draft.dealType == dealType,
             onSelected: (selected) => setState(() {
-              _draft = _draft.copyWith(dealType: selected ? dealType : null, clearDealType: !selected);
+              _draft = _draft.copyWith(
+                  dealType: selected ? dealType : null,
+                  clearDealType: !selected);
             }),
           );
         }).toList(),
@@ -203,14 +214,17 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
         labels: RangeLabels(min.toStringAsFixed(0), max.toStringAsFixed(0)),
         activeColor: AppColors.primary,
         onChanged: (values) => setState(() {
-          _draft = _draft.copyWith(minPrice: values.start, maxPrice: values.end);
+          _draft =
+              _draft.copyWith(minPrice: values.start, maxPrice: values.end);
         }),
       ),
     );
   }
 
   Widget _buildSizeRange() {
-    if (_draft.listingType == ListingTypeFilter.shortlet) return const SizedBox.shrink();
+    if (_draft.listingType == ListingTypeFilter.shortlet) {
+      return const SizedBox.shrink();
+    }
     final min = _draft.minSizeSqm ?? 0;
     final max = _draft.maxSizeSqm ?? 2000;
     return _FilterSection(
@@ -223,7 +237,8 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
         labels: RangeLabels(min.toStringAsFixed(0), max.toStringAsFixed(0)),
         activeColor: AppColors.primary,
         onChanged: (values) => setState(() {
-          _draft = _draft.copyWith(minSizeSqm: values.start, maxSizeSqm: values.end);
+          _draft =
+              _draft.copyWith(minSizeSqm: values.start, maxSizeSqm: values.end);
         }),
       ),
     );
@@ -241,7 +256,9 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
             label: Text('$count+'),
             selected: _draft.bathrooms == count,
             onSelected: (selected) => setState(() {
-              _draft = _draft.copyWith(bathrooms: selected ? count : null, clearBathrooms: !selected);
+              _draft = _draft.copyWith(
+                  bathrooms: selected ? count : null,
+                  clearBathrooms: !selected);
             }),
           );
         }).toList(),
@@ -253,11 +270,13 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text('Verified Host only', style: TextStyle(fontWeight: FontWeight.w600)),
+        const Text('Verified Host only',
+            style: TextStyle(fontWeight: FontWeight.w600)),
         Switch(
           value: _draft.verifiedOnly,
           activeThumbColor: AppColors.primary,
-          onChanged: (value) => setState(() => _draft = _draft.copyWith(verifiedOnly: value)),
+          onChanged: (value) =>
+              setState(() => _draft = _draft.copyWith(verifiedOnly: value)),
         ),
       ],
     );
@@ -269,10 +288,13 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
       child: DropdownButtonFormField<SortField>(
         initialValue: _draft.sortBy,
         items: SortField.values
-            .map((field) => DropdownMenuItem(value: field, child: Text(field.label)))
+            .map((field) =>
+                DropdownMenuItem(value: field, child: Text(field.label)))
             .toList(),
         onChanged: (value) {
-          if (value != null) setState(() => _draft = _draft.copyWith(sortBy: value));
+          if (value != null) {
+            setState(() => _draft = _draft.copyWith(sortBy: value));
+          }
         },
       ),
     );
@@ -290,7 +312,9 @@ class _FilterSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         const SizedBox(height: AppSpacing.sm),
         child,
       ],

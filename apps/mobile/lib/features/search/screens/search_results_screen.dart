@@ -23,7 +23,8 @@ class SearchResultsScreen extends ConsumerStatefulWidget {
   final String? initialQuery;
 
   @override
-  ConsumerState<SearchResultsScreen> createState() => _SearchResultsScreenState();
+  ConsumerState<SearchResultsScreen> createState() =>
+      _SearchResultsScreenState();
 }
 
 class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
@@ -40,14 +41,16 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
       final notifier = ref.read(searchNotifierProvider.notifier);
       if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
         notifier.updateQuery((q) => q.copyWith(query: widget.initialQuery));
-      } else if (ref.read(searchNotifierProvider).status == SearchStatus.initial) {
+      } else if (ref.read(searchNotifierProvider).status ==
+          SearchStatus.initial) {
         notifier.search();
       }
     });
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       ref.read(searchNotifierProvider.notifier).loadMore();
     }
   }
@@ -106,8 +109,9 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                 : () => showSearchFilterSheet(
                       context: context,
                       current: state.query,
-                      onApply: (updated) =>
-                          ref.read(searchNotifierProvider.notifier).updateQuery((_) => updated),
+                      onApply: (updated) => ref
+                          .read(searchNotifierProvider.notifier)
+                          .updateQuery((_) => updated),
                     ),
           ),
         ],
@@ -124,8 +128,10 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
           ? FloatingActionButton.extended(
               onPressed: () => _saveSearch(context),
               backgroundColor: AppColors.primary,
-              icon: const Icon(Icons.bookmark_add_outlined, color: Colors.white),
-              label: const Text('Save this search', style: TextStyle(color: Colors.white)),
+              icon:
+                  const Icon(Icons.bookmark_add_outlined, color: Colors.white),
+              label: const Text('Save this search',
+                  style: TextStyle(color: Colors.white)),
             )
           : null,
     );
@@ -133,14 +139,22 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
 
   Widget _buildViewToggle(SearchState state) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       child: SegmentedButton<SearchViewMode>(
         segments: const [
-          ButtonSegment(value: SearchViewMode.list, label: Text('List'), icon: Icon(Icons.list)),
-          ButtonSegment(value: SearchViewMode.map, label: Text('Map'), icon: Icon(Icons.map_outlined)),
+          ButtonSegment(
+              value: SearchViewMode.list,
+              label: Text('List'),
+              icon: Icon(Icons.list)),
+          ButtonSegment(
+              value: SearchViewMode.map,
+              label: Text('Map'),
+              icon: Icon(Icons.map_outlined)),
         ],
         selected: {state.viewMode},
-        onSelectionChanged: (_) => ref.read(searchNotifierProvider.notifier).toggleViewMode(),
+        onSelectionChanged: (_) =>
+            ref.read(searchNotifierProvider.notifier).toggleViewMode(),
       ),
     );
   }
@@ -151,22 +165,29 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     final notifier = ref.read(searchNotifierProvider.notifier);
 
     if (q.listingType != null) {
-      chips.add(_chip(q.listingType!.apiValue, () => notifier.updateQuery((s) => s.copyWith(clearListingType: true))));
+      chips.add(_chip(
+          q.listingType!.apiValue,
+          () =>
+              notifier.updateQuery((s) => s.copyWith(clearListingType: true))));
     }
     if (q.dealType != null) {
-      chips.add(_chip(q.dealType!.apiValue, () => notifier.updateQuery((s) => s.copyWith(clearDealType: true))));
+      chips.add(_chip(q.dealType!.apiValue,
+          () => notifier.updateQuery((s) => s.copyWith(clearDealType: true))));
     }
     if (q.verifiedOnly) {
-      chips.add(_chip('Verified Host', () => notifier.updateQuery((s) => s.copyWith(verifiedOnly: false))));
+      chips.add(_chip('Verified Host',
+          () => notifier.updateQuery((s) => s.copyWith(verifiedOnly: false))));
     }
     if (q.minPrice != null || q.maxPrice != null) {
       chips.add(_chip(
         'Price',
-        () => notifier.updateQuery((s) => s.copyWith(clearMinPrice: true, clearMaxPrice: true)),
+        () => notifier.updateQuery(
+            (s) => s.copyWith(clearMinPrice: true, clearMaxPrice: true)),
       ));
     }
     if (q.bathrooms != null) {
-      chips.add(_chip('${q.bathrooms}+ bath', () => notifier.updateQuery((s) => s.copyWith(clearBathrooms: true))));
+      chips.add(_chip('${q.bathrooms}+ bath',
+          () => notifier.updateQuery((s) => s.copyWith(clearBathrooms: true))));
     }
 
     return Padding(
@@ -176,7 +197,10 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
   }
 
   Widget _chip(String label, VoidCallback onDeleted) {
-    return Chip(label: Text(label), onDeleted: onDeleted, deleteIconColor: AppColors.textSecondary);
+    return Chip(
+        label: Text(label),
+        onDeleted: onDeleted,
+        deleteIconColor: AppColors.textSecondary);
   }
 
   Widget _buildBody(SearchState state, bool isOffline) {
@@ -196,7 +220,8 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
       case SearchStatus.empty:
         return _EmptyState(
           hasActiveFilters: state.query.activeFilterCount > 0,
-          onClearFilters: () => ref.read(searchNotifierProvider.notifier).clearFilters(),
+          onClearFilters: () =>
+              ref.read(searchNotifierProvider.notifier).clearFilters(),
         );
       case SearchStatus.loaded:
       case SearchStatus.loadingMore:
@@ -205,18 +230,21 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
             : SearchMapView(
                 results: state.results,
                 onMarkerTap: (id) => context.push('/listings/$id'),
-                onSearchThisArea: (lat, lng) =>
-                    ref.read(searchNotifierProvider.notifier).setLocation(latitude: lat, longitude: lng),
+                onSearchThisArea: (lat, lng) => ref
+                    .read(searchNotifierProvider.notifier)
+                    .setLocation(latitude: lat, longitude: lng),
               );
     }
   }
 
-  Widget _buildResultsList(SearchState state, {required bool showOfflineDisabled}) {
+  Widget _buildResultsList(SearchState state,
+      {required bool showOfflineDisabled}) {
     return RefreshIndicator(
       onRefresh: () => ref.read(searchNotifierProvider.notifier).search(),
       child: ListView.builder(
         controller: _scrollController,
-        itemCount: state.results.length + (state.status == SearchStatus.loadingMore ? 1 : 0),
+        itemCount: state.results.length +
+            (state.status == SearchStatus.loadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= state.results.length) {
             return const Padding(
@@ -227,7 +255,9 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
           final result = state.results[index];
           return ListingResultCard(
             result: result,
-            onTap: showOfflineDisabled ? () {} : () => context.push('/listings/${result.id}'),
+            onTap: showOfflineDisabled
+                ? () {}
+                : () => context.push('/listings/${result.id}'),
           );
         },
       ),
@@ -238,7 +268,8 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     return ListView.builder(
       itemCount: 4,
       itemBuilder: (context, index) => Container(
-        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        margin: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         height: 220,
         decoration: BoxDecoration(
           color: AppColors.surfaceSecondary,
@@ -254,7 +285,9 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     // wiring the button here since Screen 5 specifies it, but the endpoint
     // itself is not part of FEAT-006/007/031.
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Saved search (FEAT-023) -- not yet wired to a backend endpoint.')),
+      const SnackBar(
+          content: Text(
+              'Saved search (FEAT-023) -- not yet wired to a backend endpoint.')),
     );
   }
 }
@@ -267,7 +300,8 @@ class _OfflineBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: AppColors.warning,
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.sm, horizontal: AppSpacing.md),
       child: const Row(
         children: [
           Icon(Icons.wifi_off, color: Colors.white, size: 18),
@@ -336,7 +370,8 @@ class _ErrorState extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.hasActiveFilters, required this.onClearFilters});
+  const _EmptyState(
+      {required this.hasActiveFilters, required this.onClearFilters});
 
   final bool hasActiveFilters;
   final VoidCallback onClearFilters;
@@ -349,9 +384,11 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.search_off, size: 48, color: AppColors.textSecondary),
+            const Icon(Icons.search_off,
+                size: 48, color: AppColors.textSecondary),
             const SizedBox(height: AppSpacing.md),
-            const Text('No listings match your filters', textAlign: TextAlign.center),
+            const Text('No listings match your filters',
+                textAlign: TextAlign.center),
             if (hasActiveFilters) ...[
               const SizedBox(height: AppSpacing.sm),
               const Text(
@@ -360,7 +397,9 @@ class _EmptyState extends StatelessWidget {
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: AppSpacing.md),
-              TextButton(onPressed: onClearFilters, child: const Text('Clear filters')),
+              TextButton(
+                  onPressed: onClearFilters,
+                  child: const Text('Clear filters')),
             ],
           ],
         ),

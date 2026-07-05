@@ -30,13 +30,22 @@ final searchRepositoryProvider = Provider<SearchRepository>((ref) {
   return SearchRepository(apiClient: ref.watch(apiClientProvider));
 });
 
-final connectivityStreamProvider = StreamProvider<List<ConnectivityResult>>((ref) {
+final connectivityStreamProvider =
+    StreamProvider<List<ConnectivityResult>>((ref) {
   return Connectivity().onConnectivityChanged;
 });
 
 enum SearchViewMode { list, map }
 
-enum SearchStatus { initial, loading, loaded, empty, error, offline, loadingMore }
+enum SearchStatus {
+  initial,
+  loading,
+  loaded,
+  empty,
+  error,
+  offline,
+  loadingMore
+}
 
 class SearchState {
   const SearchState({
@@ -81,7 +90,8 @@ class SearchState {
 }
 
 class SearchNotifier extends StateNotifier<SearchState> {
-  SearchNotifier(this._repository) : super(const SearchState(query: SearchQueryState()));
+  SearchNotifier(this._repository)
+      : super(const SearchState(query: SearchQueryState()));
 
   final SearchRepository _repository;
 
@@ -103,7 +113,8 @@ class SearchNotifier extends StateNotifier<SearchState> {
     } on DioException catch (e) {
       state = state.copyWith(
         status: SearchStatus.error,
-        errorMessage: e.message ?? 'Something went wrong loading search results.',
+        errorMessage:
+            e.message ?? 'Something went wrong loading search results.',
       );
     }
   }
@@ -112,7 +123,8 @@ class SearchNotifier extends StateNotifier<SearchState> {
     if (!state.hasMore || state.status == SearchStatus.loadingMore) return;
     state = state.copyWith(status: SearchStatus.loadingMore);
     try {
-      final page = await _repository.search(state.query, cursor: state.nextCursor);
+      final page =
+          await _repository.search(state.query, cursor: state.nextCursor);
       state = state.copyWith(
         status: SearchStatus.loaded,
         results: [...state.results, ...page.results],
@@ -123,7 +135,8 @@ class SearchNotifier extends StateNotifier<SearchState> {
     } on DioException catch (e) {
       // Loading-more failures don't blow away already-loaded results --
       // surface as a transient state but keep the existing list visible.
-      state = state.copyWith(status: SearchStatus.loaded, errorMessage: e.message);
+      state =
+          state.copyWith(status: SearchStatus.loaded, errorMessage: e.message);
     }
   }
 
@@ -133,7 +146,8 @@ class SearchNotifier extends StateNotifier<SearchState> {
   }
 
   void setLocation({required double latitude, required double longitude}) {
-    state = state.copyWith(query: state.query.copyWith(latitude: latitude, longitude: longitude));
+    state = state.copyWith(
+        query: state.query.copyWith(latitude: latitude, longitude: longitude));
     search();
   }
 
@@ -144,11 +158,14 @@ class SearchNotifier extends StateNotifier<SearchState> {
 
   void toggleViewMode() {
     state = state.copyWith(
-      viewMode: state.viewMode == SearchViewMode.list ? SearchViewMode.map : SearchViewMode.list,
+      viewMode: state.viewMode == SearchViewMode.list
+          ? SearchViewMode.map
+          : SearchViewMode.list,
     );
   }
 }
 
-final searchNotifierProvider = StateNotifierProvider<SearchNotifier, SearchState>((ref) {
+final searchNotifierProvider =
+    StateNotifierProvider<SearchNotifier, SearchState>((ref) {
   return SearchNotifier(ref.watch(searchRepositoryProvider));
 });

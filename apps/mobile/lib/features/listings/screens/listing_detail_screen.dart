@@ -51,7 +51,8 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       setState(() {
         _errorMessage = message;
         // DioException with no response type usually means offline/timeout.
-        _state = message.contains('SocketException') || message.contains('connection')
+        _state = message.contains('SocketException') ||
+                message.contains('connection')
             ? _LoadState.offline
             : _LoadState.error;
       });
@@ -71,7 +72,8 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
           ),
         _LoadState.error => _MessageState(
             icon: Icons.error_outline,
-            message: _errorMessage ?? 'Something went wrong loading this listing.',
+            message:
+                _errorMessage ?? 'Something went wrong loading this listing.',
             onRetry: _load,
           ),
         _LoadState.empty => const _MessageState(
@@ -85,7 +87,8 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
 }
 
 class _MessageState extends StatelessWidget {
-  const _MessageState({required this.icon, required this.message, this.onRetry});
+  const _MessageState(
+      {required this.icon, required this.message, this.onRetry});
 
   final IconData icon;
   final String message;
@@ -146,7 +149,8 @@ class _ListingBody extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Text(listing.title, style: Theme.of(context).textTheme.headlineSmall),
+              child: Text(listing.title,
+                  style: Theme.of(context).textTheme.headlineSmall),
             ),
             if (listing.isVerifiedActive) const _VerifiedBadge(),
           ],
@@ -189,7 +193,8 @@ class _ListingBody extends StatelessWidget {
         ),
         if (commercial != null) ...[
           const SizedBox(height: AppSpacing.lg),
-          Text('Property details', style: Theme.of(context).textTheme.titleMedium),
+          Text('Property details',
+              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
           Text(
             '${commercial.propertySubtype} • ${commercial.sizeSquareMeters} sqm • ${commercial.bathrooms} bath',
@@ -220,7 +225,8 @@ class _VerifiedBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.primaryLight,
         borderRadius: BorderRadius.circular(AppRadii.md),
@@ -230,7 +236,8 @@ class _VerifiedBadge extends StatelessWidget {
         children: [
           Icon(Icons.verified, size: 16, color: AppColors.verified),
           SizedBox(width: 4),
-          Text('Verified', style: TextStyle(color: AppColors.verified, fontSize: 12)),
+          Text('Verified',
+              style: TextStyle(color: AppColors.verified, fontSize: 12)),
         ],
       ),
     );

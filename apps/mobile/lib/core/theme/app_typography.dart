@@ -59,5 +59,6 @@ class AppTypography {
     fontWeight: FontWeight.w600,
     height: 1.4,
   );
-  static const mono = TextStyle(fontFamily: _monoFont, fontSize: 13, height: 1.5);
+  static const mono =
+      TextStyle(fontFamily: _monoFont, fontSize: 13, height: 1.5);
 }

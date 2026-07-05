@@ -180,13 +180,15 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                     : null,
                 sizeSquareMeters: double.tryParse(_sizeController.text) ?? 0,
                 propertySubtype: _propertySubtype,
-                bathrooms: int.tryParse(_commercialBathroomsController.text) ?? 0,
+                bathrooms:
+                    int.tryParse(_commercialBathroomsController.text) ?? 0,
                 rooms: _rooms,
               )
             : null,
         shortlet: _listingType == 'shortlet'
             ? ShortletListingDetails(
-                nightlyPrice: double.tryParse(_nightlyPriceController.text) ?? 0,
+                nightlyPrice:
+                    double.tryParse(_nightlyPriceController.text) ?? 0,
                 minimumStayNights: int.tryParse(_minStayController.text) ?? 1,
                 maximumStayNights: int.tryParse(_maxStayController.text),
                 bedrooms: int.tryParse(_bedroomsController.text) ?? 0,
@@ -207,7 +209,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     } on Exception catch (e) {
       final message = e.toString();
       setState(() {
-        _state = message.contains('SocketException') || message.contains('connection')
+        _state = message.contains('SocketException') ||
+                message.contains('connection')
             ? _SubmitState.offline
             : _SubmitState.error;
         _errorMessage = message;
@@ -228,7 +231,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             if (_state == _SubmitState.offline)
               const _Banner(
                 icon: Icons.wifi_off,
-                message: "You're offline. We'll need a connection to publish this listing.",
+                message:
+                    "You're offline. We'll need a connection to publish this listing.",
               ),
             if (_state == _SubmitState.error && _errorMessage != null)
               _Banner(icon: Icons.error_outline, message: _errorMessage!),
@@ -236,16 +240,20 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               initialValue: _listingType,
               decoration: const InputDecoration(labelText: 'Listing type'),
               items: const [
-                DropdownMenuItem(value: 'commercial', child: Text('Commercial (sale/lease)')),
+                DropdownMenuItem(
+                    value: 'commercial',
+                    child: Text('Commercial (sale/lease)')),
                 DropdownMenuItem(value: 'shortlet', child: Text('Shortlet')),
               ],
-              onChanged: submitting ? null : (v) => setState(() => _listingType = v!),
+              onChanged:
+                  submitting ? null : (v) => setState(() => _listingType = v!),
             ),
             const SizedBox(height: AppSpacing.md),
             TextFormField(
               controller: _titleController,
               decoration: const InputDecoration(labelText: 'Title'),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Title is required' : null,
               enabled: !submitting,
             ),
             const SizedBox(height: AppSpacing.md),
@@ -253,8 +261,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               controller: _descriptionController,
               decoration: const InputDecoration(labelText: 'Description'),
               maxLines: 4,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Description is required' : null,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Description is required'
+                  : null,
               enabled: !submitting,
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -262,9 +271,13 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             const SizedBox(height: AppSpacing.sm),
             SegmentedButton<LocationInputMethod>(
               segments: const [
-                ButtonSegment(value: LocationInputMethod.mapPin, label: Text('Map pin')),
-                ButtonSegment(value: LocationInputMethod.addressSearch, label: Text('Address')),
-                ButtonSegment(value: LocationInputMethod.gps, label: Text('GPS')),
+                ButtonSegment(
+                    value: LocationInputMethod.mapPin, label: Text('Map pin')),
+                ButtonSegment(
+                    value: LocationInputMethod.addressSearch,
+                    label: Text('Address')),
+                ButtonSegment(
+                    value: LocationInputMethod.gps, label: Text('GPS')),
               ],
               selected: {_locationMethod},
               onSelectionChanged: submitting
@@ -287,7 +300,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   Expanded(
                     child: TextFormField(
                       decoration: const InputDecoration(labelText: 'Latitude'),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       enabled: !submitting,
                       onChanged: (v) => _latitude = double.tryParse(v),
                     ),
@@ -296,7 +310,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   Expanded(
                     child: TextFormField(
                       decoration: const InputDecoration(labelText: 'Longitude'),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       enabled: !submitting,
                       onChanged: (v) => _longitude = double.tryParse(v),
                     ),
@@ -315,7 +330,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   child: TextFormField(
                     controller: _cityController,
                     decoration: const InputDecoration(labelText: 'City'),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
                     enabled: !submitting,
                   ),
                 ),
@@ -324,14 +340,16 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   child: TextFormField(
                     controller: _stateController,
                     decoration: const InputDecoration(labelText: 'State'),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
                     enabled: !submitting,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
-            if (_listingType == 'commercial') _buildCommercialFields(submitting),
+            if (_listingType == 'commercial')
+              _buildCommercialFields(submitting),
             if (_listingType == 'shortlet') _buildShortletFields(submitting),
             const SizedBox(height: AppSpacing.lg),
             Text('Photos', style: Theme.of(context).textTheme.titleMedium),
@@ -367,7 +385,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Commercial details', style: Theme.of(context).textTheme.titleMedium),
+        Text('Commercial details',
+            style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
         DropdownButtonFormField<String>(
           initialValue: _dealType,
@@ -383,7 +402,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           controller: _priceController,
           decoration: const InputDecoration(labelText: 'Price (NGN)'),
           keyboardType: TextInputType.number,
-          validator: (v) => (double.tryParse(v ?? '') == null) ? 'Enter a valid price' : null,
+          validator: (v) =>
+              (double.tryParse(v ?? '') == null) ? 'Enter a valid price' : null,
           enabled: !submitting,
         ),
         if (_dealType == 'lease') ...[
@@ -402,7 +422,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           controller: _sizeController,
           decoration: const InputDecoration(labelText: 'Size (sqm)'),
           keyboardType: TextInputType.number,
-          validator: (v) => (double.tryParse(v ?? '') == null) ? 'Enter a valid size' : null,
+          validator: (v) =>
+              (double.tryParse(v ?? '') == null) ? 'Enter a valid size' : null,
           enabled: !submitting,
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -415,25 +436,29 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             DropdownMenuItem(value: 'home', child: Text('Home')),
             DropdownMenuItem(value: 'land', child: Text('Land')),
           ],
-          onChanged: submitting ? null : (v) => setState(() => _propertySubtype = v!),
+          onChanged:
+              submitting ? null : (v) => setState(() => _propertySubtype = v!),
         ),
         const SizedBox(height: AppSpacing.sm),
         TextFormField(
           controller: _commercialBathroomsController,
           decoration: const InputDecoration(labelText: 'Bathrooms'),
           keyboardType: TextInputType.number,
-          validator: (v) => (int.tryParse(v ?? '') == null) ? 'Enter a valid number' : null,
+          validator: (v) =>
+              (int.tryParse(v ?? '') == null) ? 'Enter a valid number' : null,
           enabled: !submitting,
         ),
         const SizedBox(height: AppSpacing.sm),
-        Text('Room breakdown (optional)', style: Theme.of(context).textTheme.bodyMedium),
+        Text('Room breakdown (optional)',
+            style: Theme.of(context).textTheme.bodyMedium),
         ..._rooms.map(
           (r) => ListTile(
             dense: true,
             title: Text('${r.level}: ${r.widthMeters}m x ${r.lengthMeters}m'),
             trailing: IconButton(
               icon: const Icon(Icons.delete_outline),
-              onPressed: submitting ? null : () => setState(() => _rooms.remove(r)),
+              onPressed:
+                  submitting ? null : () => setState(() => _rooms.remove(r)),
             ),
           ),
         ),
@@ -442,7 +467,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               ? null
               : () => setState(
                     () => _rooms.add(
-                      const CommercialRoom(level: 'ground', widthMeters: 0, lengthMeters: 0),
+                      const CommercialRoom(
+                          level: 'ground', widthMeters: 0, lengthMeters: 0),
                     ),
                   ),
           icon: const Icon(Icons.add),
@@ -456,13 +482,15 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Shortlet details', style: Theme.of(context).textTheme.titleMedium),
+        Text('Shortlet details',
+            style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
         TextFormField(
           controller: _nightlyPriceController,
           decoration: const InputDecoration(labelText: 'Nightly price (NGN)'),
           keyboardType: TextInputType.number,
-          validator: (v) => (double.tryParse(v ?? '') == null) ? 'Enter a valid price' : null,
+          validator: (v) =>
+              (double.tryParse(v ?? '') == null) ? 'Enter a valid price' : null,
           enabled: !submitting,
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -471,9 +499,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             Expanded(
               child: TextFormField(
                 controller: _minStayController,
-                decoration: const InputDecoration(labelText: 'Min stay (nights)'),
+                decoration:
+                    const InputDecoration(labelText: 'Min stay (nights)'),
                 keyboardType: TextInputType.number,
-                validator: (v) => (int.tryParse(v ?? '') == null) ? 'Required' : null,
+                validator: (v) =>
+                    (int.tryParse(v ?? '') == null) ? 'Required' : null,
                 enabled: !submitting,
               ),
             ),
@@ -481,7 +511,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             Expanded(
               child: TextFormField(
                 controller: _maxStayController,
-                decoration: const InputDecoration(labelText: 'Max stay (nights, optional)'),
+                decoration: const InputDecoration(
+                    labelText: 'Max stay (nights, optional)'),
                 keyboardType: TextInputType.number,
                 enabled: !submitting,
               ),
@@ -493,7 +524,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           controller: _bedroomsController,
           decoration: const InputDecoration(labelText: 'Bedrooms'),
           keyboardType: TextInputType.number,
-          validator: (v) => (int.tryParse(v ?? '') == null) ? 'Enter a valid number' : null,
+          validator: (v) =>
+              (int.tryParse(v ?? '') == null) ? 'Enter a valid number' : null,
           enabled: !submitting,
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -501,7 +533,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           controller: _shortletBathroomsController,
           decoration: const InputDecoration(labelText: 'Bathrooms'),
           keyboardType: TextInputType.number,
-          validator: (v) => (int.tryParse(v ?? '') == null) ? 'Enter a valid number' : null,
+          validator: (v) =>
+              (int.tryParse(v ?? '') == null) ? 'Enter a valid number' : null,
           enabled: !submitting,
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -515,7 +548,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             DropdownMenuItem(value: '2_bedroom', child: Text('2 Bedroom')),
             DropdownMenuItem(value: '3_bedroom', child: Text('3 Bedroom')),
           ],
-          onChanged: submitting ? null : (v) => setState(() => _shortletSubtype = v!),
+          onChanged:
+              submitting ? null : (v) => setState(() => _shortletSubtype = v!),
         ),
         // Availability calendar (blocked_dates) is edited after creation on
         // the listing edit screen -- TODO: add a calendar widget there.
@@ -565,7 +599,8 @@ class _ImageReorderList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (images.isEmpty) {
-      return const Text('No photos added yet.', style: TextStyle(color: AppColors.textSecondary));
+      return const Text('No photos added yet.',
+          style: TextStyle(color: AppColors.textSecondary));
     }
     return ReorderableListView.builder(
       shrinkWrap: true,

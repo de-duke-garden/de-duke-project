@@ -15,16 +15,19 @@ import '../data/search_models.dart';
 // AppSizing lives in app_spacing.dart alongside AppSpacing/AppRadii.
 
 class ListingResultCard extends StatelessWidget {
-  const ListingResultCard({super.key, required this.result, required this.onTap});
+  const ListingResultCard(
+      {super.key, required this.result, required this.onTap});
 
   final ListingSearchResult result;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'en_NG', symbol: '₦', decimalDigits: 0);
+    final currencyFormat =
+        NumberFormat.currency(locale: 'en_NG', symbol: '₦', decimalDigits: 0);
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      margin: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -37,7 +40,8 @@ class ListingResultCard extends StatelessWidget {
                   ? CachedNetworkImage(
                       imageUrl: result.primaryImageUrl!,
                       fit: BoxFit.cover,
-                      errorWidget: (context, url, error) => const _ImagePlaceholder(),
+                      errorWidget: (context, url, error) =>
+                          const _ImagePlaceholder(),
                     )
                   : const _ImagePlaceholder(),
             ),
@@ -53,21 +57,26 @@ class ListingResultCard extends StatelessWidget {
                           result.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 16),
                         ),
                       ),
                       if (result.isVerifiedHost) ...[
                         const SizedBox(width: AppSpacing.xs),
-                        const Icon(Icons.verified, size: AppSizing.iconSm, color: AppColors.verified),
+                        const Icon(Icons.verified,
+                            size: AppSizing.iconSm, color: AppColors.verified),
                         const SizedBox(width: AppSpacing.xs),
-                        const Text('Verified', style: TextStyle(fontSize: 12, color: AppColors.verified)),
+                        const Text('Verified',
+                            style: TextStyle(
+                                fontSize: 12, color: AppColors.verified)),
                       ],
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     '${result.locationCity}, ${result.locationState}',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 13),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Row(
@@ -77,17 +86,21 @@ class ListingResultCard extends StatelessWidget {
                         result.displayPrice != null
                             ? '${currencyFormat.format(result.displayPrice)}${result.nightlyPrice != null ? '/night' : ''}'
                             : 'Price unavailable',
-                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primary),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary),
                       ),
                       if (result.distanceKm != null)
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.location_on, size: 14, color: AppColors.textSecondary),
+                            const Icon(Icons.location_on,
+                                size: 14, color: AppColors.textSecondary),
                             const SizedBox(width: 2),
                             Text(
                               '${result.distanceKm!.toStringAsFixed(1)} km away',
-                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppColors.textSecondary),
                             ),
                           ],
                         ),
@@ -110,7 +123,9 @@ class _ImagePlaceholder extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.surfaceSecondary,
-      child: const Center(child: Icon(Icons.home_work_outlined, color: AppColors.textSecondary, size: 32)),
+      child: const Center(
+          child: Icon(Icons.home_work_outlined,
+              color: AppColors.textSecondary, size: 32)),
     );
   }
 }

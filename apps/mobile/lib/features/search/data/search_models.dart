@@ -166,8 +166,12 @@ class SearchQueryState {
       query: clearQuery ? null : (query ?? this.query),
       listingType: clearListingType ? null : (listingType ?? this.listingType),
       dealType: clearDealType ? null : (dealType ?? this.dealType),
-      commercialSubtype: clearCommercialSubtype ? null : (commercialSubtype ?? this.commercialSubtype),
-      shortletSubtype: clearShortletSubtype ? null : (shortletSubtype ?? this.shortletSubtype),
+      commercialSubtype: clearCommercialSubtype
+          ? null
+          : (commercialSubtype ?? this.commercialSubtype),
+      shortletSubtype: clearShortletSubtype
+          ? null
+          : (shortletSubtype ?? this.shortletSubtype),
       minPrice: clearMinPrice ? null : (minPrice ?? this.minPrice),
       maxPrice: clearMaxPrice ? null : (maxPrice ?? this.maxPrice),
       minSizeSqm: clearMinSizeSqm ? null : (minSizeSqm ?? this.minSizeSqm),
@@ -196,8 +200,10 @@ class SearchQueryState {
       if (query != null && query!.isNotEmpty) 'query': query,
       if (listingType != null) 'listing_type': listingType!.apiValue,
       if (dealType != null) 'deal_type': dealType!.apiValue,
-      if (commercialSubtype != null) 'commercial_subtype': commercialSubtype!.apiValue,
-      if (shortletSubtype != null) 'shortlet_subtype': shortletSubtype!.apiValue,
+      if (commercialSubtype != null)
+        'commercial_subtype': commercialSubtype!.apiValue,
+      if (shortletSubtype != null)
+        'shortlet_subtype': shortletSubtype!.apiValue,
       if (minPrice != null) 'min_price': minPrice,
       if (maxPrice != null) 'max_price': maxPrice,
       if (minSizeSqm != null) 'min_size_sqm': minSizeSqm,
@@ -240,7 +246,9 @@ class ListingSearchResult {
   factory ListingSearchResult.fromJson(Map<String, dynamic> json) {
     return ListingSearchResult(
       id: json['id'] as String,
-      listingType: json['listing_type'] == 'shortlet' ? ListingTypeFilter.shortlet : ListingTypeFilter.commercial,
+      listingType: json['listing_type'] == 'shortlet'
+          ? ListingTypeFilter.shortlet
+          : ListingTypeFilter.commercial,
       title: json['title'] as String,
       locationCity: json['location_city'] as String,
       locationState: json['location_state'] as String,
@@ -289,7 +297,8 @@ class ListingSearchResult {
 }
 
 class SearchResultsPage {
-  const SearchResultsPage({required this.results, required this.nextCursor, required this.hasMore});
+  const SearchResultsPage(
+      {required this.results, required this.nextCursor, required this.hasMore});
 
   factory SearchResultsPage.fromJson(Map<String, dynamic> json) {
     return SearchResultsPage(

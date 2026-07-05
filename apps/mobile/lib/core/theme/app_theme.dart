@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'app_spacing.dart';
 
-
 class AppTheme {
   AppTheme._();
 
@@ -27,7 +26,8 @@ class AppTheme {
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(AppSizing.buttonHeight),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.md)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.md)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -59,7 +59,8 @@ class AppTheme {
           backgroundColor: AppColors.primaryDark,
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(AppSizing.buttonHeight),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.md)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.md)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

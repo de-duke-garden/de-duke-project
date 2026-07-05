@@ -8,7 +8,8 @@ import '../auth/session_store.dart';
 class ApiClient {
   ApiClient({required String baseUrl, required SessionStore sessionStore})
       : _sessionStore = sessionStore,
-        _dio = Dio(BaseOptions(baseUrl: baseUrl, connectTimeout: const Duration(seconds: 10))) {
+        _dio = Dio(BaseOptions(
+            baseUrl: baseUrl, connectTimeout: const Duration(seconds: 10))) {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {

@@ -152,10 +152,12 @@ class ShortletListingDetails {
         bedrooms: json['bedrooms'] as int,
         bathrooms: json['bathrooms'] as int? ?? 0,
         subtype: json['subtype'] as String? ?? '1_bedroom',
-        houseRules:
-            (json['house_rules'] as List? ?? []).map((e) => e as String).toList(),
-        blockedDates:
-            (json['blocked_dates'] as List? ?? []).map((e) => e as String).toList(),
+        houseRules: (json['house_rules'] as List? ?? [])
+            .map((e) => e as String)
+            .toList(),
+        blockedDates: (json['blocked_dates'] as List? ?? [])
+            .map((e) => e as String)
+            .toList(),
       );
 }
 
