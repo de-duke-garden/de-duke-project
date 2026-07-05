@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     # -- Business rules (defaults per features.md; admin-configurable at runtime where noted) --
     booking_hold_duration_minutes: int = 15  # FEAT-032 default; see risk_log.md R-018
 
+    # -- Cross-app links --
+    # Base URL of the Admin Web Console (apps/admin-console), used to build
+    # links that leave the backend's own response (e.g. FEAT-033 staff
+    # invite links). Never hardcode this -- it differs per environment
+    # (local dev, staging, production).
+    admin_console_url: str = "http://localhost:3000"
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -15,6 +15,7 @@ can create a deduke_admin account from nothing.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.security import CurrentUser, UserRole, require_roles
 from app.schemas.staff_account import (
@@ -64,11 +65,12 @@ async def invite_staff(
     except svc.EmailAlreadyInUseError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
-    # TODO(email_service): app/services/email_service.py does not exist yet.
-    # Once it lands, dispatch this link via SES instead of returning it in
-    # the response body. Placeholder base URL -- point at the real Admin
-    # Web Console "accept invite" route once app/api/v1/auth.py exposes it.
-    invite_link = f"https://admin.deduke.app/accept-invite?token={raw_token}&uid={user.id}"
+    # TODO(email_service): dispatch this link via SES (app/services/email_service.py)
+    # instead of returning it in the response body, once FEAT-024 wires
+    # staff-invite emails specifically (it currently covers onboarding/
+    # payment/verification only).
+    admin_console_url = get_settings().admin_console_url.rstrip("/")
+    invite_link = f"{admin_console_url}/accept-invite?token={raw_token}&uid={user.id}"
 
     return InviteStaffResponse(account=_to_out(user), invite_link=invite_link)
 
