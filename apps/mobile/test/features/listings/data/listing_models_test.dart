@@ -1,0 +1,95 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:de_duke_mobile/features/listings/data/listing_models.dart';
+
+void main() {
+  group('CommercialListingDetails', () {
+    test('toJson includes bathrooms and legal_documents (FEAT-007 fields)', () {
+      final details = CommercialListingDetails(
+        dealType: 'lease',
+        price: 1500000,
+        possessionPeriodDays: 365,
+        sizeSquareMeters: 120,
+        propertySubtype: 'office',
+        bathrooms: 2,
+        legalDocuments: const ['certificate_of_occupancy'],
+      );
+
+      final json = details.toJson();
+      expect(json['deal_type'], 'lease');
+      expect(json['bathrooms'], 2);
+      expect(json['legal_documents'], ['certificate_of_occupancy']);
+    });
+
+    test('fromJson defaults bathrooms to 0 when absent from an older payload',
+        () {
+      final details = CommercialListingDetails.fromJson({
+        'deal_type': 'sale',
+        'price': 5000000,
+        'size_square_meters': 200,
+        'property_subtype': 'land',
+      });
+      expect(details.bathrooms, 0);
+      expect(details.legalDocuments, isEmpty);
+    });
+  });
+
+  group('ShortletListingDetails', () {
+    test('toJson includes subtype and bathrooms', () {
+      final details = ShortletListingDetails(
+        nightlyPrice: 45000,
+        minimumStayNights: 2,
+        bedrooms: 2,
+        bathrooms: 1,
+        subtype: '2_bedroom',
+      );
+
+      final json = details.toJson();
+      expect(json['subtype'], '2_bedroom');
+      expect(json['bathrooms'], 1);
+      expect(json['bedrooms'], 2);
+    });
+
+    test('fromJson defaults subtype to 1_bedroom when absent', () {
+      final details = ShortletListingDetails.fromJson({
+        'nightly_price': 30000,
+        'minimum_stay_nights': 1,
+        'bedrooms': 1,
+      });
+      expect(details.subtype, '1_bedroom');
+      expect(details.bathrooms, 0);
+    });
+  });
+
+  group('Listing.fromJson', () {
+    test('parses a commercial listing with nested details', () {
+      final listing = Listing.fromJson({
+        'id': 'listing-1',
+        'host_account_id': 'ha-1',
+        'listing_type': 'commercial',
+        'title': 'Office space',
+        'description': 'Open plan office',
+        'location_latitude': 6.5244,
+        'location_longitude': 3.3792,
+        'location_address_line': '1 Admiralty Way',
+        'location_city': 'Lagos',
+        'location_state': 'Lagos',
+        'amenities': ['parking'],
+        'status': 'active',
+        'view_count': 10,
+        'commercial': {
+          'deal_type': 'lease',
+          'price': 1500000,
+          'size_square_meters': 120,
+          'property_subtype': 'office',
+          'bathrooms': 2,
+        },
+      });
+
+      expect(listing.isVerifiedActive, isTrue);
+      expect(listing.commercial, isNotNull);
+      expect(listing.commercial!.propertySubtype, 'office');
+      expect(listing.shortlet, isNull);
+    });
+  });
+}
