@@ -91,9 +91,12 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
       List<ChatConversation>? propertyManagement}) {
     if (!mounted) return;
     setState(() {
-      if (client != null) _asClient = client;
-      if (propertyManagement != null)
+      if (client != null) {
+        _asClient = client;
+      }
+      if (propertyManagement != null) {
         _asPropertyManagement = propertyManagement;
+      }
 
       final merged = <String, ChatConversation>{};
       for (final c in [..._asClient, ..._asPropertyManagement]) {

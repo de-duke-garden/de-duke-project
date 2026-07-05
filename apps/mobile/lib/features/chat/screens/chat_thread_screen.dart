@@ -136,8 +136,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   String _roleForSend() {
     final user = _currentUser!;
     final conversation = _conversation!;
-    if (user.role == 'deduke_staff' || user.role == 'deduke_admin')
+    if (user.role == 'deduke_staff' || user.role == 'deduke_admin') {
       return 'deduke_staff';
+    }
     return user.userId == conversation.clientId
         ? 'client'
         : 'property_management';
@@ -302,10 +303,12 @@ class _MessageBubble extends StatelessWidget {
         message.deliveryStatus == ChatDeliveryStatus.sending) {
       return Icons.access_time;
     }
-    if (message.deliveryStatus == ChatDeliveryStatus.failed)
+    if (message.deliveryStatus == ChatDeliveryStatus.failed) {
       return Icons.error_outline;
-    if (message.deliveryStatus == ChatDeliveryStatus.read)
+    }
+    if (message.deliveryStatus == ChatDeliveryStatus.read) {
       return Icons.done_all;
+    }
     return Icons.done;
   }
 

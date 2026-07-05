@@ -256,7 +256,7 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
         const Text('Verified Host only', style: TextStyle(fontWeight: FontWeight.w600)),
         Switch(
           value: _draft.verifiedOnly,
-          activeColor: AppColors.primary,
+          activeThumbColor: AppColors.primary,
           onChanged: (value) => setState(() => _draft = _draft.copyWith(verifiedOnly: value)),
         ),
       ],

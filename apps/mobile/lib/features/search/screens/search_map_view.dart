@@ -29,7 +29,9 @@ class SearchMapView extends StatefulWidget {
 }
 
 class _SearchMapViewState extends State<SearchMapView> {
-  GoogleMapController? _controller;
+  // Kept for future use (e.g. programmatically re-centering the camera);
+  // not currently read, so onMapCreated intentionally discards it below
+  // rather than declaring an unused field.
   CameraPosition? _lastMovedCamera;
   bool _showSearchThisArea = false;
 
@@ -43,7 +45,6 @@ class _SearchMapViewState extends State<SearchMapView> {
       children: [
         GoogleMap(
           initialCameraPosition: CameraPosition(target: initialTarget, zoom: 13),
-          onMapCreated: (controller) => _controller = controller,
           onCameraMove: (position) {
             _lastMovedCamera = position;
             if (!_showSearchThisArea) setState(() => _showSearchThisArea = true);

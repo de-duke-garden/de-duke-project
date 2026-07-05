@@ -200,8 +200,9 @@ class _CheckoutScreenState extends State<CheckoutScreen>
 
     if (txn != null && txn.status == 'succeeded') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted)
+        if (mounted) {
           context.go('/checkout/${widget.transactionId}/confirmation');
+        }
       });
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
