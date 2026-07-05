@@ -6,15 +6,15 @@ import { ReviewDecisionDialog } from "./ReviewDecisionDialog";
 import { SubmissionDetailPanel } from "./SubmissionDetailPanel";
 import type { HostAccountDetail, HostAccountQueueItem, ReviewDecision } from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+// Proxied through a same-origin Route Handler that attaches the session
+// token server-side -- see src/app/api/backend/[...path]/route.ts.
+const API_BASE_URL = "/api/backend/v1";
 
 type LoadState = "loading" | "loaded" | "empty" | "error";
 
 async function fetchQueue(hostTypeFilter: string | null): Promise<HostAccountQueueItem[]> {
   const params = new URLSearchParams({ status_filter: "in_review" });
-  const response = await fetch(API_BASE_URL + "/v1/host-accounts/admin?" + params.toString(), {
-    credentials: "include",
-  });
+  const response = await fetch(API_BASE_URL + "/host-accounts/admin?" + params.toString());
   if (response.ok === false) {
     throw new Error("Failed to load the verification queue (" + response.status + ")");
   }
@@ -24,9 +24,7 @@ async function fetchQueue(hostTypeFilter: string | null): Promise<HostAccountQue
 }
 
 async function fetchDetail(id: string): Promise<HostAccountDetail> {
-  const response = await fetch(API_BASE_URL + "/v1/host-accounts/admin/" + id, {
-    credentials: "include",
-  });
+  const response = await fetch(API_BASE_URL + "/host-accounts/admin/" + id);
   if (response.ok === false) {
     throw new Error("Failed to load submission detail (" + response.status + ")");
   }
@@ -34,9 +32,8 @@ async function fetchDetail(id: string): Promise<HostAccountDetail> {
 }
 
 async function submitDecision(id: string, decision: ReviewDecision, reason: string | undefined) {
-  const response = await fetch(API_BASE_URL + "/v1/host-accounts/admin/" + id + "/status", {
+  const response = await fetch(API_BASE_URL + "/host-accounts/admin/" + id + "/status", {
     method: "PATCH",
-    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ decision, reason: reason ?? null }),
   });

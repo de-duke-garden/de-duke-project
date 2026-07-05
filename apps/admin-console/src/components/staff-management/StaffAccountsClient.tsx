@@ -6,7 +6,9 @@ import { ConfirmModal } from "./ConfirmModal";
 import { InviteStaffModal } from "./InviteStaffModal";
 import type { StaffAccount } from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/v1";
+// Proxied through a same-origin Route Handler that attaches the session
+// token server-side -- see src/app/api/backend/[...path]/route.ts.
+const API_BASE_URL = "/api/backend/v1";
 
 type PendingAction = {
   account: StaffAccount;
@@ -35,7 +37,7 @@ export function StaffAccountsClient() {
   const loadAccounts = useCallback(async () => {
     setError(null);
     try {
-      const response = await fetch(API_BASE_URL + "/staff-accounts", { credentials: "include" });
+      const response = await fetch(API_BASE_URL + "/staff-accounts");
       if (response.status === 403) {
         setError("You do not have permission to do this.");
         setAccounts([]);
@@ -62,7 +64,6 @@ export function StaffAccountsClient() {
     try {
       const response = await fetch(API_BASE_URL + "/staff-accounts/invite", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ full_name: fullName, email }),
       });
@@ -89,7 +90,7 @@ export function StaffAccountsClient() {
     try {
       const response = await fetch(
         API_BASE_URL + "/staff-accounts/" + pendingAction.account.id + "/" + endpoint,
-        { method: "POST", credentials: "include" },
+        { method: "POST" },
       );
       const body = await response.json().catch(() => ({}));
       if (response.ok === false) {

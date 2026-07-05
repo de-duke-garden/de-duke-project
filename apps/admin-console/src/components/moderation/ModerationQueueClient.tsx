@@ -4,19 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { ModerationDecisionDialog } from "./ModerationDecisionDialog";
 import type { ModerationAction, ModerationQueueItem } from "./types";
 
-// TODO: centralize once a shared admin-console API client module exists;
-// for now this reads the Backend API Service base URL from env, per
-// architecture.md ("all /v1 endpoints"), and expects the caller's session
-// cookie/bearer token to already be attached by the platform's auth layer
-// (see src/lib/auth.ts -- getAdminSession()/requireAdminRole() stubs).
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+// Proxied through a same-origin Route Handler that attaches the session
+// token server-side -- see src/app/api/backend/[...path]/route.ts.
+const API_BASE_URL = "/api/backend/v1";
 
 type LoadState = "loading" | "loaded" | "empty" | "error";
 
 async function fetchQueue(): Promise<ModerationQueueItem[]> {
-  const response = await fetch(`${API_BASE_URL}/v1/moderation/queue`, {
-    credentials: "include",
-  });
+  const response = await fetch(`${API_BASE_URL}/moderation/queue`);
   if (!response.ok) {
     throw new Error(`Failed to load moderation queue (${response.status})`);
   }
@@ -24,9 +19,8 @@ async function fetchQueue(): Promise<ModerationQueueItem[]> {
 }
 
 async function submitDecision(listingId: string, action: ModerationAction, reason: string) {
-  const response = await fetch(`${API_BASE_URL}/v1/moderation/${listingId}/${action}`, {
+  const response = await fetch(`${API_BASE_URL}/moderation/${listingId}/${action}`, {
     method: "POST",
-    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reason }),
   });

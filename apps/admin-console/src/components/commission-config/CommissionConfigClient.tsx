@@ -9,14 +9,14 @@ import {
   TRANSACTION_TYPE_LABELS,
 } from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+// Proxied through a same-origin Route Handler that attaches the session
+// token server-side -- see src/app/api/backend/[...path]/route.ts.
+const API_BASE_URL = "/api/backend/v1";
 
 type LoadState = "loading" | "loaded" | "error";
 
 async function fetchRate(transactionType: string): Promise<CommissionRateHistoryResponse> {
-  const response = await fetch(API_BASE_URL + "/v1/commission/" + transactionType, {
-    credentials: "include",
-  });
+  const response = await fetch(API_BASE_URL + "/commission/" + transactionType);
   if (response.ok === false) {
     throw new Error("Failed to load " + transactionType + " rate (" + response.status + ")");
   }
@@ -24,9 +24,8 @@ async function fetchRate(transactionType: string): Promise<CommissionRateHistory
 }
 
 async function saveRate(transactionType: string, ratePercentage: number) {
-  const response = await fetch(API_BASE_URL + "/v1/commission", {
+  const response = await fetch(API_BASE_URL + "/commission", {
     method: "POST",
-    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ transaction_type: transactionType, rate_percentage: ratePercentage }),
   });
