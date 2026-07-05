@@ -87,6 +87,24 @@ resource "aws_db_proxy_target" "writer" {
   db_instance_identifier = var.db_writer_identifier
 }
 
+locals {
+  # Terraform only provisions infrastructure -- it never builds or pushes a
+  # container image itself (that is .github/workflows/backend-deploy.yml's
+  # job, via the AWS CLI/Docker). Before that workflow has ever run against
+  # a fresh environment, var.image_tag is "" and no image exists at
+  # "${ecr_repository_url}:<anything>" yet, so pointing the task definition
+  # at the (nonexistent) ECR tag would leave the service stuck endlessly
+  # failing to pull an image. Point at a small, always-available public
+  # placeholder instead for that one case -- the ALB health check
+  # (/health/ready) will legitimately 404 against it until the real app
+  # deploys, which is expected and harmless: aws_ecs_service below does not
+  # set wait_for_steady_state, so this never blocks `terraform apply`
+  # itself. The remapped command just moves nginx's listener from its
+  # image default (80) to this service's fixed container port (8000).
+  using_placeholder_image = var.image_tag == ""
+  container_image         = local.using_placeholder_image ? "public.ecr.aws/nginx/nginx:latest" : "${var.ecr_repository_url}:${var.image_tag}"
+}
+
 resource "aws_ecs_task_definition" "backend" {
   family                   = "${var.environment}-de-duke-api"
   requires_compatibilities = ["FARGATE"]
@@ -96,27 +114,32 @@ resource "aws_ecs_task_definition" "backend" {
   execution_role_arn       = var.execution_role_arn
   task_role_arn            = var.task_role_arn
 
-  container_definitions = jsonencode([{
-    name  = "backend-api"
-    image = "${var.ecr_repository_url}:${var.image_tag}"
-    portMappings = [{ containerPort = 8000, protocol = "tcp" }]
-    environment = [
-      { name = "DEDUKE_ENVIRONMENT", value = var.environment },
-      { name = "DB_PROXY_ENDPOINT", value = aws_db_proxy.this.endpoint },
-    ]
-    secrets = [
-      { name = "APP_SECRETS", valueFrom = var.app_secret_arn },
-      { name = "DB_CREDENTIALS", valueFrom = var.db_master_secret_arn },
-    ]
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = "/de-duke/${var.environment}/backend-api"
-        "awslogs-region"        = var.aws_region
-        "awslogs-stream-prefix" = "backend-api"
+  container_definitions = jsonencode([merge(
+    {
+      name         = "backend-api"
+      image        = local.container_image
+      portMappings = [{ containerPort = 8000, protocol = "tcp" }]
+      environment = [
+        { name = "DEDUKE_ENVIRONMENT", value = var.environment },
+        { name = "DB_PROXY_ENDPOINT", value = aws_db_proxy.this.endpoint },
+      ]
+      secrets = [
+        { name = "APP_SECRETS", valueFrom = var.app_secret_arn },
+        { name = "DB_CREDENTIALS", valueFrom = var.db_master_secret_arn },
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/de-duke/${var.environment}/backend-api"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "backend-api"
+        }
       }
-    }
-  }])
+    },
+    local.using_placeholder_image ? {
+      command = ["sh", "-c", "sed -i 's/listen  *80;/listen 8000;/' /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+    } : {}
+  )])
 
   tags = var.tags
 }

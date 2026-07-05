@@ -21,8 +21,9 @@ variable "acm_certificate_arn" {
 
 variable "ecr_repository_url" { type = string }
 variable "image_tag" {
-  type    = string
-  default = "latest"
+  description = "Tag of the real application image to deploy. Left as the default empty string before CI has ever pushed one (e.g. the very first `terraform apply` for a fresh environment) -- see the placeholder-image logic in main.tf for why that case is handled explicitly rather than defaulting to a nonexistent `:latest` tag."
+  type        = string
+  default     = ""
 }
 
 variable "execution_role_arn" { type = string }

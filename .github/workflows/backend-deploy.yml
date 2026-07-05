@@ -24,7 +24,7 @@
 #     TF_AWS_ACCOUNT_SUFFIX - infra/environments/development's aws_account_suffix
 #   Variables:
 #     AWS_REGION             - e.g. eu-west-1
-#     TF_STATE_BUCKET        - infra/bootstrap's state_bucket_name output
+#     TF_STATE_BUCKET        - name of the existing S3 bucket used for Terraform state
 #     TF_ACM_CERTIFICATE_ARN - (optional, blank until a domain/cert exists)
 #   Environments (Settings -> Environments): `development` (create it even
 #     with no protection rules yet, so the `environment:` key below resolves)

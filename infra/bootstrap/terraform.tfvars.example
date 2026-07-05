@@ -1,7 +1,0 @@
-# Copy to terraform.tfvars (gitignored) and fill in before running this
-# bootstrap config. Run this exactly once per AWS account -- not per
-# environment -- then use its `state_bucket_name` output in every
-# environment's backend.hcl.
-
-aws_region         = "REPLACE_ME"
-aws_account_suffix = "REPLACE_ME" # e.g. your AWS account ID

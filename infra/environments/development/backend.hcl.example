@@ -1,12 +1,12 @@
-# Copy to backend.hcl (gitignored) and fill in before `terraform init`.
-# Run `terraform init -backend-config=backend.hcl` -- do not hardcode these
+# Copy to backend.hcl (gitignored) and fill in before terraform init.
+# Run terraform init -backend-config=backend.hcl -- do not hardcode these
 # values into versions.tf, so the same backend "s3" {} block works for every
 # environment.
 #
-# `bucket` comes from infra/bootstrap/'s `state_bucket_name` output (run
-# that config exactly once per AWS account first).
+# bucket is the name of the already-existing, externally managed S3 bucket
+# used for Terraform state (not provisioned by this repo's Terraform config).
 
-bucket       = "REPLACE_ME" # infra/bootstrap/ output: state_bucket_name
+bucket       = "REPLACE_ME" # name of the existing Terraform state S3 bucket
 key          = "development/terraform.tfstate"
 region       = "REPLACE_ME" # must match this environment's aws_region
 encrypt      = true
