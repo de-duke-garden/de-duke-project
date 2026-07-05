@@ -19,6 +19,39 @@ class AuthResult {
   final bool isVerifiedHost;
 }
 
+/// GET /v1/auth/me -- current user's identity, for screens (e.g. Account
+/// Settings) that need to display profile info without a dedicated
+/// GET /user/profile endpoint (not yet built).
+class CurrentUser {
+  const CurrentUser({
+    required this.userId,
+    required this.role,
+    required this.fullName,
+    required this.email,
+    required this.phoneNumber,
+    required this.isVerifiedHost,
+    required this.isActive,
+  });
+
+  final String userId;
+  final String role;
+  final String fullName;
+  final String? email;
+  final String? phoneNumber;
+  final bool isVerifiedHost;
+  final bool isActive;
+
+  factory CurrentUser.fromJson(Map<String, dynamic> json) => CurrentUser(
+        userId: json['user_id'] as String,
+        role: json['role'] as String,
+        fullName: json['full_name'] as String,
+        email: json['email'] as String?,
+        phoneNumber: json['phone_number'] as String?,
+        isVerifiedHost: json['is_verified_host'] as bool,
+        isActive: json['is_active'] as bool,
+      );
+}
+
 /// Thrown for any auth failure the UI needs to react to with a specific,
 /// user-facing message (FEAT-001 AC: "Invalid credentials show a clear,
 /// specific error message") -- never a generic "something went wrong".
@@ -50,6 +83,7 @@ class AuthRepository {
 
   Future<void> _persistSession(Map<String, dynamic> body) async {
     await _sessionStore.saveAccessToken(body['access_token'] as String);
+    await _sessionStore.saveRefreshToken(body['refresh_token'] as String);
   }
 
   Future<AuthResult> registerWithEmail({
@@ -70,22 +104,26 @@ class AuthRepository {
         isVerifiedHost: body['is_verified_host'] as bool,
       );
     } on DioException catch (e) {
-      throw AuthException(_errorMessage(e, 'Could not create your account. Please try again.'));
+      throw AuthException(
+          _errorMessage(e, 'Could not create your account. Please try again.'));
     }
   }
 
-  Future<void> requestPhoneSignupOtp({required String fullName, required String phoneNumber}) async {
+  Future<void> requestPhoneSignupOtp(
+      {required String fullName, required String phoneNumber}) async {
     try {
       await _apiClient.dio.post(
         '/v1/auth/register/phone/request-otp',
         data: {'full_name': fullName, 'phone_number': phoneNumber},
       );
     } on DioException catch (e) {
-      throw AuthException(_errorMessage(e, 'Could not send a code to that number.'));
+      throw AuthException(
+          _errorMessage(e, 'Could not send a code to that number.'));
     }
   }
 
-  Future<AuthResult> verifyPhoneSignupOtp({required String phoneNumber, required String otpCode}) async {
+  Future<AuthResult> verifyPhoneSignupOtp(
+      {required String phoneNumber, required String otpCode}) async {
     try {
       final response = await _apiClient.dio.post(
         '/v1/auth/register/phone/verify-otp',
@@ -103,7 +141,8 @@ class AuthRepository {
     }
   }
 
-  Future<AuthResult> loginWithEmail({required String email, required String password}) async {
+  Future<AuthResult> loginWithEmail(
+      {required String email, required String password}) async {
     try {
       final response = await _apiClient.dio.post(
         '/v1/auth/login',
@@ -118,7 +157,8 @@ class AuthRepository {
       );
     } on DioException catch (e) {
       throw AuthException(
-        _errorMessage(e, "We couldn't verify those details. Try again or reset your password."),
+        _errorMessage(e,
+            "We couldn't verify those details. Try again or reset your password."),
       );
     }
   }
@@ -130,11 +170,13 @@ class AuthRepository {
         queryParameters: {'phone_number': phoneNumber},
       );
     } on DioException catch (e) {
-      throw AuthException(_errorMessage(e, 'Could not send a code to that number.'));
+      throw AuthException(
+          _errorMessage(e, 'Could not send a code to that number.'));
     }
   }
 
-  Future<AuthResult> loginWithPhoneOtp({required String phoneNumber, required String otpCode}) async {
+  Future<AuthResult> loginWithPhoneOtp(
+      {required String phoneNumber, required String otpCode}) async {
     try {
       final response = await _apiClient.dio.post(
         '/v1/auth/login',
@@ -154,22 +196,48 @@ class AuthRepository {
 
   Future<void> requestPasswordReset({required String email}) async {
     try {
-      await _apiClient.dio.post('/v1/auth/forgot-password', data: {'email': email});
+      await _apiClient.dio
+          .post('/v1/auth/forgot-password', data: {'email': email});
     } on DioException catch (e) {
       throw AuthException(_errorMessage(e, 'Could not process that request.'));
     }
   }
 
-  Future<void> resetPassword({required String resetToken, required String newPassword}) async {
+  Future<void> resetPassword(
+      {required String resetToken, required String newPassword}) async {
     try {
       await _apiClient.dio.post(
         '/v1/auth/reset-password',
         data: {'reset_token': resetToken, 'new_password': newPassword},
       );
     } on DioException catch (e) {
-      throw AuthException(_errorMessage(e, 'Could not reset your password. The link may have expired.'));
+      throw AuthException(_errorMessage(
+          e, 'Could not reset your password. The link may have expired.'));
     }
   }
 
-  Future<void> logout() => _sessionStore.clear();
+  /// Revokes the refresh token server-side (best-effort -- proceeds to
+  /// clear local session even if the network call fails, since the user
+  /// must always be able to log out locally regardless of connectivity).
+  Future<CurrentUser> getCurrentUser() async {
+    try {
+      final response = await _apiClient.dio.get('/v1/auth/me');
+      return CurrentUser.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw AuthException(_errorMessage(e, 'Could not load your profile.'));
+    }
+  }
+
+  Future<void> logout() async {
+    final refreshToken = await _sessionStore.readRefreshToken();
+    if (refreshToken != null) {
+      try {
+        await _apiClient.dio
+            .post('/v1/auth/logout', data: {'refresh_token': refreshToken});
+      } on DioException {
+        // Best-effort: local session is cleared regardless.
+      }
+    }
+    await _sessionStore.clear();
+  }
 }

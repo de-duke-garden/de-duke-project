@@ -11,6 +11,8 @@ import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/become_host/data/host_account_models.dart';
 import '../../features/become_host/data/host_account_repository.dart';
 import '../../features/become_host/screens/document_submission_screen.dart';
+import '../../features/account_settings/data/account_deletion_repository.dart';
+import '../../features/account_settings/screens/account_settings_screen.dart';
 import '../../features/become_host/screens/host_type_selection_screen.dart';
 import '../../features/listings/data/listing_repository.dart';
 import '../../features/listings/screens/create_listing_screen.dart';
@@ -40,6 +42,13 @@ final ApiClient _hostAccountApiClient = ApiClient(
   sessionStore: SessionStore(),
 );
 final HostAccountRepository _hostAccountRepository = HostAccountRepository(_hostAccountApiClient);
+
+final ApiClient _accountDeletionApiClient = ApiClient(
+  baseUrl: 'https://api.deduke.example',
+  sessionStore: SessionStore(),
+);
+final AccountDeletionRepository _accountDeletionRepository =
+    AccountDeletionRepository(_accountDeletionApiClient);
 
 class _PlaceholderScreen extends StatelessWidget {
   const _PlaceholderScreen({required this.routeName});
@@ -101,6 +110,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(path: '/booking/:listingId', builder: (context, state) => const _PlaceholderScreen(routeName: 'Booking Confirmation')),
     GoRoute(path: '/checkout/:transactionId', builder: (context, state) => const _PlaceholderScreen(routeName: 'Checkout')),
     GoRoute(path: '/transactions', builder: (context, state) => const _PlaceholderScreen(routeName: 'Transaction History')),
-    GoRoute(path: '/account-settings', builder: (context, state) => const _PlaceholderScreen(routeName: 'Account Settings')),
+    GoRoute(
+      path: '/account-settings',
+      builder: (context, state) => AccountSettingsScreen(
+        authRepository: _authRepository,
+        accountDeletionRepository: _accountDeletionRepository,
+      ),
+    ),
   ],
 );

@@ -11,6 +11,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../data/auth_repository.dart';
 
 enum _Step { requestReset, setNewPassword }
+
 enum _ScreenState { idle, submitting, success, error, offline }
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -47,7 +48,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _errorMessage = null;
     });
     try {
-      await widget.repository.requestPasswordReset(email: _emailController.text.trim());
+      await widget.repository
+          .requestPasswordReset(email: _emailController.text.trim());
       if (!mounted) return;
       setState(() {
         _step = _Step.setNewPassword;
@@ -77,7 +79,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   void _handleError(Object error) {
-    final message = error is AuthException ? error.message : 'Something went wrong. Please try again.';
+    final message = error is AuthException
+        ? error.message
+        : 'Something went wrong. Please try again.';
     setState(() {
       if (message == 'offline') {
         _state = _ScreenState.offline;
@@ -123,35 +127,45 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
             if (_state == _ScreenState.offline)
-              _InlineBanner(message: _errorMessage ?? "You're offline. Check your connection and try again."),
+              _InlineBanner(
+                  message: _errorMessage ??
+                      "You're offline. Check your connection and try again."),
             if (_state == _ScreenState.error && _errorMessage != null)
               _InlineBanner(message: _errorMessage!),
-
             if (_step == _Step.requestReset) ...[
-              const Text('Enter the email associated with your account. If it exists, we will send you a reset link.'),
+              const Text(
+                  'Enter the email associated with your account. If it exists, we will send you a reset link.'),
               const SizedBox(height: AppSpacing.md),
               TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: 'Email'),
                 keyboardType: TextInputType.emailAddress,
                 enabled: !submitting,
-                validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
+                validator: (v) => (v == null || !v.contains('@'))
+                    ? 'Enter a valid email'
+                    : null,
               ),
               const SizedBox(height: AppSpacing.md),
               ElevatedButton(
                 onPressed: submitting ? null : _requestReset,
                 child: submitting
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))
                     : const Text('Send reset link'),
               ),
             ] else ...[
-              const Text('Enter the reset code from your email and choose a new password.'),
+              const Text(
+                  'Enter the reset code from your email and choose a new password.'),
               const SizedBox(height: AppSpacing.md),
               TextFormField(
                 controller: _resetTokenController,
                 decoration: const InputDecoration(labelText: 'Reset code'),
                 enabled: !submitting,
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter the reset code' : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Enter the reset code'
+                    : null,
               ),
               const SizedBox(height: AppSpacing.sm),
               TextFormField(
@@ -159,14 +173,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 decoration: const InputDecoration(labelText: 'New password'),
                 obscureText: true,
                 enabled: !submitting,
-                validator: (v) =>
-                    (v == null || v.length < 8) ? 'Password must be at least 8 characters' : null,
+                validator: (v) => (v == null || v.length < 8)
+                    ? 'Password must be at least 8 characters'
+                    : null,
               ),
               const SizedBox(height: AppSpacing.md),
               ElevatedButton(
                 onPressed: submitting ? null : _submitNewPassword,
                 child: submitting
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))
                     : const Text('Reset password'),
               ),
             ],
@@ -192,7 +210,8 @@ class _InlineBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error, size: 20),
+          Icon(Icons.error_outline,
+              color: Theme.of(context).colorScheme.error, size: 20),
           const SizedBox(width: AppSpacing.sm),
           Expanded(child: Text(message)),
         ],

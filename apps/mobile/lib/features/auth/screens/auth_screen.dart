@@ -12,9 +12,11 @@ import '../data/auth_repository.dart';
 enum _ScreenState { idle, submitting, otpSent, error, offline }
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key, required this.repository, this.initialTabIndex = 0});
+  const AuthScreen(
+      {super.key, required this.repository, this.initialTabIndex = 0});
 
   final AuthRepository repository;
+
   /// 0 = Sign Up tab, 1 = Log In tab -- lets /auth/signup and /auth/login
   /// deep-link into the right tab of this single combined screen.
   final int initialTabIndex;
@@ -23,7 +25,8 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
+class _AuthScreenState extends State<AuthScreen>
+    with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   bool _usePhone = false;
   bool _otpRequested = false;
@@ -89,7 +92,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   void _handleAuthException(Object error) {
-    final message = error is AuthException ? error.message : 'Something went wrong. Please try again.';
+    final message = error is AuthException
+        ? error.message
+        : 'Something went wrong. Please try again.';
     setState(() {
       if (message == 'offline') {
         _state = _ScreenState.offline;
@@ -193,7 +198,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       _errorMessage = null;
     });
     try {
-      await widget.repository.requestLoginOtp(phoneNumber: _phoneController.text.trim());
+      await widget.repository
+          .requestLoginOtp(phoneNumber: _phoneController.text.trim());
       setState(() {
         _otpRequested = true;
         _state = _ScreenState.otpSent;
@@ -223,13 +229,17 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   void _handlePrimaryAction() {
     if (_isSignUpTab) {
       if (_usePhone) {
-        _otpRequested ? _submitPhoneSignUpVerifyOtp() : _submitPhoneSignUpRequestOtp();
+        _otpRequested
+            ? _submitPhoneSignUpVerifyOtp()
+            : _submitPhoneSignUpRequestOtp();
       } else {
         _submitEmailSignUp();
       }
     } else {
       if (_usePhone) {
-        _otpRequested ? _submitPhoneLoginVerifyOtp() : _submitPhoneLoginRequestOtp();
+        _otpRequested
+            ? _submitPhoneLoginVerifyOtp()
+            : _submitPhoneLoginRequestOtp();
       } else {
         _submitEmailLogin();
       }
@@ -248,7 +258,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
               const SizedBox(height: AppSpacing.xl),
-              Text('De-Duke', style: Theme.of(context).textTheme.headlineMedium),
+              Text('De-Duke',
+                  style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 'Verified property. Real conversations. Deals that close.',
@@ -260,37 +271,40 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 tabs: const [Tab(text: 'Sign Up'), Tab(text: 'Log In')],
               ),
               const SizedBox(height: AppSpacing.lg),
-
               if (_state == _ScreenState.offline)
                 _Banner(
                   icon: Icons.wifi_off,
-                  message: _errorMessage ?? "You're offline. Check your connection and try again.",
+                  message: _errorMessage ??
+                      "You're offline. Check your connection and try again.",
                 ),
               if (_state == _ScreenState.error && _errorMessage != null)
                 _Banner(icon: Icons.error_outline, message: _errorMessage!),
               if (_state == _ScreenState.otpSent && _otpRequested)
                 _Banner(
                   icon: Icons.sms_outlined,
-                  message: 'Enter the code we sent to ${_phoneController.text.trim()}.',
+                  message:
+                      'Enter the code we sent to ${_phoneController.text.trim()}.',
                   isInfo: true,
                 ),
-
               if (_isSignUpTab)
                 TextFormField(
                   controller: _fullNameController,
                   decoration: const InputDecoration(labelText: 'Full name'),
                   enabled: !submitting,
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your full name' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Enter your full name'
+                      : null,
                 ),
               if (_isSignUpTab) const SizedBox(height: AppSpacing.sm),
-
               if (!_usePhone)
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(labelText: 'Email'),
                   keyboardType: TextInputType.emailAddress,
                   enabled: !submitting,
-                  validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
+                  validator: (v) => (v == null || !v.contains('@'))
+                      ? 'Enter a valid email'
+                      : null,
                 )
               else
                 TextFormField(
@@ -298,31 +312,33 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   decoration: const InputDecoration(labelText: 'Phone number'),
                   keyboardType: TextInputType.phone,
                   enabled: !submitting && !_otpRequested,
-                  validator: (v) =>
-                      (v == null || v.trim().length < 8) ? 'Enter a valid phone number' : null,
+                  validator: (v) => (v == null || v.trim().length < 8)
+                      ? 'Enter a valid phone number'
+                      : null,
                 ),
               const SizedBox(height: AppSpacing.sm),
-
               if (!_usePhone)
                 TextFormField(
                   controller: _passwordController,
                   decoration: const InputDecoration(labelText: 'Password'),
                   obscureText: true,
                   enabled: !submitting,
-                  validator: (v) =>
-                      (v == null || v.length < 8) ? 'Password must be at least 8 characters' : null,
+                  validator: (v) => (v == null || v.length < 8)
+                      ? 'Password must be at least 8 characters'
+                      : null,
                 ),
               if (_usePhone && _otpRequested)
                 TextFormField(
                   controller: _otpController,
-                  decoration: const InputDecoration(labelText: 'Verification code'),
+                  decoration:
+                      const InputDecoration(labelText: 'Verification code'),
                   keyboardType: TextInputType.number,
                   enabled: !submitting,
-                  validator: (v) =>
-                      (v == null || v.trim().length < 4) ? 'Enter the code you received' : null,
+                  validator: (v) => (v == null || v.trim().length < 4)
+                      ? 'Enter the code you received'
+                      : null,
                 ),
               const SizedBox(height: AppSpacing.md),
-
               ElevatedButton(
                 onPressed: submitting ? null : _handlePrimaryAction,
                 child: submitting
@@ -334,18 +350,19 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     : Text(_primaryButtonLabel()),
               ),
               const SizedBox(height: AppSpacing.sm),
-
               TextButton(
                 onPressed: submitting ? null : _togglePhone,
-                child: Text(_usePhone ? 'Use email instead' : 'Use phone number instead'),
+                child: Text(_usePhone
+                    ? 'Use email instead'
+                    : 'Use phone number instead'),
               ),
-
               if (!_isSignUpTab)
                 TextButton(
-                  onPressed: submitting ? null : () => context.push('/auth/forgot-password'),
+                  onPressed: submitting
+                      ? null
+                      : () => context.push('/auth/forgot-password'),
                   child: const Text('Forgot password?'),
                 ),
-
               const SizedBox(height: AppSpacing.lg),
               Text(
                 'By continuing you agree to our Terms of Service and Privacy Policy.',
@@ -367,7 +384,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 }
 
 class _Banner extends StatelessWidget {
-  const _Banner({required this.icon, required this.message, this.isInfo = false});
+  const _Banner(
+      {required this.icon, required this.message, this.isInfo = false});
 
   final IconData icon;
   final String message;
@@ -375,7 +393,9 @@ class _Banner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isInfo ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.error;
+    final color = isInfo
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.error;
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.sm),
