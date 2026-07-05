@@ -11,7 +11,8 @@ class ChatTokenResult {
     required this.expiresInSeconds,
   });
 
-  factory ChatTokenResult.fromJson(Map<String, dynamic> json) => ChatTokenResult(
+  factory ChatTokenResult.fromJson(Map<String, dynamic> json) =>
+      ChatTokenResult(
         firebaseCustomToken: json['firebase_custom_token'] as String,
         role: json['role'] as String,
         expiresInSeconds: json['expires_in_seconds'] as int,
@@ -30,7 +31,8 @@ class ChatApi {
   /// POST /v1/chat/token -- exchanged (client-side, via FirebaseAuth) for a
   /// Firestore session, scoped by the `role` custom claim.
   Future<ChatTokenResult> fetchChatToken() async {
-    final response = await _apiClient.dio.post<Map<String, dynamic>>('/v1/chat/token');
+    final response =
+        await _apiClient.dio.post<Map<String, dynamic>>('/v1/chat/token');
     return ChatTokenResult.fromJson(response.data!);
   }
 

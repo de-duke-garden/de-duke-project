@@ -15,7 +15,8 @@ class ChatConversation {
     required this.createdAt,
   });
 
-  factory ChatConversation.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory ChatConversation.fromFirestore(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
     return ChatConversation(
       id: doc.id,
@@ -23,7 +24,8 @@ class ChatConversation {
       clientId: data['clientId'] as String? ?? '',
       propertyManagementId: data['propertyManagementId'] as String? ?? '',
       assignedStaffId: data['assignedStaffId'] as String?,
-      lastMessageAt: (data['lastMessageAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastMessageAt:
+          (data['lastMessageAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -59,7 +61,8 @@ class ChatMessage {
     this.pendingWrite = false,
   });
 
-  factory ChatMessage.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory ChatMessage.fromFirestore(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
     return ChatMessage(
       id: doc.id,

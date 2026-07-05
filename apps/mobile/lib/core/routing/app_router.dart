@@ -11,6 +11,10 @@ import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/become_host/data/host_account_models.dart';
 import '../../features/become_host/data/host_account_repository.dart';
 import '../../features/become_host/screens/document_submission_screen.dart';
+import '../../features/chat/data/chat_api.dart';
+import '../../features/chat/data/chat_repository.dart';
+import '../../features/chat/screens/chat_inbox_screen.dart';
+import '../../features/chat/screens/chat_thread_screen.dart';
 import '../../features/account_settings/data/account_deletion_repository.dart';
 import '../../features/account_settings/screens/account_settings_screen.dart';
 import '../../features/become_host/screens/host_type_selection_screen.dart';
@@ -29,19 +33,22 @@ final ApiClient _listingsApiClient = ApiClient(
   baseUrl: 'https://api.deduke.example',
   sessionStore: SessionStore(),
 );
-final ListingRepository _listingRepository = ListingRepository(_listingsApiClient);
+final ListingRepository _listingRepository =
+    ListingRepository(_listingsApiClient);
 
 final ApiClient _authApiClient = ApiClient(
   baseUrl: 'https://api.deduke.example',
   sessionStore: SessionStore(),
 );
-final AuthRepository _authRepository = AuthRepository(_authApiClient, SessionStore());
+final AuthRepository _authRepository =
+    AuthRepository(_authApiClient, SessionStore());
 
 final ApiClient _hostAccountApiClient = ApiClient(
   baseUrl: 'https://api.deduke.example',
   sessionStore: SessionStore(),
 );
-final HostAccountRepository _hostAccountRepository = HostAccountRepository(_hostAccountApiClient);
+final HostAccountRepository _hostAccountRepository =
+    HostAccountRepository(_hostAccountApiClient);
 
 final ApiClient _accountDeletionApiClient = ApiClient(
   baseUrl: 'https://api.deduke.example',
@@ -49,6 +56,13 @@ final ApiClient _accountDeletionApiClient = ApiClient(
 );
 final AccountDeletionRepository _accountDeletionRepository =
     AccountDeletionRepository(_accountDeletionApiClient);
+
+final ApiClient _chatApiClient = ApiClient(
+  baseUrl: 'https://api.deduke.example',
+  sessionStore: SessionStore(),
+);
+final ChatRepository _chatRepository =
+    ChatRepository(chatApi: ChatApi(_chatApiClient));
 
 class _PlaceholderScreen extends StatelessWidget {
   const _PlaceholderScreen({required this.routeName});
@@ -66,22 +80,29 @@ class _PlaceholderScreen extends StatelessWidget {
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   routes: [
-    GoRoute(path: '/', builder: (context, state) => const _PlaceholderScreen(routeName: 'Splash/Onboarding')),
+    GoRoute(
+        path: '/',
+        builder: (context, state) =>
+            const _PlaceholderScreen(routeName: 'Splash/Onboarding')),
     GoRoute(
       path: '/auth/login',
-      builder: (context, state) => AuthScreen(repository: _authRepository, initialTabIndex: 1),
+      builder: (context, state) =>
+          AuthScreen(repository: _authRepository, initialTabIndex: 1),
     ),
     GoRoute(
       path: '/auth/signup',
-      builder: (context, state) => AuthScreen(repository: _authRepository, initialTabIndex: 0),
+      builder: (context, state) =>
+          AuthScreen(repository: _authRepository, initialTabIndex: 0),
     ),
     GoRoute(
       path: '/auth/forgot-password',
-      builder: (context, state) => ForgotPasswordScreen(repository: _authRepository),
+      builder: (context, state) =>
+          ForgotPasswordScreen(repository: _authRepository),
     ),
     GoRoute(
       path: '/become-host',
-      builder: (context, state) => HostTypeSelectionScreen(repository: _hostAccountRepository),
+      builder: (context, state) =>
+          HostTypeSelectionScreen(repository: _hostAccountRepository),
     ),
     GoRoute(
       path: '/become-host/:hostType',
@@ -90,10 +111,14 @@ final GoRouter appRouter = GoRouter(
         hostType: hostTypeFromApiValue(state.pathParameters['hostType']!),
       ),
     ),
-    GoRoute(path: '/home', builder: (context, state) => const _PlaceholderScreen(routeName: 'Home / Discovery')),
+    GoRoute(
+        path: '/home',
+        builder: (context, state) =>
+            const _PlaceholderScreen(routeName: 'Home / Discovery')),
     GoRoute(
       path: '/search',
-      builder: (context, state) => SearchResultsScreen(initialQuery: state.uri.queryParameters['q']),
+      builder: (context, state) =>
+          SearchResultsScreen(initialQuery: state.uri.queryParameters['q']),
     ),
     GoRoute(
       path: '/listings/:id',
@@ -104,12 +129,36 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/listings/create',
-      builder: (context, state) => CreateListingScreen(repository: _listingRepository),
+      builder: (context, state) =>
+          CreateListingScreen(repository: _listingRepository),
     ),
-    GoRoute(path: '/chat/:conversationId', builder: (context, state) => const _PlaceholderScreen(routeName: 'Chat Conversation')),
-    GoRoute(path: '/booking/:listingId', builder: (context, state) => const _PlaceholderScreen(routeName: 'Booking Confirmation')),
-    GoRoute(path: '/checkout/:transactionId', builder: (context, state) => const _PlaceholderScreen(routeName: 'Checkout')),
-    GoRoute(path: '/transactions', builder: (context, state) => const _PlaceholderScreen(routeName: 'Transaction History')),
+    GoRoute(
+      path: '/chat',
+      builder: (context, state) => ChatInboxScreen(
+        chatRepository: _chatRepository,
+        authRepository: _authRepository,
+      ),
+    ),
+    GoRoute(
+      path: '/chat/:conversationId',
+      builder: (context, state) => ChatThreadScreen(
+        conversationId: state.pathParameters['conversationId']!,
+        chatRepository: _chatRepository,
+        authRepository: _authRepository,
+      ),
+    ),
+    GoRoute(
+        path: '/booking/:listingId',
+        builder: (context, state) =>
+            const _PlaceholderScreen(routeName: 'Booking Confirmation')),
+    GoRoute(
+        path: '/checkout/:transactionId',
+        builder: (context, state) =>
+            const _PlaceholderScreen(routeName: 'Checkout')),
+    GoRoute(
+        path: '/transactions',
+        builder: (context, state) =>
+            const _PlaceholderScreen(routeName: 'Transaction History')),
     GoRoute(
       path: '/account-settings',
       builder: (context, state) => AccountSettingsScreen(

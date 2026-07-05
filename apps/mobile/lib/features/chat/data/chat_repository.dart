@@ -40,10 +40,37 @@ class ChatRepository {
     return _chatApi.startConversation(listingId: listingId);
   }
 
+  /// One-time fetch of a single conversation -- used by the Chat Thread
+  /// screen to resolve listingId/participants before subscribing to its
+  /// message stream (the route only carries the conversation id).
+  Future<ChatConversation?> getConversation(String conversationId) async {
+    final doc =
+        await _firestore.collection('conversations').doc(conversationId).get();
+    if (!doc.exists) return null;
+    return ChatConversation.fromFirestore(doc);
+  }
+
+  /// One-time fetch of the most recent message in a conversation, for the
+  /// Chat Inbox's last-message preview / unread indicator (screens.md
+  /// Screen 8) -- not a live stream, since the inbox itself already listens
+  /// to the conversation list for lastMessageAt changes.
+  Future<ChatMessage?> getLastMessage(String conversationId) async {
+    final snap = await _firestore
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .orderBy('sentAt', descending: true)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return null;
+    return ChatMessage.fromFirestore(snap.docs.first);
+  }
+
   /// Conversations visible to the current user -- Firestore security rules
   /// enforce the actual access boundary (client/property_management see
   /// only their own; deduke_staff sees all), this query just orders them.
-  Stream<List<ChatConversation>> watchConversationsFor(String userId, {required bool asClient}) {
+  Stream<List<ChatConversation>> watchConversationsFor(String userId,
+      {required bool asClient}) {
     final field = asClient ? 'clientId' : 'propertyManagementId';
     return _firestore
         .collection('conversations')
@@ -73,7 +100,8 @@ class ChatRepository {
     required String senderRole,
     required String body,
   }) async {
-    final conversationRef = _firestore.collection('conversations').doc(conversationId);
+    final conversationRef =
+        _firestore.collection('conversations').doc(conversationId);
     final messageRef = conversationRef.collection('messages').doc();
 
     final batch = _firestore.batch();
@@ -85,7 +113,8 @@ class ChatRepository {
       'deliveryStatus': 'sent',
       'sentAt': FieldValue.serverTimestamp(),
     });
-    batch.update(conversationRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(
+        conversationRef, {'lastMessageAt': FieldValue.serverTimestamp()});
     await batch.commit();
   }
 
