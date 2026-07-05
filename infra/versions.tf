@@ -1,7 +1,7 @@
 # Root-level provider/version pinning reference — each environment's own versions.tf
 # mirrors this. Kept here as the single source of truth for version bumps.
 terraform {
-  required_version = ">= 1.9.0"
+  required_version = ">= 1.11.0" # required for S3 native state locking (use_lockfile)
   required_providers {
     aws = {
       source  = "hashicorp/aws"

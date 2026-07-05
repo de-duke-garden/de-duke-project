@@ -15,6 +15,9 @@ apply` in any environment until explicitly instructed.
 
 ```
 infra/
+├── bootstrap/          # One-time, per-AWS-account: creates the S3 state bucket
+│                        # (own local state -- nothing else can use a remote
+│                        # backend before this bucket exists)
 ├── modules/            # Reusable building blocks, one per AWS/GCP concern
 │   ├── networking/      # VPC, subnets, NAT, route tables (Multi-AZ)
 │   ├── rds_postgres/    # Primary Database, writer + read replicas
@@ -31,10 +34,17 @@ infra/
     └── production/       # Not yet configured — Multi-AZ everywhere, read replicas from launch
 ```
 
-Each environment has its own local Terraform state file (`terraform.tfstate`,
-gitignored) — no shared remote state yet. If more than one person needs to
-run Terraform against the same environment, migrate to an S3 backend with a
-DynamoDB lock table before that happens (not yet done).
+Each environment stores its state remotely in a single shared S3 bucket
+(created once by `infra/bootstrap/`), namespaced by object key
+(`development/terraform.tfstate`, etc.) -- never local state, so more than
+one operator can safely run Terraform against the same environment.
+Locking uses S3's own native conditional-write locking (`use_lockfile` in
+each environment's `backend "s3" {}` block, supplied via
+`-backend-config=backend.hcl`) -- **not DynamoDB**: DynamoDB-based
+Terraform state locking was deprecated once S3 native locking reached
+general availability in Terraform 1.11 (Feb 2025), so a new project has no
+reason to stand up a lock table on its way out. Requires Terraform
+`>= 1.11.0`.
 
 ## Secrets model
 
@@ -54,11 +64,19 @@ DynamoDB lock table before that happens (not yet done).
 
 ## Before running `terraform init`/`plan`/`apply`
 
+0. **One time per AWS account:** in `infra/bootstrap/`, copy
+   `terraform.tfvars.example` to `terraform.tfvars`, fill it in, then
+   `terraform init && terraform apply` there first -- this creates the S3
+   state bucket every environment's backend depends on. Note its
+   `state_bucket_name` output.
 1. Copy `environments/<env>/terraform.tfvars.example` to
    `terraform.tfvars` (gitignored) and fill in the `REPLACE_ME` values
    (GCP project ID, AWS account suffix, ACM certificate ARN once available).
-2. Ensure your AWS CLI credentials and `gcloud auth` are active for the
+2. Copy `environments/<env>/backend.hcl.example` to `backend.hcl`
+   (gitignored) and fill in `bucket` (from step 0's output) and `region`.
+3. Ensure your AWS CLI credentials and `gcloud auth` are active for the
    target account/project.
-3. Run `terraform init` inside `environments/<env>/`.
-4. Run `terraform plan` and review the plan carefully before ever running
+4. Run `terraform init -backend-config=backend.hcl` inside
+   `environments/<env>/`.
+5. Run `terraform plan` and review the plan carefully before ever running
    `terraform apply` — and only run `apply` when explicitly told to.

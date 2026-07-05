@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.9.0"
+  required_version = ">= 1.11.0" # required for S3 native state locking (use_lockfile)
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -15,13 +15,13 @@ terraform {
     }
   }
 
-  # Local backend for now — no shared remote state until a decision is made
-  # on where Terraform state should live (S3+DynamoDB lock table recommended
-  # once this project has more than one operator). See README.md in this
-  # directory for the migration note.
-  backend "local" {
-    path = "terraform.tfstate"
-  }
+  # Remote state in S3, locked via S3's own native conditional-write locking
+  # (use_lockfile) -- no DynamoDB lock table (deprecated for this purpose as
+  # of Terraform 1.11). Bucket/key/region are supplied via
+  # `terraform init -backend-config=backend.hcl` (see backend.hcl.example
+  # and infra/bootstrap/ for the one-time bucket creation) rather than
+  # hardcoded here, so the same config works across environments.
+  backend "s3" {}
 }
 
 provider "aws" {
