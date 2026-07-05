@@ -53,7 +53,8 @@ class BookingController extends ChangeNotifier {
   void _tick() {
     final current = hold;
     if (current == null) return;
-    final remaining = current.holdExpiresAt.toUtc().difference(DateTime.now().toUtc());
+    final remaining =
+        current.holdExpiresAt.toUtc().difference(DateTime.now().toUtc());
     if (remaining.isNegative) {
       timeRemaining = Duration.zero;
       status = BookingScreenStatus.expired;

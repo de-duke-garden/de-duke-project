@@ -27,7 +27,8 @@ class BookingConfirmationScreen extends StatefulWidget {
   final void Function(BookingHold hold) onProceedToCheckout;
 
   @override
-  State<BookingConfirmationScreen> createState() => _BookingConfirmationScreenState();
+  State<BookingConfirmationScreen> createState() =>
+      _BookingConfirmationScreenState();
 }
 
 class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
@@ -72,11 +73,13 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     }
   }
 
-  Widget _buildSummary(BookingController controller, {required bool submitting}) {
+  Widget _buildSummary(BookingController controller,
+      {required bool submitting}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.listingTitle, style: Theme.of(context).textTheme.titleLarge),
+        Text(widget.listingTitle,
+            style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
         Text(widget.priceSummary, style: Theme.of(context).textTheme.bodyLarge),
         if (widget.checkInDate != null && widget.checkOutDate != null) ...[
@@ -124,7 +127,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
             const SizedBox(width: 8),
             Text(
               'Hold active -- ${minutes}m ${seconds.toString().padLeft(2, '0')}s remaining',
-              style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: AppColors.warning, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -191,5 +195,6 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     );
   }
 
-  String _fmt(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String _fmt(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }

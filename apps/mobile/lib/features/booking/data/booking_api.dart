@@ -39,7 +39,8 @@ class BookingHold {
   final DateTime? possessionEnd;
 
   bool get isExpired =>
-      status == 'expired' || DateTime.now().toUtc().isAfter(holdExpiresAt.toUtc());
+      status == 'expired' ||
+      DateTime.now().toUtc().isAfter(holdExpiresAt.toUtc());
 }
 
 class BookingApiException implements Exception {
@@ -61,7 +62,8 @@ class BookingApi {
       final response = await _client.dio.post('/v1/bookings/confirm', data: {
         'listing_id': listingId,
         if (checkInDate != null) 'check_in_date': checkInDate.toIso8601String(),
-        if (checkOutDate != null) 'check_out_date': checkOutDate.toIso8601String(),
+        if (checkOutDate != null)
+          'check_out_date': checkOutDate.toIso8601String(),
       });
       return BookingHold.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -77,13 +79,15 @@ class BookingApi {
       final response = await _client.dio.get('/v1/bookings/$transactionId');
       return BookingHold.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
-      throw BookingApiException(_messageFor(e), statusCode: e.response?.statusCode);
+      throw BookingApiException(_messageFor(e),
+          statusCode: e.response?.statusCode);
     }
   }
 
   String _messageFor(DioException e) {
     final status = e.response?.statusCode;
-    final detail = e.response?.data is Map ? (e.response?.data as Map)['detail'] : null;
+    final detail =
+        e.response?.data is Map ? (e.response?.data as Map)['detail'] : null;
     if (detail is String) return detail;
     if (status == 409) return 'These dates are no longer available.';
     if (status == 404) return 'This listing could not be found.';

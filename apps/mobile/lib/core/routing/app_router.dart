@@ -18,10 +18,18 @@ import '../../features/chat/screens/chat_thread_screen.dart';
 import '../../features/account_settings/data/account_deletion_repository.dart';
 import '../../features/account_settings/screens/account_settings_screen.dart';
 import '../../features/become_host/screens/host_type_selection_screen.dart';
+import '../../features/booking/data/booking_api.dart';
+import '../../features/booking/logic/booking_controller.dart';
+import '../../features/booking/screens/booking_screen.dart';
+import '../../features/checkout/data/checkout_repository.dart';
+import '../../features/checkout/screens/checkout_screen.dart';
+import '../../features/checkout/screens/payment_confirmation_screen.dart';
 import '../../features/listings/data/listing_repository.dart';
 import '../../features/listings/screens/create_listing_screen.dart';
 import '../../features/listings/screens/listing_detail_screen.dart';
 import '../../features/search/screens/search_results_screen.dart';
+import '../../features/transactions/data/transactions_repository.dart';
+import '../../features/transactions/screens/transaction_history_screen.dart';
 import '../api/api_client.dart';
 import '../auth/session_store.dart';
 
@@ -63,6 +71,26 @@ final ApiClient _chatApiClient = ApiClient(
 );
 final ChatRepository _chatRepository =
     ChatRepository(chatApi: ChatApi(_chatApiClient));
+
+final ApiClient _bookingApiClient = ApiClient(
+  baseUrl: 'https://api.deduke.example',
+  sessionStore: SessionStore(),
+);
+final BookingApi _bookingApi = BookingApi(_bookingApiClient);
+
+final ApiClient _checkoutApiClient = ApiClient(
+  baseUrl: 'https://api.deduke.example',
+  sessionStore: SessionStore(),
+);
+final CheckoutRepository _checkoutRepository =
+    CheckoutRepository(_checkoutApiClient);
+
+final ApiClient _transactionsApiClient = ApiClient(
+  baseUrl: 'https://api.deduke.example',
+  sessionStore: SessionStore(),
+);
+final TransactionsRepository _transactionsRepository =
+    TransactionsRepository(_transactionsApiClient);
 
 class _PlaceholderScreen extends StatelessWidget {
   const _PlaceholderScreen({required this.routeName});
@@ -148,17 +176,36 @@ final GoRouter appRouter = GoRouter(
       ),
     ),
     GoRoute(
-        path: '/booking/:listingId',
-        builder: (context, state) =>
-            const _PlaceholderScreen(routeName: 'Booking Confirmation')),
+      path: '/booking/:listingId',
+      builder: (context, state) => BookingScreen(
+        listingId: state.pathParameters['listingId']!,
+        listingRepository: _listingRepository,
+        // Fresh controller per visit -- it owns a single booking attempt's
+        // countdown/timer state, never shared across different bookings.
+        bookingController: BookingController(_bookingApi),
+      ),
+    ),
     GoRoute(
-        path: '/checkout/:transactionId',
-        builder: (context, state) =>
-            const _PlaceholderScreen(routeName: 'Checkout')),
+      path: '/checkout/:transactionId',
+      builder: (context, state) => CheckoutScreen(
+        transactionId: state.pathParameters['transactionId']!,
+        repository: _checkoutRepository,
+      ),
+    ),
     GoRoute(
-        path: '/transactions',
-        builder: (context, state) =>
-            const _PlaceholderScreen(routeName: 'Transaction History')),
+      path: '/checkout/:transactionId/confirmation',
+      builder: (context, state) => PaymentConfirmationScreen(
+        transactionId: state.pathParameters['transactionId']!,
+        repository: _checkoutRepository,
+      ),
+    ),
+    GoRoute(
+      path: '/transactions',
+      builder: (context, state) => TransactionHistoryScreen(
+        transactionsRepository: _transactionsRepository,
+        checkoutRepository: _checkoutRepository,
+      ),
+    ),
     GoRoute(
       path: '/account-settings',
       builder: (context, state) => AccountSettingsScreen(
