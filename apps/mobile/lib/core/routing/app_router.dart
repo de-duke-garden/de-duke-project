@@ -108,12 +108,14 @@ class _PlaceholderScreen extends StatelessWidget {
 }
 
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/',
+  // Screens.md Screen 1 (Sign-Up / Login) documents its own entry point as
+  // "App launch (unauthenticated)" -- there is no separate Splash/Onboarding
+  // screen in the docs, so app launch goes straight there. `/` redirects
+  // rather than rendering its own placeholder, in case anything still links
+  // to the bare root path.
+  initialLocation: '/auth/signup',
+  redirect: (context, state) => state.uri.path == '/' ? '/auth/signup' : null,
   routes: [
-    GoRoute(
-        path: '/',
-        builder: (context, state) =>
-            const _PlaceholderScreen(routeName: 'Splash/Onboarding')),
     GoRoute(
       path: '/auth/login',
       builder: (context, state) =>

@@ -20,11 +20,16 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   group('De-Duke app navigation', () {
-    testWidgets('boots to the initial route', (tester) async {
+    testWidgets(
+        'boots straight to Sign Up / Log In (no separate splash screen '
+        'per screens.md Screen 1: "App launch (unauthenticated)" is its own '
+        'documented entry point)', (tester) async {
       await tester.pumpWidget(const DeDukeApp());
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Splash/Onboarding'), findsOneWidget);
+      expect(find.text('De-Duke'), findsOneWidget);
+      expect(find.text('Sign Up'), findsOneWidget);
+      expect(find.text('Log In'), findsOneWidget);
     });
 
     testWidgets('navigating to /auth/login shows the Sign Up / Log In screen',
