@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Required for all network access (Backend API Service, Paystack
-         checkout, Firebase/Firestore chat) -- the debug manifest alone
+         checkout, Firebase/Firestore chat); the debug manifest alone
          only covers debug builds, this is needed for profile/release too. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
