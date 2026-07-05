@@ -1,5 +1,10 @@
-# Admin Web Console -- PR checks (typecheck, lint, build). Deploy to
-# Vercel happens separately in admin-console-deploy.yml on merge to main.
+# Admin Web Console -- PR checks (typecheck, lint, build).
+#
+# Deploy is NOT done here -- Vercel own GitHub integration (once this
+# repo is connected to a Vercel project) automatically builds and deploys
+# on every push, using Vercel own project-level Environment Variables
+# for the real NEXT_PUBLIC_API_BASE_URL / BACKEND_API_URL /
+# NEXT_PUBLIC_FIREBASE_* values. This workflow only guards pull requests.
 name: Admin Console CI
 
 on:
@@ -35,8 +40,8 @@ jobs:
       - name: Build
         # Uses placeholder env values -- this only proves the build compiles,
         # it does not talk to a real backend/Firebase project. Real values
-        # live in Vercel own project environment variables (see
-        # admin-console-deploy.yml), never in this repo.
+        # live in Vercel's own project Environment Variables (configured in the
+        # Vercel dashboard once this repo is connected), never in this repo.
         env:
           NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/v1
           BACKEND_API_URL: http://localhost:8000

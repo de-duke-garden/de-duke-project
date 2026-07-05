@@ -3,8 +3,12 @@
 # architecture.md calls this out as a genuinely separate application with
 # its own lightweight CI/CD, deliberately excluded from the backend
 # pipeline. Kept in this monorepo for now (per project decision), but as
-# its own workflow files scoped to apps/marketing-site/ only, so it never
+# its own workflow file scoped to apps/marketing-site/ only, so it never
 # blocks or is blocked by backend/admin-console changes.
+#
+# Deploy is NOT done here -- Vercel's own GitHub integration (once this
+# repo is connected to a Vercel project) automatically builds and deploys
+# the static export on every push. This workflow only guards pull requests.
 name: Marketing Site CI
 
 on:
