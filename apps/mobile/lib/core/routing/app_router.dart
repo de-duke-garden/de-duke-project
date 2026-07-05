@@ -5,6 +5,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/data/auth_repository.dart';
+import '../../features/auth/screens/auth_screen.dart';
+import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/listings/data/listing_repository.dart';
 import '../../features/listings/screens/create_listing_screen.dart';
 import '../../features/listings/screens/listing_detail_screen.dart';
@@ -13,14 +16,20 @@ import '../api/api_client.dart';
 import '../auth/session_store.dart';
 
 // TODO: replace with real DI (e.g. Provider/Riverpod) once a shared
-// composition root exists; this is a minimal, additive wiring so the
-// listings feature's routes are independently functional. Base URL should
-// come from build-time config, not be hardcoded, once that lands.
+// composition root exists; this is a minimal, additive wiring so each
+// feature's routes are independently functional. Base URL should come
+// from build-time config, not be hardcoded, once that lands.
 final ApiClient _listingsApiClient = ApiClient(
   baseUrl: 'https://api.deduke.example',
   sessionStore: SessionStore(),
 );
 final ListingRepository _listingRepository = ListingRepository(_listingsApiClient);
+
+final ApiClient _authApiClient = ApiClient(
+  baseUrl: 'https://api.deduke.example',
+  sessionStore: SessionStore(),
+);
+final AuthRepository _authRepository = AuthRepository(_authApiClient, SessionStore());
 
 class _PlaceholderScreen extends StatelessWidget {
   const _PlaceholderScreen({required this.routeName});
@@ -39,8 +48,18 @@ final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   routes: [
     GoRoute(path: '/', builder: (context, state) => const _PlaceholderScreen(routeName: 'Splash/Onboarding')),
-    GoRoute(path: '/auth/login', builder: (context, state) => const _PlaceholderScreen(routeName: 'Login')),
-    GoRoute(path: '/auth/signup', builder: (context, state) => const _PlaceholderScreen(routeName: 'Sign Up')),
+    GoRoute(
+      path: '/auth/login',
+      builder: (context, state) => AuthScreen(repository: _authRepository, initialTabIndex: 1),
+    ),
+    GoRoute(
+      path: '/auth/signup',
+      builder: (context, state) => AuthScreen(repository: _authRepository, initialTabIndex: 0),
+    ),
+    GoRoute(
+      path: '/auth/forgot-password',
+      builder: (context, state) => ForgotPasswordScreen(repository: _authRepository),
+    ),
     GoRoute(path: '/become-host', builder: (context, state) => const _PlaceholderScreen(routeName: 'Become a Host')),
     GoRoute(path: '/home', builder: (context, state) => const _PlaceholderScreen(routeName: 'Home / Discovery')),
     GoRoute(
