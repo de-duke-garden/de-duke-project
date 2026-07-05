@@ -32,3 +32,4 @@ apps/mobile/build/
 apps/mobile/.pub-cache/
 apps/mobile/*.iml
 *.tsbuildinfo
+apps/mobile/.idea/
