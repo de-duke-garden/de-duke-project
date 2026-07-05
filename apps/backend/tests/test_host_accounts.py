@@ -94,6 +94,53 @@ def test_lawyer_submission_with_all_documents_and_fields(client: TestClient) -> 
     assert response.status_code == 201
 
 
+def test_admin_detail_view_includes_type_specific_fields(client: TestClient) -> None:
+    """Screen 27 detail panel AC: every type-specific document/field for
+    the submission's host_type is present in the detail response."""
+    token, _ = _register_and_login(client, "lawyer-detail@example.com")
+    submission = {
+        "host_type": "lawyer",
+        "bio": "Practicing lawyer, 10 years call.",
+        "profile_photo_temp_key": "photo.jpg",
+        "nba_enrol_no": "NBA/12345",
+        "ref_phone_no": "+2348099999999",
+        "documents": [
+            {"field": "valid_practicing_cert_url", "temp_key": "cert.jpg"},
+            {"field": "govt_issued_id_url", "temp_key": "id.jpg"},
+            {"field": "proof_of_address_url", "temp_key": "addr.jpg"},
+        ],
+    }
+    submit_response = client.post(
+        "/v1/host-accounts",
+        headers={"Authorization": f"Bearer {token}"},
+        data={"submission": json.dumps(submission)},
+        files=[
+            ("files", ("photo.jpg", io.BytesIO(b"img"), "image/jpeg")),
+            ("files", ("cert.jpg", io.BytesIO(b"img"), "image/jpeg")),
+            ("files", ("id.jpg", io.BytesIO(b"img"), "image/jpeg")),
+            ("files", ("addr.jpg", io.BytesIO(b"img"), "image/jpeg")),
+        ],
+    )
+    host_account_id = submit_response.json()["id"]
+
+    staff_token = _staff_token()
+    detail_response = client.get(
+        f"/v1/host-accounts/admin/{host_account_id}",
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    assert detail_response.status_code == 200
+    body = detail_response.json()
+    assert body["host_type"] == "lawyer"
+    assert body["nba_enrol_no"] == "NBA/12345"
+    assert body["ref_phone_no"] == "+2348099999999"
+    assert body["valid_practicing_cert_url"] is not None
+    assert body["govt_issued_id_url"] is not None
+    assert body["proof_of_address_url"] is not None
+    # Fields belonging to other host types must not leak in.
+    assert body["cac_cert_doc_url"] is None
+    assert body["arcon_reg_no"] is None
+
+
 def test_cannot_submit_second_host_type_while_in_review(client: TestClient) -> None:
     """AC: cannot submit a new host type while one is In Review or Verified."""
     token, _ = _register_and_login(client, "double@example.com")

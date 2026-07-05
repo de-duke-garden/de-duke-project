@@ -186,6 +186,39 @@ async def get_submission_detail(session: AsyncSession, *, host_account_id: str) 
     return host_account
 
 
+async def get_submission_detail_full(session: AsyncSession, *, host_account_id: str) -> dict:
+    """Screen 27 detail panel: merges the base HostAccount row with its
+    type-specific subtype row (whichever applies to host_type) into one
+    flat dict matching HostAccountDetailResponse, so the frontend can
+    render exactly the fields relevant to this submission's host type."""
+    host_account = await get_submission_detail(session, host_account_id=host_account_id)
+
+    detail: dict = {
+        "id": host_account.id,
+        "user_id": host_account.user_id,
+        "host_type": host_account.host_type,
+        "status": host_account.status,
+        "status_reason": host_account.status_reason,
+        "host_photo_url": host_account.host_photo_url,
+        "bio": host_account.bio,
+        "created_at": host_account.created_at.isoformat(),
+    }
+
+    subtype_model = _SUBTYPE_TABLES.get(HostType(host_account.host_type))
+    if subtype_model is not None:
+        result = await session.execute(
+            select(subtype_model).where(subtype_model.host_account_id == host_account.id)  # type: ignore[attr-defined]
+        )
+        subtype_row = result.scalars().first()
+        if subtype_row is not None:
+            for field in type(subtype_row).model_fields:
+                if field in ("id", "host_account_id"):
+                    continue
+                detail[field] = getattr(subtype_row, field)
+
+    return detail
+
+
 async def resolve_submission(
     session: AsyncSession, *, host_account_id: str, staff_id: str, decision: str, reason: str | None
 ) -> HostAccount:

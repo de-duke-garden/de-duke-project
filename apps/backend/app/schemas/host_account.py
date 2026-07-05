@@ -96,6 +96,41 @@ class HostAccountStatusResponse(BaseModel):
     bio: str
 
 
+class HostAccountDetailResponse(BaseModel):
+    """GET /admin/host-accounts/:id -- Screen 27 detail panel. Includes
+    every possible type-specific document/field as optional; the frontend
+    renders only the ones relevant to `host_type` (per REQUIRED_DOCUMENT_FIELDS/
+    REQUIRED_TEXT_FIELDS above, which define exactly which fields apply)."""
+
+    id: str
+    user_id: str
+    host_type: str
+    status: str
+    status_reason: str | None
+    host_photo_url: str
+    bio: str
+    created_at: str
+
+    # Agent
+    cac_cert_doc_url: str | None = None
+    industry_license_url: str | None = None
+    proof_of_address_url: str | None = None
+    rep_id_url: str | None = None
+    # Company
+    cac_reg_doc_url: str | None = None
+    # Lawyer
+    nba_enrol_no: str | None = None
+    valid_practicing_cert_url: str | None = None
+    govt_issued_id_url: str | None = None
+    # Architect
+    arcon_reg_no: str | None = None
+    practice_license_url: str | None = None
+    # Surveyor
+    surcon_reg_no: str | None = None
+    # Lawyer/Architect/Surveyor
+    ref_phone_no: str | None = None
+
+
 class HostAccountReviewAction(BaseModel):
     """PATCH /admin/host-accounts/:id/status body -- Screen 27."""
 

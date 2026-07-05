@@ -25,7 +25,11 @@ def test_me_returns_current_user_identity(client: TestClient) -> None:
     used by the Admin Web Console's session layer."""
     register = client.post(
         "/v1/auth/register",
-        json={"full_name": "Amaka Okafor", "email": "me-check@example.com", "password": "supersecret1"},
+        json={
+            "full_name": "Amaka Okafor",
+            "email": "me-check@example.com",
+            "password": "supersecret1",
+        },
     )
     token = register.json()["access_token"]
 

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.security import CurrentUser, UserRole, get_current_user, require_roles
 from app.schemas.host_account import (
+    HostAccountDetailResponse,
     HostAccountQueueItem,
     HostAccountReviewAction,
     HostAccountStatusResponse,
@@ -108,19 +109,20 @@ async def list_submissions_for_review(
     )
 
 
-@router.get("/admin/{host_account_id}")
+@router.get("/admin/{host_account_id}", response_model=HostAccountDetailResponse)
 async def get_submission_detail(
     host_account_id: str,
     current_user: CurrentUser = Depends(
         require_roles(UserRole.DEDUKE_STAFF, UserRole.DEDUKE_ADMIN)
     ),
     session: AsyncSession = Depends(get_session),
-) -> HostAccountStatusResponse:
-    """Screen 27 detail panel."""
-    host_account = await verification_service.get_submission_detail(
+) -> HostAccountDetailResponse:
+    """Screen 27 detail panel -- every type-specific document/field
+    relevant to this submission's host_type, per screens.md."""
+    detail = await verification_service.get_submission_detail_full(
         session, host_account_id=host_account_id
     )
-    return _to_status_response(host_account)
+    return HostAccountDetailResponse(**detail)
 
 
 @router.patch("/admin/{host_account_id}/status", response_model=HostAccountStatusResponse)
