@@ -30,6 +30,11 @@ WORKDIR /app
 
 COPY --from=builder /install /usr/local
 COPY app ./app
+# One-off operator scripts (e.g. bootstrap_admin.py, see its own docstring)
+# -- not run by the service itself, but shipped so they're reachable via
+# `aws ecs execute-command` against the running task rather than needing a
+# separate deploy mechanism just to invoke them.
+COPY scripts ./scripts
 
 USER appuser
 
