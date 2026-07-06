@@ -7,7 +7,8 @@
 #
 # Required GitHub repo configuration -- identical to backend-deploy.yml's
 # (Settings -> Secrets and variables, and a GitHub Environment per active
-# matrix entry); see that file's header for the full list.
+# matrix entry); see that file's header for the full list, including why
+# TF_STATE_BUCKET_REGION and AWS_REGION are two separate variables.
 #
 # Environment matrix
 # -------------------
@@ -88,7 +89,7 @@ jobs:
           terraform init \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="key=${{ matrix.environment }}/terraform.tfstate" \
-            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="region=${{ vars.TF_STATE_BUCKET_REGION }}" \
             -backend-config="use_lockfile=true"
 
       - name: terraform validate
@@ -167,7 +168,7 @@ jobs:
           terraform init \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="key=${{ matrix.environment }}/terraform.tfstate" \
-            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="region=${{ vars.TF_STATE_BUCKET_REGION }}" \
             -backend-config="use_lockfile=true"
 
       - name: terraform plan

@@ -12,8 +12,14 @@
 #     TF_GCP_PROJECT_ID     - that environment's gcp_project_id
 #     TF_AWS_ACCOUNT_SUFFIX - that environment's aws_account_suffix
 #   Variables:
-#     AWS_REGION             - e.g. eu-west-1
+#     AWS_REGION             - region actual AWS resources live in (e.g.
+#                               eu-west-1) -- used for the AWS CLI/provider,
+#                               NOT necessarily the state bucket's own region
 #     TF_STATE_BUCKET        - name of the existing S3 bucket used for Terraform state
+#     TF_STATE_BUCKET_REGION - region that bucket itself was created in (can
+#                               differ from AWS_REGION -- S3 bucket region is
+#                               fixed at creation and unrelated to which
+#                               region your resources deploy into)
 #     TF_ACM_CERTIFICATE_ARN - (optional, blank until a domain/cert exists)
 #   Environments (Settings -> Environments): one per active matrix entry
 #     below (create it even with no protection rules yet, so the
@@ -92,7 +98,27 @@ jobs:
             --query "repositories[0].repositoryUri" --output text)
           echo "repository=${REPO_URL}" >> "$GITHUB_OUTPUT"
 
+      # Idempotency check: infra/modules/ecr sets image_tag_mutability =
+      # "IMMUTABLE", and the tag is this commit's Git SHA -- so re-running
+      # this workflow for the SAME commit (e.g. retrying a failed run
+      # after fixing something downstream, like a Terraform apply error)
+      # would try to push an identical tag a second time, which ECR
+      # correctly refuses. Skip build/push entirely if this SHA is already
+      # in ECR; the existing image is byte-identical to what a rebuild
+      # would produce anyway.
+      - name: Check whether this tag already exists in ECR
+        id: existing-image
+        run: |
+          if aws ecr describe-images \
+            --repository-name de-duke/backend-api \
+            --image-ids imageTag="${{ steps.tag.outputs.value }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build image
+        if: steps.existing-image.outputs.exists == 'false'
         working-directory: apps/backend
         run: |
           docker build \
@@ -100,6 +126,7 @@ jobs:
             .
 
       - name: Push image
+        if: steps.existing-image.outputs.exists == 'false'
         run: docker push "${{ steps.ecr.outputs.repository }}:${{ steps.tag.outputs.value }}"
 
   deploy:
@@ -147,12 +174,17 @@ jobs:
             | sed "s/.*://") || CURRENT_TAG=""
           echo "value=${CURRENT_TAG}" >> "$GITHUB_OUTPUT"
 
+      # Deliberately TF_STATE_BUCKET_REGION here, not AWS_REGION (used
+      # above for the AWS CLI/provider) -- an S3 bucket's region is fixed
+      # at creation and can differ from the region actual resources
+      # deploy into. Conflating the two here caused a real "301: bucket
+      # in a different region" init failure.
       - name: terraform init
         run: |
           terraform init \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="key=${{ matrix.environment }}/terraform.tfstate" \
-            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="region=${{ vars.TF_STATE_BUCKET_REGION }}" \
             -backend-config="use_lockfile=true"
 
       - name: terraform plan
@@ -240,7 +272,7 @@ jobs:
           terraform init \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="key=${{ matrix.environment }}/terraform.tfstate" \
-            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="region=${{ vars.TF_STATE_BUCKET_REGION }}" \
             -backend-config="use_lockfile=true"
 
       - name: Re-apply the previously-deployed image tag
