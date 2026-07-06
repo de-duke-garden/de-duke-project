@@ -40,6 +40,13 @@ resource "aws_db_instance" "writer" {
   engine_version = var.postgres_version
   instance_class = var.instance_class
 
+  # var.postgres_version is major-version-only ("16", not "16.4") so RDS
+  # always resolves the latest available minor at creation time --
+  # pinning an exact minor breaks the moment AWS deprecates it (as
+  # happened with the previously-hardcoded 16.4). Let RDS keep picking up
+  # new minors automatically rather than re-pinning by hand each time.
+  auto_minor_version_upgrade = true
+
   allocated_storage     = var.allocated_storage_gb
   max_allocated_storage = var.max_allocated_storage_gb
   storage_type          = "gp3"

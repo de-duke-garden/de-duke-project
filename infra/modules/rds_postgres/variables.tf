@@ -7,8 +7,9 @@ variable "allowed_security_group_ids" {
 }
 
 variable "postgres_version" {
-  type    = string
-  default = "16.4"
+  description = "Major version only (e.g. \"16\", not \"16.4\") -- RDS resolves the latest available minor at creation time and auto_minor_version_upgrade keeps it current, so this never needs to track a specific minor that AWS may later deprecate (see aws_db_instance.writer)."
+  type        = string
+  default     = "16"
 }
 
 variable "postgres_parameter_group_family" {
