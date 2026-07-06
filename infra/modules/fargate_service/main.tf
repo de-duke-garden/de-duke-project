@@ -142,6 +142,17 @@ locals {
   container_image         = local.using_placeholder_image ? "public.ecr.aws/nginx/nginx:latest" : "${var.ecr_repository_url}:${var.image_tag}"
 }
 
+# The awslogs driver below does not create this log group itself -- it
+# only creates the log stream inside it, and fails outright
+# (ResourceInitializationError / ResourceNotFoundException) if the group
+# doesn't already exist. Every task would otherwise crash-loop at startup.
+resource "aws_cloudwatch_log_group" "backend" {
+  name              = "/de-duke/${var.environment}/backend-api"
+  retention_in_days = 30
+
+  tags = var.tags
+}
+
 resource "aws_ecs_task_definition" "backend" {
   family                   = "${var.environment}-de-duke-api"
   requires_compatibilities = ["FARGATE"]
@@ -167,7 +178,7 @@ resource "aws_ecs_task_definition" "backend" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = "/de-duke/${var.environment}/backend-api"
+          "awslogs-group"         = aws_cloudwatch_log_group.backend.name
           "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "backend-api"
         }
