@@ -44,7 +44,18 @@ resource "aws_lb_target_group" "backend" {
   tags = var.tags
 }
 
+locals {
+  # var.acm_certificate_arn is documented as "left unset until a domain is
+  # registered" -- the same "nothing real yet" bootstrap case as
+  # local.using_placeholder_image below, just for the ALB instead of the
+  # task definition. An HTTPS listener requires a real certificate to even
+  # be created, so it must be conditional on one existing.
+  has_certificate = var.acm_certificate_arn != ""
+}
+
 resource "aws_lb_listener" "https" {
+  count = local.has_certificate ? 1 : 0
+
   load_balancer_arn = aws_lb.this.arn
   port              = 443
   protocol          = "HTTPS"
@@ -54,6 +65,32 @@ resource "aws_lb_listener" "https" {
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.backend.arn
+  }
+}
+
+# Always created, unlike the HTTPS listener above -- otherwise a fresh
+# environment with no certificate yet would have an ALB with no listener
+# at all. Forwards directly to the target group until a certificate
+# exists; once one is supplied, this switches to a redirect so plain HTTP
+# traffic is never served.
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.this.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = local.has_certificate ? "redirect" : "forward"
+
+    dynamic "redirect" {
+      for_each = local.has_certificate ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+
+    target_group_arn = local.has_certificate ? null : aws_lb_target_group.backend.arn
   }
 }
 
@@ -165,7 +202,11 @@ resource "aws_ecs_service" "backend" {
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
 
-  depends_on = [aws_lb_listener.https]
+  # http always exists; https only when a certificate is configured (see
+  # local.has_certificate above) -- depends_on requires a static list, but
+  # referencing the whole (possibly count = 0) https resource here still
+  # correctly depends on all of its instances, however many exist.
+  depends_on = [aws_lb_listener.http, aws_lb_listener.https]
   tags       = var.tags
 }
 

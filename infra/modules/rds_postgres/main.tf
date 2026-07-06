@@ -71,9 +71,14 @@ resource "aws_db_parameter_group" "this" {
   name   = "${var.environment}-de-duke-pg-params"
   family = var.postgres_parameter_group_family
 
+  # PostGIS and pgvector are both enabled purely via `CREATE EXTENSION`
+  # (see the comment on aws_db_instance.writer above) -- neither needs (or
+  # for pgvector, is even a valid) shared_preload_libraries entry on RDS.
+  # Only extensions that genuinely require preloading (e.g.
+  # pg_stat_statements, for query performance monitoring) belong here.
   parameter {
     name  = "shared_preload_libraries"
-    value = "pg_stat_statements,vector"
+    value = "pg_stat_statements"
   }
 
   tags = var.tags
