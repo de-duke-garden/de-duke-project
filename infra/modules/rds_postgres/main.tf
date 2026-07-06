@@ -76,9 +76,15 @@ resource "aws_db_parameter_group" "this" {
   # for pgvector, is even a valid) shared_preload_libraries entry on RDS.
   # Only extensions that genuinely require preloading (e.g.
   # pg_stat_statements, for query performance monitoring) belong here.
+  #
+  # shared_preload_libraries is a "static" RDS parameter -- it only takes
+  # effect after an instance reboot, so it must use apply_method =
+  # "pending-reboot" (the default "immediate" is only valid for dynamic
+  # parameters and RDS rejects it outright for this one).
   parameter {
-    name  = "shared_preload_libraries"
-    value = "pg_stat_statements"
+    name         = "shared_preload_libraries"
+    value        = "pg_stat_statements"
+    apply_method = "pending-reboot"
   }
 
   tags = var.tags
