@@ -199,6 +199,12 @@ resource "aws_ecs_service" "backend" {
   desired_count   = var.min_task_count
   launch_type     = "FARGATE"
 
+  # Enables ECS Exec (the console's "Connect" button / `aws ecs
+  # execute-command`) -- also requires the task role to have the
+  # ssmmessages:* permissions granted in environments/development/iam.tf's
+  # task_exec_ssm policy. Without both, Connect stays disabled.
+  enable_execute_command = true
+
   network_configuration {
     subnets         = var.private_subnet_ids
     security_groups = [var.service_security_group_id]

@@ -25,6 +25,7 @@ apps/backend/.env
 **/.next/
 **/out/
 **/.eslintcache
+**/.env
 
 # Flutter / Dart
 apps/mobile/.dart_tool/

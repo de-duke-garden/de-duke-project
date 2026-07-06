@@ -59,6 +59,29 @@ resource "aws_iam_role_policy" "task_runtime" {
   policy = data.aws_iam_policy_document.task_runtime.json
 }
 
+# Required for ECS Exec ("Connect" in the console / `aws ecs execute-command`)
+# -- without these, the SSM agent sidecar the platform injects into the task
+# has no permission to open a session, and the console's Connect button
+# stays disabled regardless of enable_execute_command on the service.
+# These actions don't support resource-level restriction (SSM requires "*").
+data "aws_iam_policy_document" "task_exec_ssm" {
+  statement {
+    actions = [
+      "ssmmessages:CreateControlChannel",
+      "ssmmessages:CreateDataChannel",
+      "ssmmessages:OpenControlChannel",
+      "ssmmessages:OpenDataChannel",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "task_exec_ssm" {
+  name   = "${var.environment}-de-duke-task-exec-ssm"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.task_exec_ssm.json
+}
+
 data "aws_iam_policy_document" "db_proxy_assume" {
   statement {
     actions = ["sts:AssumeRole"]
