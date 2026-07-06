@@ -64,24 +64,25 @@ module "rds" {
 module "backend" {
   source = "../../modules/fargate_service"
 
-  environment         = var.environment
-  aws_region          = var.aws_region
-  vpc_id              = module.networking.vpc_id
-  public_subnet_ids   = module.networking.public_subnet_ids
-  private_subnet_ids  = module.networking.private_subnet_ids
+  environment               = var.environment
+  aws_region                = var.aws_region
+  vpc_id                    = module.networking.vpc_id
+  public_subnet_ids         = module.networking.public_subnet_ids
+  private_subnet_ids        = module.networking.private_subnet_ids
   acm_certificate_arn       = var.acm_certificate_arn
   alb_security_group_id     = aws_security_group.alb.id
   service_security_group_id = aws_security_group.backend_service.id
 
   ecr_repository_url = module.ecr.repository_url
+  image_tag          = var.image_tag
 
   execution_role_arn = aws_iam_role.task_execution.arn
   task_role_arn      = aws_iam_role.task.arn
   db_proxy_role_arn  = aws_iam_role.db_proxy.arn
 
-  app_secret_arn        = module.secrets.app_secret_arn
-  db_master_secret_arn  = module.rds.writer_secret_arn
-  db_writer_identifier  = "${var.environment}-de-duke-primary"
+  app_secret_arn       = module.secrets.app_secret_arn
+  db_master_secret_arn = module.rds.writer_secret_arn
+  db_writer_identifier = "${var.environment}-de-duke-primary"
 
   # Development runs the smallest viable footprint.
   min_task_count = 1

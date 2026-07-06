@@ -6,10 +6,13 @@ Primary Database (RDS PostgreSQL + PostGIS/pgvector) with read replicas, the
 Redis Caching Layer, the SQS Task Queue, S3 + CloudFront for media, ECR, and
 the AWS Secrets Manager secret for application-level third-party credentials.
 
-## Status
+## Apply policy
 
-**Modules are written. Nothing has been applied.** Do not run `terraform
-apply` in any environment until explicitly instructed.
+CI is the default way to apply -- see "CI/CD: which workflow applies infra
+changes" below. Running `terraform apply` locally is a supported fallback,
+never the first choice: state is remote in S3 with native locking, so a
+local apply can't corrupt or race against a CI-driven one, but it skips
+the PR review + plan-preview path CI gives every change.
 
 ## Layout
 
@@ -73,6 +76,12 @@ its way out. Requires Terraform `>= 1.11.0`.
    `environments/<env>/`.
 5. Run `terraform plan` and review the plan carefully before ever running
    `terraform apply` — and only run `apply` when explicitly told to.
+
+## CI/CD: which workflow applies infra changes
+
+- Changes under `apps/backend/**` go through `.github/workflows/backend-deploy.yml`: build/push image → `terraform apply` (with the new image tag) → rolling deploy → smoke test → automatic rollback on failure. If a push touches both `apps/backend/**` and `infra/**`, this workflow's apply covers the combined change.
+- Changes under `infra/**` alone go through `.github/workflows/infra-terraform.yml` instead — **not** `backend-deploy.yml`. On a pull request it runs `fmt`/`init`/`validate`/`plan` only (no apply), giving a plan preview before merge. On push to `main` it runs `terraform apply` directly, *unless* the same push also touched `apps/backend/**`, in which case it skips its own apply and lets `backend-deploy.yml` handle it, so the two workflows never both run `terraform apply` against the same environment's state at once. Both workflows additionally share the same Terraform concurrency group as defense-in-depth against that.
+- **Any apply — from either workflow — must always pass an explicit `-var="image_tag=..."`.** `modules/fargate_service`'s `image_tag` variable defaults to `""`, which deploys the placeholder `nginx` image described below. An infra-only apply that let this default through would silently revert the live Fargate service to the placeholder. Both workflows guard against this by looking up the currently-deployed image tag from ECS before planning/applying and passing it back in explicitly, so an infra-only change only ever shows/applies the actual infra diff.
 
 ## First apply, before any image has ever been pushed to ECR
 

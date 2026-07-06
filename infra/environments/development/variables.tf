@@ -41,3 +41,9 @@ variable "aws_account_suffix" {
   description = "Short unique suffix for globally-unique resource names (e.g. S3 bucket). Provide your AWS account ID or a short hash."
   type        = string
 }
+
+variable "image_tag" {
+  description = "Tag of the real Backend API Service image to deploy, forwarded to modules/fargate_service. Left as the default empty string before CI has ever pushed one (e.g. a fresh environment's very first apply) -- see modules/fargate_service/main.tf's placeholder-image fallback for why that case is handled explicitly rather than defaulting to a nonexistent `:latest` tag."
+  type        = string
+  default     = ""
+}

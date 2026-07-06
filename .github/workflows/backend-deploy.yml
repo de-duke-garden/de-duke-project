@@ -1,33 +1,43 @@
-# Backend API Service -- build, push, and deploy. Implements the pipeline
-# described in architecture.md's "Infrastructure as Code & CI/CD" section:
-#   1. (backend-ci.yml) tests + static analysis on every PR.
-#   2. Build a container image, push to Amazon ECR.                 <- this file
-#   3. `terraform plan` for review, `terraform apply` when approved. <- this file
-#   4. Rolling deploy to Fargate (terraform apply updates the task
-#      definition's image tag; ECS itself performs the rolling update).
-#   5. Smoke test the live deploy; roll back automatically on failure.
+# Backend API Service -- build, push, and deploy. Implements the backend
+# deploy pipeline described in docs/De-Duke/architecture.md's
+# "Infrastructure as Code & CI/CD" section; see that doc and
+# infra/README.md's "CI/CD: which workflow applies infra changes" for the
+# full split-workflow design and rationale (companion: infra-terraform.yml).
 #
-# ONLY the `development` environment is wired below -- staging/production
-# are not yet scaffolded under infra/environments/ (see infra/README.md).
-# Extend the job matrix once those exist; the docs' "changes land in
-# Staging and are validated there before a Production deploy is
-# triggered" ordering maps directly onto sequential GitHub Environments
-# (`environment: staging` then `environment: production`), each
-# configurable with required-reviewer protection rules in repo
-# Settings -> Environments (not expressible in this YAML file itself).
-#
-# Required GitHub repo configuration (Settings -> Secrets and variables):
+# Required GitHub repo configuration (Settings -> Secrets and variables),
+# per GitHub Environment (development, later staging/production):
 #   Secrets:
 #     AWS_ROLE_TO_ASSUME    - IAM role ARN this workflow assumes via OIDC
 #                             (no long-lived AWS access keys stored in GitHub)
-#     TF_GCP_PROJECT_ID     - infra/environments/development's gcp_project_id
-#     TF_AWS_ACCOUNT_SUFFIX - infra/environments/development's aws_account_suffix
+#     TF_GCP_PROJECT_ID     - that environment's gcp_project_id
+#     TF_AWS_ACCOUNT_SUFFIX - that environment's aws_account_suffix
 #   Variables:
 #     AWS_REGION             - e.g. eu-west-1
 #     TF_STATE_BUCKET        - name of the existing S3 bucket used for Terraform state
 #     TF_ACM_CERTIFICATE_ARN - (optional, blank until a domain/cert exists)
-#   Environments (Settings -> Environments): `development` (create it even
-#     with no protection rules yet, so the `environment:` key below resolves)
+#   Environments (Settings -> Environments): one per active matrix entry
+#     below (create it even with no protection rules yet, so the
+#     `environment:` key resolves)
+#
+# Environment matrix
+# -------------------
+# Only `development` is active -- `infra/environments/staging` and
+# `infra/environments/production` are empty directories today (see
+# infra/README.md's Layout). Uncomment an entry in the `deploy`/
+# `smoke-test`/`rollback` jobs' matrices below once its environment is
+# scaffolded -- all three jobs' `include:` lists must stay identical.
+#
+# IMPORTANT before uncommenting a second entry: `smoke-test` and
+# `rollback` read `needs.deploy.outputs.*` (alb_dns_name,
+# previous_image_tag). GitHub Actions does not expose per-matrix-leg
+# outputs across jobs -- when a job runs as a matrix, a downstream job's
+# `needs.<job>.outputs.x` resolves to whichever leg happened to finish
+# last, not "the leg matching this same matrix entry". With a single
+# active leg (development) this is a no-op limitation, but it WILL cause
+# smoke-test/rollback to read the wrong environment's outputs the moment a
+# second leg is uncommented. Restructure `deploy`, `smoke-test`, and
+# `rollback` into one job (steps run in sequence, matrixed) before adding
+# a second environment here.
 name: Backend Deploy
 
 on:
@@ -35,7 +45,6 @@ on:
     branches: [main]
     paths:
       - "apps/backend/**"
-      - "infra/**"
       - ".github/workflows/backend-deploy.yml"
 
 permissions:
@@ -93,13 +102,29 @@ jobs:
       - name: Push image
         run: docker push "${{ steps.ecr.outputs.repository }}:${{ steps.tag.outputs.value }}"
 
-  deploy-development:
+  deploy:
     needs: build-and-push
+    strategy:
+      fail-fast: true # a failed apply blocks the next environment in the matrix
+      max-parallel: 1 # enforces development -> staging -> production order
+      matrix:
+        include:
+          - environment: development
+          # - environment: staging
+          # - environment: production
     runs-on: ubuntu-latest
-    environment: development
+    environment: ${{ matrix.environment }}
+    # Keyed per environment -- shared with infra-terraform.yml's apply job
+    # and this workflow's own rollback job. See header comment.
+    concurrency:
+      group: terraform-${{ matrix.environment }}
+      cancel-in-progress: false
     outputs:
       previous_image_tag: ${{ steps.previous-tag.outputs.value }}
       alb_dns_name: ${{ steps.tf-outputs.outputs.alb_dns_name }}
+    defaults:
+      run:
+        working-directory: infra/environments/${{ matrix.environment }}
     steps:
       - uses: actions/checkout@v4
 
@@ -117,22 +142,20 @@ jobs:
         id: previous-tag
         run: |
           CURRENT_TAG=$(aws ecs describe-task-definition \
-            --task-definition development-de-duke-api \
+            --task-definition ${{ matrix.environment }}-de-duke-api \
             --query "taskDefinition.containerDefinitions[0].image" --output text \
             | sed "s/.*://") || CURRENT_TAG=""
           echo "value=${CURRENT_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: terraform init
-        working-directory: infra/environments/development
         run: |
           terraform init \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
-            -backend-config="key=development/terraform.tfstate" \
+            -backend-config="key=${{ matrix.environment }}/terraform.tfstate" \
             -backend-config="region=${{ vars.AWS_REGION }}" \
             -backend-config="use_lockfile=true"
 
       - name: terraform plan
-        working-directory: infra/environments/development
         run: |
           terraform plan \
             -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
@@ -141,22 +164,25 @@ jobs:
             -var="image_tag=${{ needs.build-and-push.outputs.image_tag }}" \
             -out=tfplan
 
-      # Gated by the `environment: development` protection rule configured
-      # in repo Settings -> Environments -- add a required reviewer there
-      # for any environment where "terraform apply for approved
-      # infrastructure changes" (architecture.md) should mean a human
-      # actually approves it, not just a green test suite.
+      # Gated by this environment's protection rule (add a required
+      # reviewer in Settings -> Environments if desired).
       - name: terraform apply
-        working-directory: infra/environments/development
         run: terraform apply -auto-approve tfplan
 
       - name: Capture Terraform outputs
         id: tf-outputs
-        working-directory: infra/environments/development
         run: echo "alb_dns_name=$(terraform output -raw alb_dns_name)" >> "$GITHUB_OUTPUT"
 
   smoke-test:
-    needs: deploy-development
+    needs: deploy
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        include:
+          - environment: development
+          # - environment: staging
+          # - environment: production
     runs-on: ubuntu-latest
     steps:
       - name: Wait for rolling deploy to finish, then hit /health/ready
@@ -166,7 +192,7 @@ jobs:
         # performance subset (Load Testing & Performance Validation) is a
         # separate, not-yet-built suite -- see roadmap.md's Launch Gate.
         run: |
-          URL="http://${{ needs.deploy-development.outputs.alb_dns_name }}/health/ready"
+          URL="http://${{ needs.deploy.outputs.alb_dns_name }}/health/ready"
           for i in $(seq 1 10); do
             if curl -fsS "$URL"; then
               echo "Smoke test passed."
@@ -179,10 +205,23 @@ jobs:
           exit 1
 
   rollback:
-    needs: [build-and-push, deploy-development, smoke-test]
-    if: failure() && needs.deploy-development.outputs.previous_image_tag != ''
+    needs: [build-and-push, deploy, smoke-test]
+    if: failure() && needs.deploy.outputs.previous_image_tag != ''
+    strategy:
+      matrix:
+        include:
+          - environment: development
+          # - environment: staging
+          # - environment: production
     runs-on: ubuntu-latest
-    environment: development
+    environment: ${{ matrix.environment }}
+    # Same shared concurrency group as deploy, keyed per environment.
+    concurrency:
+      group: terraform-${{ matrix.environment }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: infra/environments/${{ matrix.environment }}
     steps:
       - uses: actions/checkout@v4
 
@@ -197,19 +236,17 @@ jobs:
           terraform_version: "1.11.4"
 
       - name: terraform init
-        working-directory: infra/environments/development
         run: |
           terraform init \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
-            -backend-config="key=development/terraform.tfstate" \
+            -backend-config="key=${{ matrix.environment }}/terraform.tfstate" \
             -backend-config="region=${{ vars.AWS_REGION }}" \
             -backend-config="use_lockfile=true"
 
       - name: Re-apply the previously-deployed image tag
-        working-directory: infra/environments/development
         run: |
           terraform apply -auto-approve \
             -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
             -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
-            -var="image_tag=${{ needs.deploy-development.outputs.previous_image_tag }}"
+            -var="image_tag=${{ needs.deploy.outputs.previous_image_tag }}"

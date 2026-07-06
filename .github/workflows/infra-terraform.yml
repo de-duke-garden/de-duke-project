@@ -1,0 +1,189 @@
+# Infrastructure -- terraform plan/apply for infra-only changes. Companion
+# to backend-deploy.yml; see docs/De-Duke/architecture.md's "Infrastructure
+# as Code & CI/CD" section and infra/README.md's "CI/CD: which workflow
+# applies infra changes" for the full split-workflow design and rationale
+# (image-tag preservation, the backend-overlap deferral, and the shared
+# concurrency group).
+#
+# Required GitHub repo configuration -- identical to backend-deploy.yml's
+# (Settings -> Secrets and variables, and a GitHub Environment per active
+# matrix entry); see that file's header for the full list.
+#
+# Environment matrix
+# -------------------
+# Only `development` is active -- `infra/environments/staging` and
+# `infra/environments/production` are empty directories today (see
+# infra/README.md's Layout), so `terraform init` would simply fail against
+# them. Uncomment an entry once its environment is scaffolded with real
+# .tf files -- no other change to this file is required. Read the
+# apply job's own comments first, though: the matrix there enforces
+# development -> staging -> production promotion order, which only takes
+# effect once a second entry is uncommented.
+name: Infra Terraform
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra-terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra-terraform.yml"
+
+permissions:
+  id-token: write # required for AWS OIDC federation (no static access keys)
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # PR-only infra diff preview -- terraform plan, no apply. Environments
+  # are independent (separate state keys), so previewing them in parallel
+  # is safe -- no max-parallel needed here.
+  plan-preview:
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - environment: development
+          # - environment: staging
+          # - environment: production
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.environment }}
+    defaults:
+      run:
+        working-directory: infra/environments/${{ matrix.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive
+
+      - name: Capture currently-deployed image tag
+        id: current-tag
+        run: |
+          CURRENT_TAG=$(aws ecs describe-task-definition \
+            --task-definition ${{ matrix.environment }}-de-duke-api \
+            --query "taskDefinition.containerDefinitions[0].image" --output text \
+            | sed "s/.*://") || CURRENT_TAG=""
+          echo "value=${CURRENT_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ matrix.environment }}/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="use_lockfile=true"
+
+      - name: terraform validate
+        run: terraform validate
+
+      - name: terraform plan
+        run: |
+          terraform plan \
+            -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
+            -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
+            -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
+            -var="image_tag=${{ steps.current-tag.outputs.value }}" \
+            -out=tfplan
+
+      - name: terraform show (plan summary)
+        run: terraform show -no-color tfplan
+
+  apply:
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: true # a failed apply blocks the next environment in the matrix
+      max-parallel: 1 # enforces development -> staging -> production order
+      matrix:
+        include:
+          - environment: development
+          # - environment: staging
+          # - environment: production
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.environment }}
+    # Keyed per environment (not global) -- each environment has its own
+    # state key, so only applies against the SAME environment from either
+    # workflow need to queue behind each other. Shared with
+    # backend-deploy.yml's deploy/rollback jobs -- see header comment there.
+    concurrency:
+      group: terraform-${{ matrix.environment }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: infra/environments/${{ matrix.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check whether apps/backend/** also changed in this push
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'apps/backend/**'
+
+      - name: Configure AWS credentials
+        if: steps.filter.outputs.backend == 'false'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        if: steps.filter.outputs.backend == 'false'
+        with:
+          terraform_version: "1.11.4"
+
+      - name: Capture currently-deployed image tag
+        if: steps.filter.outputs.backend == 'false'
+        id: current-tag
+        run: |
+          CURRENT_TAG=$(aws ecs describe-task-definition \
+            --task-definition ${{ matrix.environment }}-de-duke-api \
+            --query "taskDefinition.containerDefinitions[0].image" --output text \
+            | sed "s/.*://") || CURRENT_TAG=""
+          echo "value=${CURRENT_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: terraform init
+        if: steps.filter.outputs.backend == 'false'
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ matrix.environment }}/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="use_lockfile=true"
+
+      - name: terraform plan
+        if: steps.filter.outputs.backend == 'false'
+        run: |
+          terraform plan \
+            -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
+            -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
+            -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
+            -var="image_tag=${{ steps.current-tag.outputs.value }}" \
+            -out=tfplan
+
+      - name: terraform apply
+        if: steps.filter.outputs.backend == 'false'
+        run: terraform apply -auto-approve tfplan
+
+      - name: Skipped -- backend-deploy.yml will apply this push instead
+        if: steps.filter.outputs.backend == 'true'
+        run: echo "apps/backend/** also changed in this push -- deferring to backend-deploy.yml."
