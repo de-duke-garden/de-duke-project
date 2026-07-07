@@ -1,4 +1,9 @@
 variable "environment" { type = string }
+variable "log_level" {
+  description = "Root logger level (app/core/logging_config.py) -- INFO in every environment unless a specific noisy-debug investigation needs more."
+  type        = string
+  default     = "INFO"
+}
 variable "aws_region" { type = string }
 variable "vpc_id" { type = string }
 variable "public_subnet_ids" { type = list(string) }

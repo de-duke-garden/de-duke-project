@@ -25,7 +25,7 @@ import json
 import os
 from functools import lru_cache
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,7 +33,23 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # -- Environment --
-    environment: str = "development"
+    # validation_alias="DEDUKE_ENVIRONMENT" -- a plain `environment: str`
+    # field only ever reads an ENVIRONMENT env var by pydantic-settings'
+    # default convention, but the ECS task definition
+    # (infra/modules/fargate_service/main.tf) and .env.example both set
+    # DEDUKE_ENVIRONMENT specifically. Confirmed bug: without this alias,
+    # this field silently stayed "development" in every real deployed
+    # environment (staging/production included) regardless of the actual
+    # env var's value -- undermining anything keyed off it, e.g. Sentry's
+    # environment tag (app/main.py).
+    environment: str = Field(default="development", validation_alias="DEDUKE_ENVIRONMENT")
+    # Observability Stack (architecture.md) -- root logger level, see
+    # app/core/logging_config.py. INFO by default so the logger.info(...)
+    # calls already scattered across the codebase (email_service,
+    # checkout, payment_service, etc.) are actually visible instead of
+    # being silently dropped by Python's unconfigured-by-default root
+    # logger (WARNING level, no handler).
+    log_level: str = "INFO"
 
     # -- Database (Primary Database, via the Connection Pooler in deployed envs) --
     database_url: str = "postgresql+asyncpg://REPLACE_ME:REPLACE_ME@localhost:5432/deduke"

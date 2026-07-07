@@ -169,6 +169,7 @@ resource "aws_ecs_task_definition" "backend" {
       portMappings = [{ containerPort = 8000, protocol = "tcp" }]
       environment = [
         { name = "DEDUKE_ENVIRONMENT", value = var.environment },
+        { name = "LOG_LEVEL", value = var.log_level },
         { name = "DB_PROXY_ENDPOINT", value = aws_db_proxy.this.endpoint },
         { name = "MEDIA_BUCKET_NAME", value = var.media_bucket_name },
         { name = "MEDIA_CDN_DOMAIN", value = var.media_cdn_domain },
