@@ -2,6 +2,8 @@
 
 from fastapi.testclient import TestClient
 
+from app.core import cache
+
 
 def test_register_with_email_and_password(client: TestClient) -> None:
     """AC: User can register with email + password."""
@@ -58,7 +60,7 @@ def test_register_duplicate_email_rejected(client: TestClient) -> None:
     assert response.status_code == 409
 
 
-def test_phone_signup_otp_flow(client: TestClient, monkeypatch) -> None:
+async def test_phone_signup_otp_flow(client: TestClient, monkeypatch) -> None:
     """AC: User can register with phone number + OTP."""
     request_response = client.post(
         "/v1/auth/register/phone/request-otp",
@@ -66,9 +68,7 @@ def test_phone_signup_otp_flow(client: TestClient, monkeypatch) -> None:
     )
     assert request_response.status_code == 202
 
-    from app.services.auth_service import _otp_store
-
-    otp = _otp_store["+2348012345678"]
+    otp = await cache.get_redis_client().get("otp:register:+2348012345678")
 
     verify_response = client.post(
         "/v1/auth/register/phone/verify-otp",
@@ -120,7 +120,7 @@ def test_login_invalid_credentials_shows_specific_error(client: TestClient) -> N
     assert "couldn't verify" in response.json()["detail"].lower()
 
 
-def test_forgot_password_and_reset(client: TestClient) -> None:
+async def test_forgot_password_and_reset(client: TestClient) -> None:
     """AC: User can reset a forgotten password."""
     client.post(
         "/v1/auth/register",
@@ -129,9 +129,8 @@ def test_forgot_password_and_reset(client: TestClient) -> None:
     forgot_response = client.post("/v1/auth/forgot-password", json={"email": "reset@example.com"})
     assert forgot_response.status_code == 202
 
-    from app.services.auth_service import _reset_token_store
-
-    token = next(k.split("pwreset:")[1] for k in _reset_token_store if k.startswith("pwreset:"))
+    keys = await cache.get_redis_client().keys("auth:pwreset:*")
+    token = keys[0].split("auth:pwreset:")[1]
 
     reset_response = client.post(
         "/v1/auth/reset-password", json={"reset_token": token, "new_password": "newpassword1"}

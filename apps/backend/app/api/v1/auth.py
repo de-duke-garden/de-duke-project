@@ -61,7 +61,7 @@ async def register(
     user = await auth_service.register_with_email(
         session, full_name=payload.full_name, email=payload.email, password=payload.password
     )
-    access_token, refresh_token = auth_service.issue_tokens(user)
+    access_token, refresh_token = await auth_service.issue_tokens(user)
     return AuthTokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -94,7 +94,7 @@ async def register_phone_verify_otp(
     user = await auth_service.verify_phone_otp(
         session, phone_number=payload.phone_number, otp_code=payload.otp_code
     )
-    access_token, refresh_token = auth_service.issue_tokens(user)
+    access_token, refresh_token = await auth_service.issue_tokens(user)
     return AuthTokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -123,7 +123,7 @@ async def login(
         user = await auth_service.login_with_phone_otp(
             session, phone_number=payload.phone_number or "", otp_code=payload.otp_code or ""
         )
-    access_token, refresh_token = auth_service.issue_tokens(user)
+    access_token, refresh_token = await auth_service.issue_tokens(user)
     return AuthTokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -157,7 +157,7 @@ async def logout(
 ) -> None:
     """Screen 21 Log Out action. Revokes the refresh token server-side;
     the mobile client separately clears its local session_store."""
-    auth_service.revoke_refresh_token(payload.refresh_token)
+    await auth_service.revoke_refresh_token(payload.refresh_token)
 
 
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)

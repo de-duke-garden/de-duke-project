@@ -1,10 +1,11 @@
 """Business logic for FEAT-001 (Email & Phone Sign-Up / Login).
 
 Kept separate from app/api/v1/auth.py so the router stays thin per
-AGENTS.md. In-memory OTP/reset-token stores are placeholders for the real
-Cache (Redis) described in architecture.md -- swapping them for a Redis-backed
-store is a Foundation-level follow-up, not something this feature slice
-should invent credentials for.
+AGENTS.md. OTP codes, the phone-registration name stash, refresh tokens,
+and password-reset tokens all live in the Cache (Redis, app/core/cache.py)
+-- not an in-process dict, which would silently break the moment Fargate
+runs more than one task (a token written by one task would be invisible to
+another handling the next request).
 """
 
 from __future__ import annotations
@@ -16,18 +17,36 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from app.core import cache
 from app.core.security import UserRole, create_access_token, hash_password, verify_password
 from app.models.user import User
 
-# TODO(architecture.md Cache component): replace with Redis-backed storage.
-# In-process dict is only safe for the single-process test/dev scenario --
-# Fargate runs multiple stateless tasks in deployed environments, so this
-# does NOT work correctly in production and must be swapped before launch.
-_otp_store: dict[str, str] = {}
-_reset_token_store: dict[str, str] = {}
-
 OTP_TTL = timedelta(minutes=10)
 RESET_TOKEN_TTL = timedelta(hours=1)
+# Not specified in schema.md/features.md -- chosen to comfortably outlast
+# the mobile-first "stay logged in" expectation (FEAT-001 AC) across
+# repeated refresh cycles, without keeping a token alive indefinitely.
+REFRESH_TOKEN_TTL = timedelta(days=30)
+
+
+def _otp_key(phone_number: str) -> str:
+    return f"otp:register:{phone_number}"
+
+
+def _otp_name_key(phone_number: str) -> str:
+    return f"otp:register:{phone_number}:name"
+
+
+def _login_otp_key(phone_number: str) -> str:
+    return f"otp:login:{phone_number}"
+
+
+def _refresh_key(refresh_token: str) -> str:
+    return f"auth:refresh:{refresh_token}"
+
+
+def _pwreset_key(reset_token: str) -> str:
+    return f"auth:pwreset:{reset_token}"
 
 
 def _generate_otp() -> str:
@@ -75,22 +94,27 @@ async def request_phone_otp(session: AsyncSession, *, full_name: str, phone_numb
             detail="An account with this phone number already exists.",
         )
     otp = _generate_otp()
-    _otp_store[phone_number] = otp
+    ttl_seconds = int(OTP_TTL.total_seconds())
+    await cache.set_with_ttl(_otp_key(phone_number), otp, ttl_seconds=ttl_seconds)
     # Stash full_name alongside the OTP so verify_phone_otp can finish registration.
-    _otp_store[f"{phone_number}:name"] = full_name
+    await cache.set_with_ttl(_otp_name_key(phone_number), full_name, ttl_seconds=ttl_seconds)
     # TODO(architecture.md Notification Service / SMS provider): send `otp` via SMS.
     # Not sent anywhere yet -- no SMS provider is configured (no fabricated credentials).
 
 
 async def verify_phone_otp(session: AsyncSession, *, phone_number: str, otp_code: str) -> User:
-    stored = _otp_store.get(phone_number)
+    """Validates via `peek` (not an atomic pop) -- an incorrect attempt must
+    not burn the code, so a user who mistypes it can still retry with the
+    correct one until OTP_TTL expires, matching the original in-memory
+    implementation's behavior."""
+    stored = await cache.peek(_otp_key(phone_number))
     if stored is None or stored != otp_code:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP code."
         )
 
-    full_name = _otp_store.pop(f"{phone_number}:name", "New User")
-    _otp_store.pop(phone_number, None)
+    full_name = await cache.pop(_otp_name_key(phone_number)) or "New User"
+    await cache.delete(_otp_key(phone_number))
 
     user = User(full_name=full_name, phone_number=phone_number, role=UserRole.SEEKER.value)
     session.add(user)
@@ -127,12 +151,12 @@ async def login_with_phone_otp(session: AsyncSession, *, phone_number: str, otp_
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No account found for that phone number."
         )
-    stored = _otp_store.get(f"login:{phone_number}")
+    stored = await cache.peek(_login_otp_key(phone_number))
     if stored is None or stored != otp_code:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP code."
         )
-    _otp_store.pop(f"login:{phone_number}", None)
+    await cache.delete(_login_otp_key(phone_number))
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="This account has been deactivated."
@@ -142,22 +166,30 @@ async def login_with_phone_otp(session: AsyncSession, *, phone_number: str, otp_
 
 async def request_login_otp(phone_number: str) -> None:
     otp = _generate_otp()
-    _otp_store[f"login:{phone_number}"] = otp
+    await cache.set_with_ttl(
+        _login_otp_key(phone_number), otp, ttl_seconds=int(OTP_TTL.total_seconds())
+    )
     # TODO(architecture.md SMS provider): actually deliver `otp`.
 
 
-def issue_tokens(user: User) -> tuple[str, str]:
+async def issue_tokens(user: User) -> tuple[str, str]:
     """Returns (access_token, refresh_token). Refresh tokens are opaque
-    random strings tracked server-side (see refresh()), not JWTs, so they
-    can be revoked on logout without needing a blocklist for every JWT."""
+    random strings tracked server-side (see refresh_session()), not JWTs,
+    so they can be revoked on logout without needing a blocklist for every
+    JWT."""
     access_token = create_access_token(user_id=user.id, role=UserRole(user.role))
     refresh_token = _generate_token()
-    _reset_token_store[f"refresh:{refresh_token}"] = user.id
+    await cache.set_with_ttl(
+        _refresh_key(refresh_token), user.id, ttl_seconds=int(REFRESH_TOKEN_TTL.total_seconds())
+    )
     return access_token, refresh_token
 
 
 async def refresh_session(session: AsyncSession, *, refresh_token: str) -> tuple[User, str, str]:
-    user_id = _reset_token_store.pop(f"refresh:{refresh_token}", None)
+    """Rotates the refresh token on every use (old one atomically popped/
+    invalidated here, a new one issued by issue_tokens) -- a stolen,
+    already-used refresh token can never be replayed."""
+    user_id = await cache.pop(_refresh_key(refresh_token))
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token."
@@ -167,12 +199,12 @@ async def refresh_session(session: AsyncSession, *, refresh_token: str) -> tuple
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer available."
         )
-    access_token, new_refresh_token = issue_tokens(user)
+    access_token, new_refresh_token = await issue_tokens(user)
     return user, access_token, new_refresh_token
 
 
-def revoke_refresh_token(refresh_token: str) -> None:
-    _reset_token_store.pop(f"refresh:{refresh_token}", None)
+async def revoke_refresh_token(refresh_token: str) -> None:
+    await cache.delete(_refresh_key(refresh_token))
 
 
 async def request_password_reset(session: AsyncSession, *, email: str) -> None:
@@ -183,12 +215,14 @@ async def request_password_reset(session: AsyncSession, *, email: str) -> None:
     if user is None:
         return
     token = _generate_token()
-    _reset_token_store[f"pwreset:{token}"] = user.id
+    await cache.set_with_ttl(
+        _pwreset_key(token), user.id, ttl_seconds=int(RESET_TOKEN_TTL.total_seconds())
+    )
     # TODO(FEAT-024 / SES): email the reset link containing `token`.
 
 
 async def reset_password(session: AsyncSession, *, reset_token: str, new_password: str) -> None:
-    user_id = _reset_token_store.pop(f"pwreset:{reset_token}", None)
+    user_id = await cache.pop(_pwreset_key(reset_token))
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token."

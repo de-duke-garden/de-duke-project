@@ -7,6 +7,7 @@ relational tables, so SQLite is a safe stand-in per AGENTS.md test guidance.
 
 from collections.abc import AsyncGenerator
 
+import fakeredis
 import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
@@ -15,6 +16,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel
 
 import app.models  # noqa: F401  -- populates SQLModel.metadata before create_all
+from app.core import cache
 from app.core.db import get_session
 from app.main import app
 
@@ -70,6 +72,35 @@ async def _reset_schema() -> AsyncGenerator[None, None]:
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _stub_redis(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None, None]:
+    """Replaces app.core.cache's real Redis client with fakeredis (an
+    in-memory, protocol-compatible fake) -- the same "safe stand-in per
+    AGENTS.md test guidance" principle _reset_schema above applies to
+    Postgres/SQLite, applied here to Redis, so tests never depend on a
+    live Redis instance (matches auth_service.py's OTP/refresh/reset-token
+    storage, which now lives entirely in the Cache).
+
+    A fresh FakeServer per test gives natural isolation (no explicit
+    flush needed). get_redis_client() is patched to build a *new*
+    FakeAsyncRedis client per call, all sharing that one FakeServer's
+    backing data, rather than one long-lived client instance -- Starlette's
+    TestClient runs the ASGI app in its own thread with its own event
+    loop, separate from this fixture's/test's loop, and fakeredis's async
+    client binds internal asyncio primitives (locks/connections) to
+    whichever loop first touches it. A single shared client silently
+    breaks the moment two different loops call it; a fresh client per
+    call sidesteps that entirely.
+    """
+    fake_server = fakeredis.FakeServer()
+
+    def _make_fake_client() -> fakeredis.FakeAsyncRedis:
+        return fakeredis.FakeAsyncRedis(server=fake_server, decode_responses=True)
+
+    monkeypatch.setattr(cache, "get_redis_client", _make_fake_client)
+    yield
 
 
 async def _fake_upload_to_media_storage(upload, *, prefix: str) -> str:
