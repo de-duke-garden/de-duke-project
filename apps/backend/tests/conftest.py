@@ -70,3 +70,28 @@ async def _reset_schema() -> AsyncGenerator[None, None]:
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
+
+
+async def _fake_upload_to_media_storage(upload, *, prefix: str) -> str:
+    """Deterministic stand-in for app.core.storage.upload_file -- endpoint
+    tests (host account verification, listing image upload) only care that
+    *a* URL is returned and persisted, not that a real S3/LocalStack call
+    happened. storage.py's own upload/URL-building logic is covered in
+    isolation by test_storage.py."""
+    return f"https://test-media.example/{prefix}/{upload.filename or 'upload'}"
+
+
+@pytest.fixture(autouse=True)
+def _stub_media_storage(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Patches the name each call site bound at import time (`from
+    app.core.storage import upload_file as upload_to_media_storage`) --
+    patching app.core.storage.upload_file itself would not affect those
+    already-bound references."""
+    monkeypatch.setattr(
+        "app.services.verification_service.upload_to_media_storage",
+        _fake_upload_to_media_storage,
+    )
+    monkeypatch.setattr(
+        "app.api.v1.listings.upload_to_media_storage",
+        _fake_upload_to_media_storage,
+    )

@@ -84,6 +84,9 @@ module "backend" {
   db_master_secret_arn = module.rds.writer_secret_arn
   db_writer_identifier = "${var.environment}-de-duke-primary"
 
+  media_bucket_name = module.media.bucket_name
+  media_cdn_domain  = module.media.cdn_domain_name
+
   # Development runs the smallest viable footprint.
   min_task_count = 1
   max_task_count = 2

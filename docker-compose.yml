@@ -59,20 +59,23 @@ services:
       timeout: 5s
       retries: 10
 
-  # Emulates Amazon SQS (Task Queue, architecture.md) -- the queue + DLQ
-  # pair matching infra/modules/sqs/main.tf's shape is created automatically
-  # on startup by docker/localstack-init-sqs.sh (LocalStack's init-hook
-  # mechanism), not by Terraform, which only ever targets real AWS.
+  # Emulates Amazon SQS (Task Queue) and S3 (File Storage Service, minus
+  # CloudFront -- see storage.py's build_media_url fallback for local dev)
+  # per architecture.md. The queue+DLQ pair matching infra/modules/sqs and
+  # the media bucket matching infra/modules/s3_cdn are both created
+  # automatically on startup by the init-hook scripts below, not by
+  # Terraform, which only ever targets real AWS.
   localstack:
     image: localstack/localstack:3
     environment:
-      SERVICES: sqs
+      SERVICES: sqs,s3
       DEFAULT_REGION: eu-west-1
     ports:
       - "4566:4566"
     volumes:
       - deduke-localstack-data:/var/lib/localstack
       - ./apps/backend/docker/localstack-init-sqs.sh:/etc/localstack/init/ready.d/init-sqs.sh:ro
+      - ./apps/backend/docker/localstack-init-s3.sh:/etc/localstack/init/ready.d/init-s3.sh:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
       interval: 5s
@@ -97,10 +100,20 @@ services:
       DATABASE_URL: postgresql+asyncpg://deduke:deduke_local_dev@db:5432/deduke
       REDIS_URL: redis://redis:6379/0
       SQS_QUEUE_URL: http://localstack:4566/000000000000/local-de-duke-tasks
+      # MEDIA_CDN_DOMAIN deliberately left unset (falls through to .env's
+      # REPLACE_ME default) -- LocalStack has no CloudFront equivalent, so
+      # storage.py's build_media_url falls back to a LocalStack-servable
+      # path-style URL using AWS_ENDPOINT_URL + MEDIA_BUCKET_NAME instead.
+      MEDIA_BUCKET_NAME: local-de-duke-media
       AWS_ENDPOINT_URL: http://localstack:4566
+      # Host-published port, not the `localstack` Docker-network hostname
+      # above -- so a URL returned by an upload can actually be opened in a
+      # browser on the host. See config.py's media_local_public_base_url.
+      MEDIA_LOCAL_PUBLIC_BASE_URL: http://localhost:4566
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_DEFAULT_REGION: eu-west-1
+      AWS_REGION: eu-west-1
     ports:
       # Host-side 8080, not 8000 -- avoids colliding with anything else you
       # may have bound to 8000 locally. The container's own port (right

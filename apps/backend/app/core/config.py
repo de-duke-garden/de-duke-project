@@ -44,6 +44,31 @@ class Settings(BaseSettings):
     # -- Task Queue (SQS) --
     sqs_queue_url: str = "REPLACE_ME"
 
+    # -- File Storage (S3 + CDN, see infra/modules/s3_cdn and app/core/storage.py) --
+    # media_bucket_name/media_cdn_domain arrive as their own plain env vars
+    # (MEDIA_BUCKET_NAME/MEDIA_CDN_DOMAIN) from the ECS task definition --
+    # unlike database_url/APP_SECRETS above, these aren't secrets, so no
+    # _apply_deployed_secrets-style assembly is needed; pydantic-settings'
+    # env_file/env-var loading picks them up directly.
+    media_bucket_name: str = "REPLACE_ME"
+    media_cdn_domain: str = "REPLACE_ME"
+    # AWS region for the S3 client itself (distinct from aws_region used by
+    # Terraform/CI) -- defaults to the same region every environment
+    # deploys into per infra/environments/*/main.tf.
+    aws_region: str = "eu-west-1"
+    # Only ever set locally (docker-compose.yml), to point the S3 client at
+    # LocalStack instead of real AWS. Left empty ("") in every deployed
+    # environment, where boto3 talks to real AWS by default.
+    aws_endpoint_url: str = ""
+    # Only relevant locally, and only when media_cdn_domain is unset: the
+    # backend container reaches LocalStack via aws_endpoint_url's Docker
+    # network hostname (`localstack`), but a developer's browser (outside
+    # Docker) needs the host-published port instead (`localhost`) to
+    # actually view an uploaded file. Defaults to aws_endpoint_url when
+    # unset, so this only needs setting when the two legitimately differ
+    # (as they do in docker-compose.yml).
+    media_local_public_base_url: str = ""
+
     # -- Auth --
     jwt_signing_secret: str = "REPLACE_ME"
     jwt_algorithm: str = "HS256"

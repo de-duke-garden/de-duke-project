@@ -11,6 +11,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from app.core.storage import upload_file as upload_to_media_storage
 from app.models.host_account import (
     HostAccount,
     HostAccountAgent,
@@ -32,17 +33,15 @@ _SUBTYPE_TABLES = {
 }
 
 
-async def _store_file(upload: UploadFile) -> str:
-    """Persists an uploaded document/photo and returns its durable URL.
+async def _store_file(upload: UploadFile, *, user_id: str) -> str:
+    """Persists an uploaded verification document/photo to the File Storage
+    Service (S3 + CDN, app/core/storage.py) and returns its durable URL.
 
-    TODO(architecture.md File Storage Service): wire real object storage
-    (e.g. S3) upload here. No bucket/credentials exist yet in this
-    environment (no fabricated secrets per AGENTS.md), so this returns a
-    stable placeholder reference derived from the filename -- swap for the
-    real upload call once the File Storage Service is provisioned.
+    Namespaced by user_id (not host_account.id) because the profile photo
+    is uploaded before the HostAccount row -- and therefore its id -- exists
+    (see submit_host_account below).
     """
-    filename = upload.filename or "upload"
-    return f"pending-file-storage://{filename}"
+    return await upload_to_media_storage(upload, prefix=f"host-accounts/{user_id}")
 
 
 async def get_own_submission(session: AsyncSession, *, user_id: str) -> HostAccount | None:
@@ -82,7 +81,7 @@ async def submit_host_account(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Missing profile photo file for the declared profile_photo_temp_key.",
         )
-    photo_url = await _store_file(profile_photo_upload)
+    photo_url = await _store_file(profile_photo_upload, user_id=user_id)
 
     host_account = HostAccount(
         user_id=user_id,
@@ -102,7 +101,7 @@ async def submit_host_account(
                 f"Missing file for declared document field '{doc.field}' (temp_key={doc.temp_key})."
             )
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
-        document_urls[doc.field] = await _store_file(upload)
+        document_urls[doc.field] = await _store_file(upload, user_id=user_id)
 
     subtype_model = _SUBTYPE_TABLES[payload.host_type]
     subtype_kwargs: dict[str, object] = {"host_account_id": host_account.id}

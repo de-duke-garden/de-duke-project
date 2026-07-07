@@ -170,6 +170,9 @@ resource "aws_ecs_task_definition" "backend" {
       environment = [
         { name = "DEDUKE_ENVIRONMENT", value = var.environment },
         { name = "DB_PROXY_ENDPOINT", value = aws_db_proxy.this.endpoint },
+        { name = "MEDIA_BUCKET_NAME", value = var.media_bucket_name },
+        { name = "MEDIA_CDN_DOMAIN", value = var.media_cdn_domain },
+        { name = "AWS_REGION", value = var.aws_region },
       ]
       secrets = [
         { name = "APP_SECRETS", valueFrom = var.app_secret_arn },

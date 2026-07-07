@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.core.security import CurrentUser, get_current_user
+from app.core.storage import upload_file as upload_to_media_storage
 from app.models.host_account import HostAccount
 from app.models.listing import (
     CommercialListing,
@@ -207,14 +208,8 @@ async def upload_listing_images_endpoint(
 ) -> dict:
     """Structured multi-file upload: `images_meta` (JSON array of
     ImageMetaIn) + one multipart file field per temp_key, named
-    `file_<temp_key>`.
-
-    TODO(storage): actual object storage upload (S3 + CDN, per
-    infra/modules/s3_cdn) is not wired up in this slice -- no S3 client
-    exists yet under app/core. Files are validated and their metadata is
-    persisted, but `image_url` is a deterministic placeholder
-    (`pending-upload://<listing_id>/<temp_key>`) until that client lands.
-    Do not fabricate real bucket/CDN URLs.
+    `file_<temp_key>`. Each file is uploaded to the File Storage Service
+    (S3 + CDN, app/core/storage.py) and its durable CDN URL persisted.
     """
     listing = (
         await session.execute(select(Listing).where(Listing.id == listing_id))
@@ -240,17 +235,15 @@ async def upload_listing_images_endpoint(
     for meta in meta_list:
         file_field = f"file_{meta.temp_key}"
         upload_file = form.get(file_field)
-        if upload_file is None:
+        if upload_file is None or isinstance(upload_file, str):
             raise HTTPException(
                 status_code=422,
                 detail=f"Missing file field '{file_field}' for temp_key '{meta.temp_key}'",
             )
-        # TODO(storage): stream `upload_file` (a Starlette UploadFile) to S3
-        # here and use the resulting CDN URL instead of the placeholder.
-        placeholder_url = f"pending-upload://{listing_id}/{meta.temp_key}"
+        image_url = await upload_to_media_storage(upload_file, prefix=f"listings/{listing_id}")
         image = ListingImage(
             listing_id=listing_id,
-            image_url=placeholder_url,
+            image_url=image_url,
             display_order=meta.display_order,
             is_primary=meta.is_primary,
         )

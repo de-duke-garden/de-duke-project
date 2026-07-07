@@ -34,6 +34,12 @@ variable "db_master_secret_arn" { type = string }
 variable "db_writer_identifier" { type = string }
 variable "db_proxy_role_arn" { type = string }
 
+# File Storage Service (S3 + CDN, infra/modules/s3_cdn) -- plain env vars,
+# not secrets, consumed by app/core/config.py's Settings.media_bucket_name/
+# media_cdn_domain (app/core/storage.py's S3 client + CDN URL builder).
+variable "media_bucket_name" { type = string }
+variable "media_cdn_domain" { type = string }
+
 variable "task_cpu" {
   type    = number
   default = 512
