@@ -21,6 +21,7 @@ from app.core import cache
 from app.core.security import UserRole, create_access_token, hash_password, verify_password
 from app.models.user import User
 from app.services.email_service import PASSWORD_RESET, WELCOME, notify_user
+from app.services.sms_service import SmsDeliveryError, send_sms
 
 OTP_TTL = timedelta(minutes=10)
 RESET_TOKEN_TTL = timedelta(hours=1)
@@ -101,8 +102,19 @@ async def request_phone_otp(session: AsyncSession, *, full_name: str, phone_numb
     await cache.set_with_ttl(_otp_key(phone_number), otp, ttl_seconds=ttl_seconds)
     # Stash full_name alongside the OTP so verify_phone_otp can finish registration.
     await cache.set_with_ttl(_otp_name_key(phone_number), full_name, ttl_seconds=ttl_seconds)
-    # TODO(architecture.md Notification Service / SMS provider): send `otp` via SMS.
-    # Not sent anywhere yet -- no SMS provider is configured (no fabricated credentials).
+    try:
+        await send_sms(
+            phone_number, f"Your De-Duke verification code is {otp}. It expires in 10 minutes."
+        )
+    except SmsDeliveryError as exc:
+        # Unlike email_service.notify_user, this must surface -- the user
+        # cannot complete sign-up at all if the code never arrives, so a
+        # silent 202 here would be a false positive (see sms_service.py's
+        # module docstring).
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Couldn't send the verification code. Please try again.",
+        ) from exc
 
 
 async def verify_phone_otp(session: AsyncSession, *, phone_number: str, otp_code: str) -> User:
@@ -172,7 +184,13 @@ async def request_login_otp(phone_number: str) -> None:
     await cache.set_with_ttl(
         _login_otp_key(phone_number), otp, ttl_seconds=int(OTP_TTL.total_seconds())
     )
-    # TODO(architecture.md SMS provider): actually deliver `otp`.
+    try:
+        await send_sms(phone_number, f"Your De-Duke login code is {otp}. It expires in 10 minutes.")
+    except SmsDeliveryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Couldn't send the login code. Please try again.",
+        ) from exc
 
 
 async def issue_tokens(user: User) -> tuple[str, str]:

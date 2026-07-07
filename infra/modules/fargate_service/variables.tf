@@ -45,6 +45,14 @@ variable "db_proxy_role_arn" { type = string }
 variable "media_bucket_name" { type = string }
 variable "media_cdn_domain" { type = string }
 
+# FEAT-001 phone OTP delivery (app/services/sms_service.py, Amazon SNS) --
+# not a secret, no separate vendor account; a plain string identifying
+# this app's registered SNS Sender ID.
+variable "aws_sns_sender_id" {
+  type    = string
+  default = "REPLACE_ME"
+}
+
 variable "task_cpu" {
   type    = number
   default = 512

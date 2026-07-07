@@ -174,6 +174,7 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "MEDIA_BUCKET_NAME", value = var.media_bucket_name },
         { name = "MEDIA_CDN_DOMAIN", value = var.media_cdn_domain },
         { name = "AWS_REGION", value = var.aws_region },
+        { name = "AWS_SNS_SENDER_ID", value = var.aws_sns_sender_id },
       ]
       secrets = [
         { name = "APP_SECRETS", valueFrom = var.app_secret_arn },

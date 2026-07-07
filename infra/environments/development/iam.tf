@@ -51,6 +51,14 @@ data "aws_iam_policy_document" "task_runtime" {
     actions   = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
     resources = [module.tasks_queue.queue_arn]
   }
+  statement {
+    # FEAT-001 phone OTP delivery (app/services/sms_service.py). Direct
+    # publish-to-phone-number (not a topic) has no publish-time-known ARN
+    # to scope to -- "*" is the AWS-documented shape for this specific
+    # action/use case, not an over-broad grant.
+    actions   = ["sns:Publish"]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "task_runtime" {

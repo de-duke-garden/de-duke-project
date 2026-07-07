@@ -90,6 +90,24 @@ def test_phone_signup_wrong_otp_rejected(client: TestClient) -> None:
     assert response.status_code == 400
 
 
+def test_phone_signup_returns_503_when_sms_delivery_fails(client: TestClient, monkeypatch) -> None:
+    """Unlike a missed email notification, a failed OTP delivery must
+    surface to the caller -- silently returning 202 when the code never
+    arrived would leave the user stuck with no explanation."""
+    from app.services import auth_service, sms_service
+
+    async def _broken_send_sms(phone_number: str, message: str) -> None:
+        raise sms_service.SmsDeliveryError("simulated SNS outage")
+
+    monkeypatch.setattr(auth_service, "send_sms", _broken_send_sms)
+
+    response = client.post(
+        "/v1/auth/register/phone/request-otp",
+        json={"full_name": "Broken SMS", "phone_number": "+2348022222222"},
+    )
+    assert response.status_code == 503
+
+
 def test_login_and_session_persists_via_refresh(client: TestClient) -> None:
     """AC: User can log in and stay logged in across app restarts (refresh token)."""
     client.post(
