@@ -39,8 +39,15 @@ class Listing(SQLModel, table=True):
     # Geography point derived from lat/lng at write time -- indexed (GiST) for
     # FEAT-006 "near me" search. Populated by the listing service, not by the
     # client directly.
+    # spatial_index=False -- GeoAlchemy2 otherwise auto-creates its own GiST
+    # index ("idx_listings_location_point") as a DDL event the moment
+    # CREATE TABLE runs, independent of and in addition to the explicit
+    # "ix_listings_location_point_gist" index below, causing a
+    # DuplicateTableError the first time this migrated (both target the
+    # same column). One explicit, intentionally-named index is enough.
     location_point: str | None = Field(
-        default=None, sa_column=Column(Geography(geometry_type="POINT", srid=4326))
+        default=None,
+        sa_column=Column(Geography(geometry_type="POINT", srid=4326, spatial_index=False)),
     )
 
     amenities: list[str] = Field(default_factory=list, sa_column=Column(JSON))

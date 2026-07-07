@@ -219,7 +219,11 @@ def upgrade() -> None:
     sa.Column('location_address_line', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('location_city', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('location_state', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('location_point', geoalchemy2.types.Geography(geometry_type='POINT', srid=4326, dimension=2, from_text='ST_GeogFromText', name='geography'), nullable=True),
+    # spatial_index=False -- see app/models/listing.py's comment on this
+    # column: without it, GeoAlchemy2 auto-creates its own GiST index the
+    # moment this CREATE TABLE runs, duplicating the explicit
+    # ix_listings_location_point_gist index created below.
+    sa.Column('location_point', geoalchemy2.types.Geography(geometry_type='POINT', srid=4326, dimension=2, from_text='ST_GeogFromText', name='geography', spatial_index=False), nullable=True),
     sa.Column('amenities', sa.JSON(), nullable=True),
     sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('status_reason', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
@@ -230,7 +234,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['host_account_id'], ['host_accounts.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('idx_listings_location_point', 'listings', ['location_point'], unique=False, postgresql_using='gist')
     op.create_index(op.f('ix_listings_created_at'), 'listings', ['created_at'], unique=False)
     op.create_index(op.f('ix_listings_host_account_id'), 'listings', ['host_account_id'], unique=False)
     op.create_index(op.f('ix_listings_listing_type'), 'listings', ['listing_type'], unique=False)
@@ -466,7 +469,6 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_listings_listing_type'), table_name='listings')
     op.drop_index(op.f('ix_listings_host_account_id'), table_name='listings')
     op.drop_index(op.f('ix_listings_created_at'), table_name='listings')
-    op.drop_index('idx_listings_location_point', table_name='listings', postgresql_using='gist')
     op.drop_table('listings')
     op.drop_table('host_account_surveyors')
     op.drop_table('host_account_owners')
