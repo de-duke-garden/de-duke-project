@@ -109,7 +109,46 @@ Naming: snake_case for Python modules/files, PascalCase for Dart classes and Pyt
 | `docs/De-Duke/architecture.md` | Scaffolding project structure, connecting data stores, wiring external integrations, cross-cutting concerns (auth, payment correctness, security, resilience) |
 | `docs/De-Duke/schema.md` | Creating data models/ORM classes, migrations, API request/response contracts, entity relationships |
 
-## 7. Key Commands
+## 7. Local Development (docker-compose)
+
+`docker-compose.yml` at the repo root runs a local stack mirroring `architecture.md`'s managed services, so backend features can be built and tested end to end before touching any deployed AWS environment:
+
+| Service | What it is | Emulates |
+|---|---|---|
+| `db` | `garapadev/postgres-postgis-pgvector:latest` (Postgres 16 + PostGIS 3.4 + pgvector) | Primary Database |
+| `redis` | `redis:7-alpine` | Cache |
+| `localstack` | `localstack/localstack:3`, SQS only | Task Queue (SQS + DLQ) |
+| `backend` | Built from `apps/backend/Dockerfile.dev` (hot-reload, bind-mounted source) | Backend API Service |
+
+**Not emulated locally:**
+- **Chat Data Store (Firestore)** — no local emulator; point `FIRESTORE_PROJECT_ID`/`FIREBASE_SERVICE_ACCOUNT_JSON` in `apps/backend/.env` at a real, free-tier GCP project instead.
+- **Third-party integrations with no local equivalent** (Paystack, Google Maps, FCM, SES, Sentry, analytics) — left at their `REPLACE_ME` defaults (`app/core/config.py`) unless you populate real sandbox credentials in `.env`. Features that don't touch these work fine without them.
+
+**First-time setup:**
+```bash
+cp apps/backend/.env.example apps/backend/.env   # gitignored; fill in real sandbox creds as needed
+docker compose up -d --build
+docker compose exec backend alembic upgrade head
+```
+
+**Local-only port remap** (avoids colliding with other local Postgres/Redis/services you may already be running) — the app talks to these over the compose network by service name regardless:
+- `db`: host `5433` → container `5432`
+- `redis`: host `6380` → container `6379`
+- `backend`: host `8080` → container `8000`
+- `localstack`: host `4566` (unchanged)
+
+**Common commands:**
+- `docker compose up -d` — start the stack (idempotent)
+- `docker compose logs -f backend` — tail backend logs
+- `docker compose exec backend alembic upgrade head` — apply migrations
+- `docker compose exec backend python scripts/bootstrap_admin.py` — bootstrap the first admin locally
+- `docker compose exec backend python -m pytest` — run the test suite inside the container
+- `docker compose down` — stop the stack (data persists in named volumes)
+- `docker compose down -v` — stop and wipe all data (fresh slate)
+
+Whenever a schema change is made (`alembic revision --autogenerate`), always test it against this stack before committing — hand-review the generated migration for the known autogenerate failure classes (missing imports, circular FK ordering, GeoAlchemy2's auto-created spatial indexes duplicating explicit ones, timezone-naive `DateTime` columns) before trusting it.
+
+## 8. Key Commands
 
 _To be finalized per app at scaffold time; conventions below:_
 

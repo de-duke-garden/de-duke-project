@@ -1,0 +1,129 @@
+# De-Duke -- local development stack.
+#
+# Mirrors the AWS/managed services architecture.md describes (Primary
+# Database with PostGIS+pgvector, Cache, Task Queue) as closely as
+# practical on a single machine, so features can be built and tested end
+# to end before ever touching a deployed environment. See AGENTS.md's
+# "Local Development" section for the day-to-day commands.
+#
+# What's emulated locally vs. left pointing at a real remote resource:
+#   - Primary Database (Postgres+PostGIS+pgvector), Cache (Redis), and Task
+#     Queue (SQS) all run as real containers here -- no external dependency
+#     needed for the vast majority of backend feature work.
+#   - The Chat Data Store (Google Cloud Firestore) is NOT emulated here.
+#     Firestore's emulator requires a full gcloud SDK/Java toolchain and
+#     chat isn't the bottleneck this stack exists to unblock -- point
+#     FIRESTORE_PROJECT_ID (and FIREBASE_SERVICE_ACCOUNT_JSON) in
+#     apps/backend/.env at a real, free-tier GCP project's Firestore
+#     instance instead. See apps/backend/.env.example.
+#   - Third-party integrations with no free local equivalent (Paystack,
+#     Google Maps, FCM, SES, Sentry, analytics) are left at their
+#     REPLACE_ME defaults (app/core/config.py) unless you populate real
+#     sandbox/test credentials in apps/backend/.env -- features that don't
+#     touch these work fine without them; features that do will need real
+#     (sandbox-mode) credentials for that specific third party.
+
+services:
+  db:
+    # Bundles Postgres 16 + PostGIS 3.4 + pgvector -- see AGENTS.md's Local
+    # Development section for why this specific image was chosen over
+    # building a custom one.
+    image: garapadev/postgres-postgis-pgvector:latest
+    environment:
+      POSTGRES_USER: deduke
+      POSTGRES_PASSWORD: deduke_local_dev
+      POSTGRES_DB: deduke
+    ports:
+      # Host-side 5433, not 5432 -- avoids colliding with any other local
+      # Postgres you may already have running on the default port.
+      # Irrelevant to the backend container itself (it reaches this over
+      # the compose network via the `db` hostname on 5432 regardless);
+      # only matters for connecting a host-side tool (psql, a GUI client).
+      - "5433:5432"
+    volumes:
+      - deduke-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deduke -d deduke"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      # Host-side 6380, not 6379 -- same reasoning as db's port remap above.
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Emulates Amazon SQS (Task Queue, architecture.md) -- the queue + DLQ
+  # pair matching infra/modules/sqs/main.tf's shape is created automatically
+  # on startup by docker/localstack-init-sqs.sh (LocalStack's init-hook
+  # mechanism), not by Terraform, which only ever targets real AWS.
+  localstack:
+    image: localstack/localstack:3
+    environment:
+      SERVICES: sqs
+      DEFAULT_REGION: eu-west-1
+    ports:
+      - "4566:4566"
+    volumes:
+      - deduke-localstack-data:/var/lib/localstack
+      - ./apps/backend/docker/localstack-init-sqs.sh:/etc/localstack/init/ready.d/init-sqs.sh:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile.dev
+    env_file:
+      # Copy apps/backend/.env.example to apps/backend/.env first (see
+      # AGENTS.md) -- gitignored, holds any real third-party sandbox
+      # credentials you want to test against locally.
+      - ./apps/backend/.env
+    environment:
+      # Overrides infra-endpoint values from .env with this compose
+      # network's service hostnames -- .env's own DATABASE_URL/REDIS_URL/
+      # SQS_QUEUE_URL point at `localhost`, which is wrong from inside a
+      # container. Everything else in .env (third-party keys, JWT secret)
+      # passes through unchanged via env_file above.
+      DATABASE_URL: postgresql+asyncpg://deduke:deduke_local_dev@db:5432/deduke
+      REDIS_URL: redis://redis:6379/0
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/local-de-duke-tasks
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: eu-west-1
+    ports:
+      # Host-side 8080, not 8000 -- avoids colliding with anything else you
+      # may have bound to 8000 locally. The container's own port (right
+      # side) stays 8000, matching production (Dockerfile/ALB target group).
+      - "8080:8000"
+    volumes:
+      # Bind-mount for hot reload (Dockerfile.dev's --reload) -- code edits
+      # on the host take effect immediately, no rebuild needed. Excludes
+      # the image's installed-package layer via an anonymous volume so the
+      # host's (probably absent) local venv doesn't shadow it.
+      - ./apps/backend/app:/app/app
+      - ./apps/backend/alembic:/app/alembic
+      - ./apps/backend/alembic.ini:/app/alembic.ini
+      - ./apps/backend/scripts:/app/scripts
+      - ./apps/backend/tests:/app/tests
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+
+volumes:
+  deduke-db-data:
+  deduke-localstack-data:

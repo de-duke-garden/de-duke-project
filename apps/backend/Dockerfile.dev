@@ -1,0 +1,34 @@
+# De-Duke Backend API Service -- LOCAL DEVELOPMENT image only.
+#
+# Not used by CI/CD or any deployed environment (see Dockerfile for that,
+# built/pushed by .github/workflows/backend-deploy.yml). This image differs
+# deliberately:
+#   - Installs the `dev` extra (pytest, ruff, mypy, aiosqlite) so the same
+#     container can run tests/lint, not just serve.
+#   - Runs uvicorn with --reload against a bind-mounted source tree (see
+#     docker-compose.yml), so code edits on the host take effect without an
+#     image rebuild.
+#   - Skips the multi-stage build/non-root-user hardening the production
+#     Dockerfile has -- unnecessary weight for a container that only ever
+#     runs on a developer's own machine.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Build-time OS deps for wheels that compile from source on slim images
+# (e.g. psycopg-family / cryptography extras pulled in transitively) --
+# mirrors the production Dockerfile's builder stage.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dependencies installed from pyproject.toml alone first, so this layer
+# stays cached across code-only changes -- the actual `app/` source is
+# bind-mounted at runtime (see docker-compose.yml), not copied here.
+COPY pyproject.toml ./
+RUN mkdir -p app && touch app/__init__.py \
+    && pip install --no-cache-dir -e ".[dev]"
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
