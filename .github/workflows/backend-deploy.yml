@@ -203,7 +203,44 @@ jobs:
 
       - name: Capture Terraform outputs
         id: tf-outputs
-        run: echo "alb_dns_name=$(terraform output -raw alb_dns_name)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "alb_dns_name=$(terraform output -raw alb_dns_name)" >> "$GITHUB_OUTPUT"
+          echo "cluster_name=$(terraform output -raw cluster_name)" >> "$GITHUB_OUTPUT"
+          echo "private_subnet_ids=$(terraform output -json private_subnet_ids | jq -c .)" >> "$GITHUB_OUTPUT"
+          echo "service_security_group_id=$(terraform output -raw service_security_group_id)" >> "$GITHUB_OUTPUT"
+
+      # Runs `alembic upgrade head` as a one-off Fargate task, using the
+      # task definition terraform apply just registered above (so it has
+      # this deploy's image and DB_PROXY_ENDPOINT/DB_CREDENTIALS/APP_SECRETS
+      # wiring, see apps/backend/app/core/config.py), overriding only the
+      # container command. Runs in the same subnets/security group as the
+      # real service so it reaches the RDS Proxy identically -- see
+      # infra/environments/development/security_groups.tf's self-referencing
+      # ingress rule. Placed after `terraform apply`, before smoke-test, so
+      # the schema exists before the new app revision starts serving traffic.
+      - name: Run database migrations
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.tf-outputs.outputs.cluster_name }}" \
+            --task-definition "${{ matrix.environment }}-de-duke-api" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=${{ steps.tf-outputs.outputs.private_subnet_ids }},securityGroups=[\"${{ steps.tf-outputs.outputs.service_security_group_id }}\"],assignPublicIp=DISABLED}" \
+            --overrides '{"containerOverrides":[{"name":"backend-api","command":["alembic","upgrade","head"]}]}' \
+            --query "tasks[0].taskArn" --output text)
+
+          echo "Migration task: ${TASK_ARN}"
+          aws ecs wait tasks-stopped --cluster "${{ steps.tf-outputs.outputs.cluster_name }}" --tasks "${TASK_ARN}"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "${{ steps.tf-outputs.outputs.cluster_name }}" \
+            --tasks "${TASK_ARN}" \
+            --query "tasks[0].containers[0].exitCode" --output text)
+
+          echo "Migration task exit code: ${EXIT_CODE}"
+          if [ "${EXIT_CODE}" != "0" ]; then
+            echo "Migration failed -- see the task's CloudWatch log stream (aws_cloudwatch_log_group.backend, see infra/modules/fargate_service/main.tf) for details."
+            exit 1
+          fi
 
   smoke-test:
     needs: deploy

@@ -35,6 +35,12 @@ COPY app ./app
 # `aws ecs execute-command` against the running task rather than needing a
 # separate deploy mechanism just to invoke them.
 COPY scripts ./scripts
+# Migrations -- not run by the service's own CMD, but needed in-image so
+# .github/workflows/backend-deploy.yml's "Run database migrations" step can
+# override this container's command to `alembic upgrade head` as a one-off
+# ECS task using this exact image.
+COPY alembic.ini ./alembic.ini
+COPY alembic ./alembic
 
 USER appuser
 
