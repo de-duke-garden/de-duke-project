@@ -1,8 +1,16 @@
 """initial schema
 
 Revision ID: 231e83887366
-Revises: 
+Revises:
 Create Date: 2026-07-07 01:45:41.164921
+
+Hand-edited: every sa.DateTime() below is sa.DateTime(timezone=True). Every
+model field storing one of these uses `datetime.now(UTC)` (tz-aware) --
+autogenerate defaults to TIMESTAMP WITHOUT TIME ZONE, and asyncpg refuses to
+encode a tz-aware Python datetime into a tz-naive column at insert time
+(confirmed the hard way: bootstrap_admin.py's first successful run past
+table creation failed here). See each model's sa_type=DateTime(timezone=True)
+comment (app/models/*.py) for the field-level version of this note.
 """
 from collections.abc import Sequence
 
@@ -51,8 +59,8 @@ def upgrade() -> None:
     sa.Column('bio', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('status_reason', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_host_accounts_host_type'), 'host_accounts', ['host_type'], unique=False)
@@ -63,8 +71,8 @@ def upgrade() -> None:
     sa.Column('lead_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('assigned_to_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('assigned_by_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('assigned_at', sa.DateTime(), nullable=False),
-    sa.Column('unassigned_at', sa.DateTime(), nullable=True),
+    sa.Column('assigned_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('unassigned_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_lead_assignments_lead_id'), 'lead_assignments', ['lead_id'], unique=False)
@@ -75,7 +83,7 @@ def upgrade() -> None:
     sa.Column('listing_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('current_assignment_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['current_assignment_id'], ['lead_assignments.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -96,8 +104,8 @@ def upgrade() -> None:
     sa.Column('agency_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('profile_photo_url', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('password_hash', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['agency_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['invited_by_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['verification_id'], ['host_accounts.id'], ),
@@ -111,8 +119,8 @@ def upgrade() -> None:
     sa.Column('agency_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('user_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('agency_role', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('invited_at', sa.DateTime(), nullable=False),
-    sa.Column('joined_at', sa.DateTime(), nullable=True),
+    sa.Column('invited_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('joined_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['agency_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -126,7 +134,7 @@ def upgrade() -> None:
     sa.Column('target_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('target_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('notes', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['actor_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -138,8 +146,8 @@ def upgrade() -> None:
     sa.Column('transaction_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('rate_percentage', sa.Float(), nullable=False),
     sa.Column('set_by_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('effective_from', sa.DateTime(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('effective_from', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['set_by_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -228,8 +236,8 @@ def upgrade() -> None:
     sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('status_reason', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('view_count', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['agency_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['host_account_id'], ['host_accounts.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -263,7 +271,7 @@ def upgrade() -> None:
     sa.Column('max_price', sa.Float(), nullable=True),
     sa.Column('verified_only', sa.Boolean(), nullable=False),
     sa.Column('alerts_enabled', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -295,7 +303,7 @@ def upgrade() -> None:
     sa.Column('view_count', sa.Integer(), nullable=False),
     sa.Column('inquiry_count', sa.Integer(), nullable=False),
     sa.Column('average_response_time_minutes', sa.Float(), nullable=True),
-    sa.Column('closed_at', sa.DateTime(), nullable=True),
+    sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['listing_id'], ['listings.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -306,7 +314,7 @@ def upgrade() -> None:
     sa.Column('image_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('display_order', sa.Integer(), nullable=False),
     sa.Column('is_primary', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['listing_id'], ['listings.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -317,8 +325,8 @@ def upgrade() -> None:
     sa.Column('created_by_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('share_token', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('is_revoked', sa.Boolean(), nullable=False),
-    sa.Column('expires_at', sa.DateTime(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['created_by_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['listing_id'], ['listings.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -354,11 +362,11 @@ def upgrade() -> None:
     sa.Column('net_payout_amount', sa.Float(), nullable=False),
     sa.Column('payment_processor_reference', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('hold_expires_at', sa.DateTime(), nullable=True),
-    sa.Column('paid_at', sa.DateTime(), nullable=True),
-    sa.Column('possession_period_start_date', sa.DateTime(), nullable=True),
-    sa.Column('possession_period_end_date', sa.DateTime(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('hold_expires_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('paid_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('possession_period_start_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('possession_period_end_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['listing_id'], ['listings.id'], ),
     sa.ForeignKeyConstraint(['payee_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['payer_id'], ['users.id'], ),
@@ -392,8 +400,8 @@ def upgrade() -> None:
     sa.Column('assigned_staff_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('resolution_notes', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('refund_amount', sa.Float(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('resolved_at', sa.DateTime(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('resolved_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['assigned_staff_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['raised_by_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['transaction_id'], ['transactions.id'], ),
@@ -406,7 +414,7 @@ def upgrade() -> None:
     sa.Column('transaction_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('receipt_number', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('pdf_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('issued_at', sa.DateTime(), nullable=False),
+    sa.Column('issued_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['transaction_id'], ['transactions.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('transaction_id')

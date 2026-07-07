@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from sqlalchemy import DateTime
 from sqlmodel import Field, SQLModel
 
 
@@ -33,5 +34,9 @@ class User(SQLModel, table=True):
     profile_photo_url: str | None = Field(default=None)
     password_hash: str | None = Field(default=None, exclude=True)
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    # sa_type=DateTime(timezone=True) -- every datetime in this codebase is
+    # timezone-aware UTC (datetime.now(UTC)); without this, SQLModel maps
+    # plain `datetime` to TIMESTAMP WITHOUT TIME ZONE, and asyncpg refuses
+    # to encode a tz-aware value into a tz-naive column at insert time.
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))

@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from geoalchemy2 import Geography
-from sqlalchemy import JSON, Column, Index
+from sqlalchemy import JSON, Column, DateTime, Index
 from sqlmodel import Field, SQLModel
 
 
@@ -58,8 +58,14 @@ class Listing(SQLModel, table=True):
 
     view_count: int = Field(default=0)
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    # sa_type=DateTime(timezone=True) -- every datetime in this codebase is
+    # timezone-aware UTC (datetime.now(UTC)); without this, SQLModel maps
+    # plain `datetime` to TIMESTAMP WITHOUT TIME ZONE, and asyncpg refuses
+    # to encode a tz-aware value into a tz-naive column at insert time.
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), index=True, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
 
     # Explicit GiST index for location_point -- required for ST_DWithin/<->
     # performance at scale (FEAT-006/007); not something SQLModel's plain
@@ -77,7 +83,7 @@ class ListingImage(SQLModel, table=True):
     image_url: str
     display_order: int
     is_primary: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
 
 
 class CommercialListing(SQLModel, table=True):

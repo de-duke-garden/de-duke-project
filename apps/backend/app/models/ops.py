@@ -3,7 +3,13 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from sqlalchemy import DateTime
 from sqlmodel import Field, SQLModel
+
+# sa_type=DateTime(timezone=True) throughout this module -- every datetime
+# here is timezone-aware UTC (datetime.now(UTC)); without it, SQLModel maps
+# plain `datetime` to TIMESTAMP WITHOUT TIME ZONE and asyncpg refuses to
+# encode a tz-aware value into a tz-naive column at insert time.
 
 
 class Dispute(SQLModel, table=True):
@@ -20,8 +26,8 @@ class Dispute(SQLModel, table=True):
     assigned_staff_id: str | None = Field(default=None, foreign_key="users.id")
     resolution_notes: str | None = Field(default=None)
     refund_amount: float | None = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    resolved_at: datetime | None = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
+    resolved_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
 
 
 class CommissionRateConfig(SQLModel, table=True):
@@ -32,8 +38,8 @@ class CommissionRateConfig(SQLModel, table=True):
     transaction_type: str = Field(index=True)
     rate_percentage: float
     set_by_id: str = Field(foreign_key="users.id")
-    effective_from: datetime = Field(index=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    effective_from: datetime = Field(index=True, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
 
 
 class AuditLogEntry(SQLModel, table=True):
@@ -50,4 +56,4 @@ class AuditLogEntry(SQLModel, table=True):
     target_type: str
     target_id: str = Field(index=True)
     notes: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
