@@ -41,6 +41,20 @@ resource "aws_security_group" "backend_service" {
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
+  ingress {
+    # Self-referencing rule: the RDS Proxy (see modules/fargate_service's
+    # aws_db_proxy) is deployed into this SAME security group
+    # (service_security_group_id), so the backend task talking to the proxy
+    # on 5432 is traffic from this group to itself. Without this rule the
+    # traffic is silently dropped and asyncpg just times out instead of
+    # getting a fast connection-refused, since no ingress rule -- including
+    # ones referencing the group's own ID -- is implicit.
+    description = "Postgres, backend task to RDS Proxy (self-referencing, both share this SG)"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    self        = true
+  }
   egress {
     from_port   = 0
     to_port     = 0
