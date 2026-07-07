@@ -3,8 +3,21 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime
+from sqlalchemy import JSON, Column, DateTime
 from sqlmodel import Field, SQLModel
+
+# FEAT-024 AC: "User can manage email notification preferences per
+# category in settings, separate from push preferences" -- not present in
+# schema.md's User entity transcription (confirmed gap, backfilled here,
+# same pattern as e.g. CommercialListing.bathrooms's own backfill note).
+# One bool per category; missing keys default to enabled (see
+# email_service.notify_user), so adding a new category later never
+# silently opts existing users out of it.
+DEFAULT_EMAIL_NOTIFICATION_PREFERENCES: dict[str, bool] = {
+    "account": True,
+    "verification": True,
+    "payments": True,
+}
 
 
 class User(SQLModel, table=True):
@@ -34,9 +47,18 @@ class User(SQLModel, table=True):
     profile_photo_url: str | None = Field(default=None)
     password_hash: str | None = Field(default=None, exclude=True)
 
+    email_notification_preferences: dict[str, bool] = Field(
+        default_factory=lambda: dict(DEFAULT_EMAIL_NOTIFICATION_PREFERENCES),
+        sa_column=Column(JSON),
+    )
+
     # sa_type=DateTime(timezone=True) -- every datetime in this codebase is
     # timezone-aware UTC (datetime.now(UTC)); without this, SQLModel maps
     # plain `datetime` to TIMESTAMP WITHOUT TIME ZONE, and asyncpg refuses
     # to encode a tz-aware value into a tz-naive column at insert time.
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+    )

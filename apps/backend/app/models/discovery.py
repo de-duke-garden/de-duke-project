@@ -26,7 +26,9 @@ class SavedSearch(SQLModel, table=True):
     max_price: float | None = Field(default=None)
     verified_only: bool = Field(default=False)
     alerts_enabled: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+    )
 
 
 class ShareableSummary(SQLModel, table=True):
@@ -38,7 +40,9 @@ class ShareableSummary(SQLModel, table=True):
     share_token: str = Field(unique=True, index=True)
     is_revoked: bool = Field(default=False)
     expires_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+    )
 
 
 class ListingAnalytics(SQLModel, table=True):

@@ -20,6 +20,7 @@ from sqlmodel import select
 from app.core import cache
 from app.core.security import UserRole, create_access_token, hash_password, verify_password
 from app.models.user import User
+from app.services.email_service import PASSWORD_RESET, WELCOME, notify_user
 
 OTP_TTL = timedelta(minutes=10)
 RESET_TOKEN_TTL = timedelta(hours=1)
@@ -77,7 +78,9 @@ async def register_with_email(
     session.add(user)
     await session.commit()
     await session.refresh(user)
-    # TODO(FEAT-024): trigger welcome/confirmation email via Notification Service (SES).
+    await notify_user(
+        session, user_id=user.id, template=WELCOME, context={"full_name": user.full_name}
+    )
     return user
 
 
@@ -218,7 +221,17 @@ async def request_password_reset(session: AsyncSession, *, email: str) -> None:
     await cache.set_with_ttl(
         _pwreset_key(token), user.id, ttl_seconds=int(RESET_TOKEN_TTL.total_seconds())
     )
-    # TODO(FEAT-024 / SES): email the reset link containing `token`.
+    # `reset_token` is the raw token, not a URL -- no mobile deep-link or
+    # web reset-page base URL is defined anywhere yet (admin_console_url
+    # is the Admin Web Console specifically, a different audience: this
+    # reset flow serves any user, not just internal staff/admin). Once
+    # that destination exists, build the full link here instead.
+    await notify_user(
+        session,
+        user_id=user.id,
+        template=PASSWORD_RESET,
+        context={"reset_token": token},
+    )
 
 
 async def reset_password(session: AsyncSession, *, reset_token: str, new_password: str) -> None:
@@ -234,3 +247,29 @@ async def reset_password(session: AsyncSession, *, reset_token: str, new_passwor
     user.updated_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
+
+
+async def get_notification_preferences(session: AsyncSession, *, user_id: str) -> dict[str, bool]:
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
+    return dict(user.email_notification_preferences or {})
+
+
+async def update_notification_preferences(
+    session: AsyncSession, *, user_id: str, updates: dict[str, bool]
+) -> dict[str, bool]:
+    """Merges `updates` (only the categories the caller actually sent) into
+    the user's existing preferences -- an omitted category is left as-is,
+    never reset to its default."""
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
+
+    preferences = dict(user.email_notification_preferences or {})
+    preferences.update(updates)
+    user.email_notification_preferences = preferences
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+    await session.commit()
+    return preferences

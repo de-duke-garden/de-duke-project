@@ -146,3 +146,59 @@ async def test_forgot_password_and_reset(client: TestClient) -> None:
 def test_forgot_password_unknown_email_does_not_leak_existence(client: TestClient) -> None:
     response = client.post("/v1/auth/forgot-password", json={"email": "doesnotexist@example.com"})
     assert response.status_code == 202
+
+
+def test_get_notification_preferences_defaults_all_enabled(client: TestClient) -> None:
+    """FEAT-024 AC: manage email notification preferences per category."""
+    register = client.post(
+        "/v1/auth/register",
+        json={"full_name": "Prefs User", "email": "prefs@example.com", "password": "supersecret1"},
+    )
+    token = register.json()["access_token"]
+
+    response = client.get(
+        "/v1/auth/me/notification-preferences", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 200
+    assert response.json()["email_notification_preferences"] == {
+        "account": True,
+        "verification": True,
+        "payments": True,
+    }
+
+
+def test_update_notification_preferences_partial_update(client: TestClient) -> None:
+    register = client.post(
+        "/v1/auth/register",
+        json={
+            "full_name": "Prefs User 2",
+            "email": "prefs2@example.com",
+            "password": "supersecret1",
+        },
+    )
+    token = register.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.patch(
+        "/v1/auth/me/notification-preferences", json={"payments": False}, headers=headers
+    )
+    assert response.status_code == 200
+    body = response.json()["email_notification_preferences"]
+    assert body["payments"] is False
+    # Omitted categories are left unchanged, not reset.
+    assert body["account"] is True
+    assert body["verification"] is True
+
+    # Confirm the partial update persisted, and a second unrelated toggle
+    # doesn't clobber the first.
+    second_response = client.patch(
+        "/v1/auth/me/notification-preferences", json={"account": False}, headers=headers
+    )
+    second_body = second_response.json()["email_notification_preferences"]
+    assert second_body["account"] is False
+    assert second_body["payments"] is False
+
+
+def test_notification_preferences_requires_authentication(client: TestClient) -> None:
+    response = client.get("/v1/auth/me/notification-preferences")
+    assert response.status_code in (401, 403)

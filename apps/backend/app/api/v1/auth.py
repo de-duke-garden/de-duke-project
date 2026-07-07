@@ -15,10 +15,12 @@ from app.schemas.auth import (
     CurrentUserResponse,
     ForgotPasswordRequest,
     LoginRequest,
+    NotificationPreferencesResponse,
     RefreshRequest,
     RegisterEmailRequest,
     RegisterPhoneRequest,
     ResetPasswordRequest,
+    UpdateNotificationPreferencesRequest,
     VerifyOtpRequest,
 )
 from app.services import auth_service
@@ -177,3 +179,31 @@ async def reset_password(
     await auth_service.reset_password(
         session, reset_token=payload.reset_token, new_password=payload.new_password
     )
+
+
+@router.get("/me/notification-preferences", response_model=NotificationPreferencesResponse)
+async def get_notification_preferences(
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> NotificationPreferencesResponse:
+    """FEAT-024 AC: manage email notification preferences per category,
+    separate from push preferences (FEAT-022)."""
+    preferences = await auth_service.get_notification_preferences(
+        session, user_id=current_user.user_id
+    )
+    return NotificationPreferencesResponse(email_notification_preferences=preferences)
+
+
+@router.patch("/me/notification-preferences", response_model=NotificationPreferencesResponse)
+async def update_notification_preferences(
+    payload: UpdateNotificationPreferencesRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> NotificationPreferencesResponse:
+    """Partial update -- only categories present (non-None) in the request
+    body are changed."""
+    updates = payload.model_dump(exclude_none=True)
+    preferences = await auth_service.update_notification_preferences(
+        session, user_id=current_user.user_id, updates=updates
+    )
+    return NotificationPreferencesResponse(email_notification_preferences=preferences)

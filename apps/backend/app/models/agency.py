@@ -20,7 +20,9 @@ class AgencyTeamMember(SQLModel, table=True):
     user_id: str = Field(foreign_key="users.id", index=True)
     # admin | agent
     agency_role: str
-    invited_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
+    invited_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+    )
     joined_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
 
 
@@ -36,7 +38,9 @@ class Lead(SQLModel, table=True):
     # unassigned | assigned | closed | lost
     status: str = Field(default="unassigned", index=True)
     current_assignment_id: str | None = Field(default=None, foreign_key="lead_assignments.id")
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+    )
 
 
 class LeadAssignment(SQLModel, table=True):
@@ -46,5 +50,7 @@ class LeadAssignment(SQLModel, table=True):
     lead_id: str = Field(foreign_key="leads.id", index=True)
     assigned_to_id: str = Field(foreign_key="users.id")
     assigned_by_id: str = Field(foreign_key="users.id")
-    assigned_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
+    assigned_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+    )
     unassigned_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))

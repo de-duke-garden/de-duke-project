@@ -19,6 +19,7 @@ from sqlmodel import select
 from app.models.host_account import HostAccount
 from app.models.ops import AuditLogEntry
 from app.models.user import User
+from app.services.email_service import ACCOUNT_DELETION_CONFIRMED, send_transactional_email
 
 # Assumption (non-blocking, flagged for legal review per FEAT-037):
 # transaction/financial records retained 7 years for NG tax/financial
@@ -74,6 +75,11 @@ async def request_account_deletion(session: AsyncSession, *, user_id: str) -> di
     # owning subagent should extend this to each subtype table if a fuller
     # pass is required before launch.
 
+    # Captured before scrubbing below -- the confirmation email must go to
+    # the address that existed, and by design there is no User.email left
+    # to look up afterwards.
+    original_email = user.email
+
     user.full_name = "Deleted User"
     user.email = None
     user.phone_number = None
@@ -96,10 +102,18 @@ async def request_account_deletion(session: AsyncSession, *, user_id: str) -> di
 
     await session.commit()
 
-    # TODO(FEAT-030 AC / SES): send deletion-confirmation email. No SES
-    # credentials are configured in this environment (settings.aws_ses_sender_email
-    # is still REPLACE_ME) -- wire this once Foundation provisions the
-    # Notification Service per architecture.md.
+    # Sent directly (not via notify_user) -- the User row's email is
+    # already scrubbed to None above by the time this would look it up,
+    # and a mandatory legal confirmation of this kind isn't something a
+    # per-category preference should be able to suppress anyway.
+    if original_email:
+        await send_transactional_email(
+            to=original_email,
+            template=ACCOUNT_DELETION_CONFIRMED,
+            context={
+                "retained_for_a_defined_period": DELETION_SUMMARY["retained_for_a_defined_period"],
+            },
+        )
 
     return {
         "status": "deletion_processed",

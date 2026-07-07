@@ -80,6 +80,25 @@ class CurrentUserResponse(BaseModel):
     is_active: bool
 
 
+class NotificationPreferencesResponse(BaseModel):
+    """FEAT-024 AC: "User can manage email notification preferences per
+    category in settings, separate from push preferences." One bool per
+    category -- see app.models.user.DEFAULT_EMAIL_NOTIFICATION_PREFERENCES
+    for the category list and defaults."""
+
+    email_notification_preferences: dict[str, bool]
+
+
+class UpdateNotificationPreferencesRequest(BaseModel):
+    """Partial update -- omitted categories are left unchanged. All-optional
+    rather than requiring the full set every time, so the client only
+    sends the toggle(s) the user actually changed."""
+
+    account: bool | None = None
+    verification: bool | None = None
+    payments: bool | None = None
+
+
 class AuthTokenResponse(BaseModel):
     """Returned on successful register/login/refresh. Session persists across
     app restarts per FEAT-001 -- the mobile client stores access_token in

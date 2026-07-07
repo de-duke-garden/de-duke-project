@@ -22,6 +22,11 @@ from app.models.host_account import (
     HostAccountSurveyor,
 )
 from app.schemas.host_account import HostAccountSubmitRequest, HostType
+from app.services.email_service import (
+    HOST_VERIFICATION_APPROVED,
+    HOST_VERIFICATION_REJECTED,
+    notify_user,
+)
 
 _SUBTYPE_TABLES = {
     HostType.OWNER: HostAccountOwner,
@@ -258,5 +263,14 @@ async def resolve_submission(
 
     await session.commit()
     await session.refresh(host_account)
-    # TODO(FEAT-022/FEAT-024): push + email notification to the host on resolution.
+
+    # TODO(FEAT-022): push notification counterpart -- email-only for now.
+    await notify_user(
+        session,
+        user_id=host_account.user_id,
+        template=HOST_VERIFICATION_APPROVED
+        if decision == "verified"
+        else HOST_VERIFICATION_REJECTED,
+        context={"host_type": host_account.host_type, "reason": reason},
+    )
     return host_account

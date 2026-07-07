@@ -12,16 +12,17 @@ encode a tz-aware Python datetime into a tz-naive column at insert time
 table creation failed here). See each model's sa_type=DateTime(timezone=True)
 comment (app/models/*.py) for the field-level version of this note.
 """
+
 from collections.abc import Sequence
 
-from alembic import op
-import sqlalchemy as sa
-import sqlmodel
 import geoalchemy2
 import geoalchemy2.types
+import sqlalchemy as sa
+import sqlmodel
 
+from alembic import op
 
-revision: str = '231e83887366'
+revision: str = "231e83887366"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -51,375 +52,617 @@ def upgrade() -> None:
     #   lead_assignments.lead_id -> leads.id
     #   leads.agency_id -> users.id
     #   leads.listing_id -> listings.id
-    op.create_table('host_accounts',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('user_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('host_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('host_photo_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('bio', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('status_reason', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    op.create_table(
+        "host_accounts",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("user_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("host_type", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("host_photo_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("bio", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("status", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("status_reason", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f('ix_host_accounts_host_type'), 'host_accounts', ['host_type'], unique=False)
-    op.create_index(op.f('ix_host_accounts_status'), 'host_accounts', ['status'], unique=False)
-    op.create_index(op.f('ix_host_accounts_user_id'), 'host_accounts', ['user_id'], unique=False)
-    op.create_table('lead_assignments',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('lead_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('assigned_to_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('assigned_by_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('assigned_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('unassigned_at', sa.DateTime(timezone=True), nullable=True),
-    sa.PrimaryKeyConstraint('id')
+    op.create_index(
+        op.f("ix_host_accounts_host_type"), "host_accounts", ["host_type"], unique=False
     )
-    op.create_index(op.f('ix_lead_assignments_lead_id'), 'lead_assignments', ['lead_id'], unique=False)
-    op.create_table('leads',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('conversation_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('agency_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('listing_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('current_assignment_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['current_assignment_id'], ['lead_assignments.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_index(op.f("ix_host_accounts_status"), "host_accounts", ["status"], unique=False)
+    op.create_index(op.f("ix_host_accounts_user_id"), "host_accounts", ["user_id"], unique=False)
+    op.create_table(
+        "lead_assignments",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("lead_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("assigned_to_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("assigned_by_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("assigned_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("unassigned_at", sa.DateTime(timezone=True), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f('ix_leads_agency_id'), 'leads', ['agency_id'], unique=False)
-    op.create_index(op.f('ix_leads_conversation_id'), 'leads', ['conversation_id'], unique=False)
-    op.create_index(op.f('ix_leads_listing_id'), 'leads', ['listing_id'], unique=False)
-    op.create_index(op.f('ix_leads_status'), 'leads', ['status'], unique=False)
-    op.create_table('users',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('full_name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('email', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('phone_number', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('role', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('invited_by_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.Column('verification_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('is_verified_host', sa.Boolean(), nullable=False),
-    sa.Column('agency_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('profile_photo_url', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('password_hash', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['agency_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['invited_by_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['verification_id'], ['host_accounts.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_index(
+        op.f("ix_lead_assignments_lead_id"), "lead_assignments", ["lead_id"], unique=False
     )
-    op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
-    op.create_index(op.f('ix_users_phone_number'), 'users', ['phone_number'], unique=True)
-    op.create_index(op.f('ix_users_role'), 'users', ['role'], unique=False)
-    op.create_table('agency_team_members',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('agency_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('user_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('agency_role', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('invited_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('joined_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['agency_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_table(
+        "leads",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("conversation_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("agency_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("listing_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("status", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("current_assignment_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["current_assignment_id"],
+            ["lead_assignments.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f('ix_agency_team_members_agency_id'), 'agency_team_members', ['agency_id'], unique=False)
-    op.create_index(op.f('ix_agency_team_members_user_id'), 'agency_team_members', ['user_id'], unique=False)
-    op.create_table('audit_log_entries',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('actor_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('action_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('target_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('target_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('notes', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['actor_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_index(op.f("ix_leads_agency_id"), "leads", ["agency_id"], unique=False)
+    op.create_index(op.f("ix_leads_conversation_id"), "leads", ["conversation_id"], unique=False)
+    op.create_index(op.f("ix_leads_listing_id"), "leads", ["listing_id"], unique=False)
+    op.create_index(op.f("ix_leads_status"), "leads", ["status"], unique=False)
+    op.create_table(
+        "users",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("full_name", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("email", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("phone_number", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("role", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("invited_by_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("is_active", sa.Boolean(), nullable=False),
+        sa.Column("verification_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("is_verified_host", sa.Boolean(), nullable=False),
+        sa.Column("agency_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("profile_photo_url", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("password_hash", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["agency_id"],
+            ["users.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["invited_by_id"],
+            ["users.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["verification_id"],
+            ["host_accounts.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f('ix_audit_log_entries_action_type'), 'audit_log_entries', ['action_type'], unique=False)
-    op.create_index(op.f('ix_audit_log_entries_actor_id'), 'audit_log_entries', ['actor_id'], unique=False)
-    op.create_index(op.f('ix_audit_log_entries_target_id'), 'audit_log_entries', ['target_id'], unique=False)
-    op.create_table('commission_rate_configs',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('transaction_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('rate_percentage', sa.Float(), nullable=False),
-    sa.Column('set_by_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('effective_from', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['set_by_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True)
+    op.create_index(op.f("ix_users_phone_number"), "users", ["phone_number"], unique=True)
+    op.create_index(op.f("ix_users_role"), "users", ["role"], unique=False)
+    op.create_table(
+        "agency_team_members",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("agency_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("user_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("agency_role", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("invited_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("joined_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(
+            ["agency_id"],
+            ["users.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f('ix_commission_rate_configs_effective_from'), 'commission_rate_configs', ['effective_from'], unique=False)
-    op.create_index(op.f('ix_commission_rate_configs_transaction_type'), 'commission_rate_configs', ['transaction_type'], unique=False)
-    op.create_table('host_account_agents',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('host_account_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('cac_cert_doc_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('industry_license_url', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('proof_of_address_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('rep_id_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.ForeignKeyConstraint(['host_account_id'], ['host_accounts.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('host_account_id')
+    op.create_index(
+        op.f("ix_agency_team_members_agency_id"), "agency_team_members", ["agency_id"], unique=False
     )
-    op.create_table('host_account_architects',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('host_account_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('arcon_reg_no', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('practice_license_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('govt_issued_id_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('ref_phone_no', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.ForeignKeyConstraint(['host_account_id'], ['host_accounts.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('host_account_id')
+    op.create_index(
+        op.f("ix_agency_team_members_user_id"), "agency_team_members", ["user_id"], unique=False
     )
-    op.create_table('host_account_companies',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('host_account_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('cac_reg_doc_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('proof_of_address_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('rep_id_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.ForeignKeyConstraint(['host_account_id'], ['host_accounts.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('host_account_id')
+    op.create_table(
+        "audit_log_entries",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("actor_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("action_type", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("target_type", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("target_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("notes", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["actor_id"],
+            ["users.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_table('host_account_lawyers',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('host_account_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('nba_enrol_no', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('valid_practicing_cert_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('govt_issued_id_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('proof_of_address_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('ref_phone_no', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.ForeignKeyConstraint(['host_account_id'], ['host_accounts.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('host_account_id')
+    op.create_index(
+        op.f("ix_audit_log_entries_action_type"), "audit_log_entries", ["action_type"], unique=False
     )
-    op.create_table('host_account_owners',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('host_account_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.ForeignKeyConstraint(['host_account_id'], ['host_accounts.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('host_account_id')
+    op.create_index(
+        op.f("ix_audit_log_entries_actor_id"), "audit_log_entries", ["actor_id"], unique=False
     )
-    op.create_table('host_account_surveyors',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('host_account_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('surcon_reg_no', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('practice_license_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('govt_issued_id_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('ref_phone_no', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.ForeignKeyConstraint(['host_account_id'], ['host_accounts.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('host_account_id')
+    op.create_index(
+        op.f("ix_audit_log_entries_target_id"), "audit_log_entries", ["target_id"], unique=False
     )
-    op.create_table('listings',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('host_account_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('agency_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('listing_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('title', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('location_latitude', sa.Float(), nullable=False),
-    sa.Column('location_longitude', sa.Float(), nullable=False),
-    sa.Column('location_address_line', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('location_city', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('location_state', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    # spatial_index=False -- see app/models/listing.py's comment on this
-    # column: without it, GeoAlchemy2 auto-creates its own GiST index the
-    # moment this CREATE TABLE runs, duplicating the explicit
-    # ix_listings_location_point_gist index created below.
-    sa.Column('location_point', geoalchemy2.types.Geography(geometry_type='POINT', srid=4326, dimension=2, from_text='ST_GeogFromText', name='geography', spatial_index=False), nullable=True),
-    sa.Column('amenities', sa.JSON(), nullable=True),
-    sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('status_reason', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('view_count', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['agency_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['host_account_id'], ['host_accounts.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_table(
+        "commission_rate_configs",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("transaction_type", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("rate_percentage", sa.Float(), nullable=False),
+        sa.Column("set_by_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("effective_from", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["set_by_id"],
+            ["users.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f('ix_listings_created_at'), 'listings', ['created_at'], unique=False)
-    op.create_index(op.f('ix_listings_host_account_id'), 'listings', ['host_account_id'], unique=False)
-    op.create_index(op.f('ix_listings_listing_type'), 'listings', ['listing_type'], unique=False)
-    op.create_index(op.f('ix_listings_location_city'), 'listings', ['location_city'], unique=False)
-    op.create_index('ix_listings_location_point_gist', 'listings', ['location_point'], unique=False, postgresql_using='gist')
-    op.create_index(op.f('ix_listings_location_state'), 'listings', ['location_state'], unique=False)
-    op.create_index(op.f('ix_listings_status'), 'listings', ['status'], unique=False)
+    op.create_index(
+        op.f("ix_commission_rate_configs_effective_from"),
+        "commission_rate_configs",
+        ["effective_from"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_commission_rate_configs_transaction_type"),
+        "commission_rate_configs",
+        ["transaction_type"],
+        unique=False,
+    )
+    op.create_table(
+        "host_account_agents",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("host_account_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("cac_cert_doc_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("industry_license_url", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("proof_of_address_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("rep_id_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["host_account_id"],
+            ["host_accounts.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("host_account_id"),
+    )
+    op.create_table(
+        "host_account_architects",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("host_account_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("arcon_reg_no", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("practice_license_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("govt_issued_id_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("ref_phone_no", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["host_account_id"],
+            ["host_accounts.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("host_account_id"),
+    )
+    op.create_table(
+        "host_account_companies",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("host_account_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("cac_reg_doc_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("proof_of_address_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("rep_id_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["host_account_id"],
+            ["host_accounts.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("host_account_id"),
+    )
+    op.create_table(
+        "host_account_lawyers",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("host_account_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("nba_enrol_no", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("valid_practicing_cert_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("govt_issued_id_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("proof_of_address_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("ref_phone_no", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["host_account_id"],
+            ["host_accounts.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("host_account_id"),
+    )
+    op.create_table(
+        "host_account_owners",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("host_account_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["host_account_id"],
+            ["host_accounts.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("host_account_id"),
+    )
+    op.create_table(
+        "host_account_surveyors",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("host_account_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("surcon_reg_no", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("practice_license_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("govt_issued_id_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("ref_phone_no", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["host_account_id"],
+            ["host_accounts.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("host_account_id"),
+    )
+    op.create_table(
+        "listings",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("host_account_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("agency_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("listing_type", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("title", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("description", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("location_latitude", sa.Float(), nullable=False),
+        sa.Column("location_longitude", sa.Float(), nullable=False),
+        sa.Column("location_address_line", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("location_city", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("location_state", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        # spatial_index=False -- see app/models/listing.py's comment on this
+        # column: without it, GeoAlchemy2 auto-creates its own GiST index the
+        # moment this CREATE TABLE runs, duplicating the explicit
+        # ix_listings_location_point_gist index created below.
+        sa.Column(
+            "location_point",
+            geoalchemy2.types.Geography(
+                geometry_type="POINT",
+                srid=4326,
+                dimension=2,
+                from_text="ST_GeogFromText",
+                name="geography",
+                spatial_index=False,
+            ),
+            nullable=True,
+        ),
+        sa.Column("amenities", sa.JSON(), nullable=True),
+        sa.Column("status", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("status_reason", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("view_count", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["agency_id"],
+            ["users.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["host_account_id"],
+            ["host_accounts.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_listings_created_at"), "listings", ["created_at"], unique=False)
+    op.create_index(
+        op.f("ix_listings_host_account_id"), "listings", ["host_account_id"], unique=False
+    )
+    op.create_index(op.f("ix_listings_listing_type"), "listings", ["listing_type"], unique=False)
+    op.create_index(op.f("ix_listings_location_city"), "listings", ["location_city"], unique=False)
+    op.create_index(
+        "ix_listings_location_point_gist",
+        "listings",
+        ["location_point"],
+        unique=False,
+        postgresql_using="gist",
+    )
+    op.create_index(
+        op.f("ix_listings_location_state"), "listings", ["location_state"], unique=False
+    )
+    op.create_index(op.f("ix_listings_status"), "listings", ["status"], unique=False)
 
     # Deferred FKs from the circular-dependency group -- see the NOTE above
     # this function's first op.create_table call. Every target table
     # (users, leads, listings) now exists.
-    op.create_foreign_key('fk_host_accounts_user_id_users', 'host_accounts', 'users', ['user_id'], ['id'])
-    op.create_foreign_key('fk_lead_assignments_assigned_by_id_users', 'lead_assignments', 'users', ['assigned_by_id'], ['id'])
-    op.create_foreign_key('fk_lead_assignments_assigned_to_id_users', 'lead_assignments', 'users', ['assigned_to_id'], ['id'])
-    op.create_foreign_key('fk_lead_assignments_lead_id_leads', 'lead_assignments', 'leads', ['lead_id'], ['id'])
-    op.create_foreign_key('fk_leads_agency_id_users', 'leads', 'users', ['agency_id'], ['id'])
-    op.create_foreign_key('fk_leads_listing_id_listings', 'leads', 'listings', ['listing_id'], ['id'])
+    op.create_foreign_key(
+        "fk_host_accounts_user_id_users", "host_accounts", "users", ["user_id"], ["id"]
+    )
+    op.create_foreign_key(
+        "fk_lead_assignments_assigned_by_id_users",
+        "lead_assignments",
+        "users",
+        ["assigned_by_id"],
+        ["id"],
+    )
+    op.create_foreign_key(
+        "fk_lead_assignments_assigned_to_id_users",
+        "lead_assignments",
+        "users",
+        ["assigned_to_id"],
+        ["id"],
+    )
+    op.create_foreign_key(
+        "fk_lead_assignments_lead_id_leads", "lead_assignments", "leads", ["lead_id"], ["id"]
+    )
+    op.create_foreign_key("fk_leads_agency_id_users", "leads", "users", ["agency_id"], ["id"])
+    op.create_foreign_key(
+        "fk_leads_listing_id_listings", "leads", "listings", ["listing_id"], ["id"]
+    )
 
-    op.create_table('saved_searches',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('user_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('label', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('location_query', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('radius_km', sa.Float(), nullable=False),
-    sa.Column('listing_type', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('min_price', sa.Float(), nullable=True),
-    sa.Column('max_price', sa.Float(), nullable=True),
-    sa.Column('verified_only', sa.Boolean(), nullable=False),
-    sa.Column('alerts_enabled', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_table(
+        "saved_searches",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("user_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("label", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("location_query", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("radius_km", sa.Float(), nullable=False),
+        sa.Column("listing_type", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("min_price", sa.Float(), nullable=True),
+        sa.Column("max_price", sa.Float(), nullable=True),
+        sa.Column("verified_only", sa.Boolean(), nullable=False),
+        sa.Column("alerts_enabled", sa.Boolean(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f('ix_saved_searches_user_id'), 'saved_searches', ['user_id'], unique=False)
-    op.create_table('commercial_listings',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('listing_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('deal_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('price', sa.Float(), nullable=False),
-    sa.Column('possession_period_days', sa.Integer(), nullable=True),
-    sa.Column('size_square_meters', sa.Float(), nullable=False),
-    sa.Column('property_subtype', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('bathrooms', sa.Integer(), nullable=False),
-    sa.Column('legal_documents', sa.JSON(), nullable=True),
-    sa.ForeignKeyConstraint(['listing_id'], ['listings.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('listing_id')
+    op.create_index(op.f("ix_saved_searches_user_id"), "saved_searches", ["user_id"], unique=False)
+    op.create_table(
+        "commercial_listings",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("listing_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("deal_type", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("price", sa.Float(), nullable=False),
+        sa.Column("possession_period_days", sa.Integer(), nullable=True),
+        sa.Column("size_square_meters", sa.Float(), nullable=False),
+        sa.Column("property_subtype", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("bathrooms", sa.Integer(), nullable=False),
+        sa.Column("legal_documents", sa.JSON(), nullable=True),
+        sa.ForeignKeyConstraint(
+            ["listing_id"],
+            ["listings.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("listing_id"),
     )
-    op.create_index(op.f('ix_commercial_listings_bathrooms'), 'commercial_listings', ['bathrooms'], unique=False)
-    op.create_index(op.f('ix_commercial_listings_deal_type'), 'commercial_listings', ['deal_type'], unique=False)
-    op.create_index(op.f('ix_commercial_listings_price'), 'commercial_listings', ['price'], unique=False)
-    op.create_index(op.f('ix_commercial_listings_property_subtype'), 'commercial_listings', ['property_subtype'], unique=False)
-    op.create_index(op.f('ix_commercial_listings_size_square_meters'), 'commercial_listings', ['size_square_meters'], unique=False)
-    op.create_table('listing_analytics',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('listing_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('range_start', sa.Date(), nullable=False),
-    sa.Column('range_end', sa.Date(), nullable=False),
-    sa.Column('view_count', sa.Integer(), nullable=False),
-    sa.Column('inquiry_count', sa.Integer(), nullable=False),
-    sa.Column('average_response_time_minutes', sa.Float(), nullable=True),
-    sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['listing_id'], ['listings.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_index(
+        op.f("ix_commercial_listings_bathrooms"), "commercial_listings", ["bathrooms"], unique=False
     )
-    op.create_index(op.f('ix_listing_analytics_listing_id'), 'listing_analytics', ['listing_id'], unique=False)
-    op.create_table('listing_images',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('listing_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('image_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('display_order', sa.Integer(), nullable=False),
-    sa.Column('is_primary', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['listing_id'], ['listings.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_index(
+        op.f("ix_commercial_listings_deal_type"), "commercial_listings", ["deal_type"], unique=False
     )
-    op.create_index(op.f('ix_listing_images_listing_id'), 'listing_images', ['listing_id'], unique=False)
-    op.create_table('shareable_summaries',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('listing_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('created_by_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('share_token', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('is_revoked', sa.Boolean(), nullable=False),
-    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['created_by_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['listing_id'], ['listings.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_index(
+        op.f("ix_commercial_listings_price"), "commercial_listings", ["price"], unique=False
     )
-    op.create_index(op.f('ix_shareable_summaries_listing_id'), 'shareable_summaries', ['listing_id'], unique=False)
-    op.create_index(op.f('ix_shareable_summaries_share_token'), 'shareable_summaries', ['share_token'], unique=True)
-    op.create_table('shortlet_listings',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('listing_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('nightly_price', sa.Float(), nullable=False),
-    sa.Column('minimum_stay_nights', sa.Integer(), nullable=False),
-    sa.Column('maximum_stay_nights', sa.Integer(), nullable=True),
-    sa.Column('bedrooms', sa.Integer(), nullable=False),
-    sa.Column('bathrooms', sa.Integer(), nullable=False),
-    sa.Column('subtype', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('house_rules', sa.JSON(), nullable=True),
-    sa.Column('blocked_dates', sa.JSON(), nullable=True),
-    sa.ForeignKeyConstraint(['listing_id'], ['listings.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('listing_id')
+    op.create_index(
+        op.f("ix_commercial_listings_property_subtype"),
+        "commercial_listings",
+        ["property_subtype"],
+        unique=False,
     )
-    op.create_index(op.f('ix_shortlet_listings_bathrooms'), 'shortlet_listings', ['bathrooms'], unique=False)
-    op.create_index(op.f('ix_shortlet_listings_nightly_price'), 'shortlet_listings', ['nightly_price'], unique=False)
-    op.create_index(op.f('ix_shortlet_listings_subtype'), 'shortlet_listings', ['subtype'], unique=False)
-    op.create_table('transactions',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('listing_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('payer_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('payee_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('transaction_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('gross_amount', sa.Float(), nullable=False),
-    sa.Column('commission_amount', sa.Float(), nullable=False),
-    sa.Column('net_payout_amount', sa.Float(), nullable=False),
-    sa.Column('payment_processor_reference', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('hold_expires_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('paid_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('possession_period_start_date', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('possession_period_end_date', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['listing_id'], ['listings.id'], ),
-    sa.ForeignKeyConstraint(['payee_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['payer_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_index(
+        op.f("ix_commercial_listings_size_square_meters"),
+        "commercial_listings",
+        ["size_square_meters"],
+        unique=False,
     )
-    op.create_index(op.f('ix_transactions_hold_expires_at'), 'transactions', ['hold_expires_at'], unique=False)
-    op.create_index(op.f('ix_transactions_listing_id'), 'transactions', ['listing_id'], unique=False)
-    op.create_index(op.f('ix_transactions_payee_id'), 'transactions', ['payee_id'], unique=False)
-    op.create_index(op.f('ix_transactions_payer_id'), 'transactions', ['payer_id'], unique=False)
-    op.create_index(op.f('ix_transactions_payment_processor_reference'), 'transactions', ['payment_processor_reference'], unique=False)
-    op.create_index(op.f('ix_transactions_possession_period_end_date'), 'transactions', ['possession_period_end_date'], unique=False)
-    op.create_index(op.f('ix_transactions_status'), 'transactions', ['status'], unique=False)
-    op.create_index(op.f('ix_transactions_transaction_type'), 'transactions', ['transaction_type'], unique=False)
-    op.create_table('commercial_listing_rooms',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('commercial_listing_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('level', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('width_meters', sa.Float(), nullable=False),
-    sa.Column('length_meters', sa.Float(), nullable=False),
-    sa.ForeignKeyConstraint(['commercial_listing_id'], ['commercial_listings.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_table(
+        "listing_analytics",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("listing_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("range_start", sa.Date(), nullable=False),
+        sa.Column("range_end", sa.Date(), nullable=False),
+        sa.Column("view_count", sa.Integer(), nullable=False),
+        sa.Column("inquiry_count", sa.Integer(), nullable=False),
+        sa.Column("average_response_time_minutes", sa.Float(), nullable=True),
+        sa.Column("closed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(
+            ["listing_id"],
+            ["listings.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f('ix_commercial_listing_rooms_commercial_listing_id'), 'commercial_listing_rooms', ['commercial_listing_id'], unique=False)
-    op.create_table('disputes',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('transaction_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('raised_by_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('reason', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('assigned_staff_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('resolution_notes', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('refund_amount', sa.Float(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('resolved_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['assigned_staff_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['raised_by_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['transaction_id'], ['transactions.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    op.create_index(
+        op.f("ix_listing_analytics_listing_id"), "listing_analytics", ["listing_id"], unique=False
     )
-    op.create_index(op.f('ix_disputes_status'), 'disputes', ['status'], unique=False)
-    op.create_index(op.f('ix_disputes_transaction_id'), 'disputes', ['transaction_id'], unique=False)
-    op.create_table('receipts',
-    sa.Column('id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('transaction_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('receipt_number', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('pdf_url', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('issued_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['transaction_id'], ['transactions.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('transaction_id')
+    op.create_table(
+        "listing_images",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("listing_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("image_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("display_order", sa.Integer(), nullable=False),
+        sa.Column("is_primary", sa.Boolean(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["listing_id"],
+            ["listings.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f('ix_receipts_receipt_number'), 'receipts', ['receipt_number'], unique=True)
+    op.create_index(
+        op.f("ix_listing_images_listing_id"), "listing_images", ["listing_id"], unique=False
+    )
+    op.create_table(
+        "shareable_summaries",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("listing_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("created_by_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("share_token", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("is_revoked", sa.Boolean(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["created_by_id"],
+            ["users.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["listing_id"],
+            ["listings.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_shareable_summaries_listing_id"),
+        "shareable_summaries",
+        ["listing_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_shareable_summaries_share_token"),
+        "shareable_summaries",
+        ["share_token"],
+        unique=True,
+    )
+    op.create_table(
+        "shortlet_listings",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("listing_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("nightly_price", sa.Float(), nullable=False),
+        sa.Column("minimum_stay_nights", sa.Integer(), nullable=False),
+        sa.Column("maximum_stay_nights", sa.Integer(), nullable=True),
+        sa.Column("bedrooms", sa.Integer(), nullable=False),
+        sa.Column("bathrooms", sa.Integer(), nullable=False),
+        sa.Column("subtype", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("house_rules", sa.JSON(), nullable=True),
+        sa.Column("blocked_dates", sa.JSON(), nullable=True),
+        sa.ForeignKeyConstraint(
+            ["listing_id"],
+            ["listings.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("listing_id"),
+    )
+    op.create_index(
+        op.f("ix_shortlet_listings_bathrooms"), "shortlet_listings", ["bathrooms"], unique=False
+    )
+    op.create_index(
+        op.f("ix_shortlet_listings_nightly_price"),
+        "shortlet_listings",
+        ["nightly_price"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_shortlet_listings_subtype"), "shortlet_listings", ["subtype"], unique=False
+    )
+    op.create_table(
+        "transactions",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("listing_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("payer_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("payee_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("transaction_type", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("gross_amount", sa.Float(), nullable=False),
+        sa.Column("commission_amount", sa.Float(), nullable=False),
+        sa.Column("net_payout_amount", sa.Float(), nullable=False),
+        sa.Column("payment_processor_reference", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("status", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("hold_expires_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("paid_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("possession_period_start_date", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("possession_period_end_date", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["listing_id"],
+            ["listings.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["payee_id"],
+            ["users.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["payer_id"],
+            ["users.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_transactions_hold_expires_at"), "transactions", ["hold_expires_at"], unique=False
+    )
+    op.create_index(
+        op.f("ix_transactions_listing_id"), "transactions", ["listing_id"], unique=False
+    )
+    op.create_index(op.f("ix_transactions_payee_id"), "transactions", ["payee_id"], unique=False)
+    op.create_index(op.f("ix_transactions_payer_id"), "transactions", ["payer_id"], unique=False)
+    op.create_index(
+        op.f("ix_transactions_payment_processor_reference"),
+        "transactions",
+        ["payment_processor_reference"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_transactions_possession_period_end_date"),
+        "transactions",
+        ["possession_period_end_date"],
+        unique=False,
+    )
+    op.create_index(op.f("ix_transactions_status"), "transactions", ["status"], unique=False)
+    op.create_index(
+        op.f("ix_transactions_transaction_type"), "transactions", ["transaction_type"], unique=False
+    )
+    op.create_table(
+        "commercial_listing_rooms",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("commercial_listing_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("level", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("width_meters", sa.Float(), nullable=False),
+        sa.Column("length_meters", sa.Float(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["commercial_listing_id"],
+            ["commercial_listings.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_commercial_listing_rooms_commercial_listing_id"),
+        "commercial_listing_rooms",
+        ["commercial_listing_id"],
+        unique=False,
+    )
+    op.create_table(
+        "disputes",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("transaction_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("raised_by_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("reason", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("description", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("status", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("assigned_staff_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("resolution_notes", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("refund_amount", sa.Float(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(
+            ["assigned_staff_id"],
+            ["users.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["raised_by_id"],
+            ["users.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["transaction_id"],
+            ["transactions.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_disputes_status"), "disputes", ["status"], unique=False)
+    op.create_index(
+        op.f("ix_disputes_transaction_id"), "disputes", ["transaction_id"], unique=False
+    )
+    op.create_table(
+        "receipts",
+        sa.Column("id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("transaction_id", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("receipt_number", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("pdf_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("issued_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["transaction_id"],
+            ["transactions.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("transaction_id"),
+    )
+    op.create_index(op.f("ix_receipts_receipt_number"), "receipts", ["receipt_number"], unique=True)
     # ### end Alembic commands ###
 
 
@@ -427,86 +670,99 @@ def downgrade() -> None:
     # Drop the 6 deferred cross-table FKs first (see upgrade()'s NOTE) so
     # the drop_table order below never has to satisfy FK dependencies
     # between host_accounts/lead_assignments/leads/users/listings.
-    op.drop_constraint('fk_leads_listing_id_listings', 'leads', type_='foreignkey')
-    op.drop_constraint('fk_leads_agency_id_users', 'leads', type_='foreignkey')
-    op.drop_constraint('fk_lead_assignments_lead_id_leads', 'lead_assignments', type_='foreignkey')
-    op.drop_constraint('fk_lead_assignments_assigned_to_id_users', 'lead_assignments', type_='foreignkey')
-    op.drop_constraint('fk_lead_assignments_assigned_by_id_users', 'lead_assignments', type_='foreignkey')
-    op.drop_constraint('fk_host_accounts_user_id_users', 'host_accounts', type_='foreignkey')
+    op.drop_constraint("fk_leads_listing_id_listings", "leads", type_="foreignkey")
+    op.drop_constraint("fk_leads_agency_id_users", "leads", type_="foreignkey")
+    op.drop_constraint("fk_lead_assignments_lead_id_leads", "lead_assignments", type_="foreignkey")
+    op.drop_constraint(
+        "fk_lead_assignments_assigned_to_id_users", "lead_assignments", type_="foreignkey"
+    )
+    op.drop_constraint(
+        "fk_lead_assignments_assigned_by_id_users", "lead_assignments", type_="foreignkey"
+    )
+    op.drop_constraint("fk_host_accounts_user_id_users", "host_accounts", type_="foreignkey")
 
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f('ix_receipts_receipt_number'), table_name='receipts')
-    op.drop_table('receipts')
-    op.drop_index(op.f('ix_disputes_transaction_id'), table_name='disputes')
-    op.drop_index(op.f('ix_disputes_status'), table_name='disputes')
-    op.drop_table('disputes')
-    op.drop_index(op.f('ix_commercial_listing_rooms_commercial_listing_id'), table_name='commercial_listing_rooms')
-    op.drop_table('commercial_listing_rooms')
-    op.drop_index(op.f('ix_transactions_transaction_type'), table_name='transactions')
-    op.drop_index(op.f('ix_transactions_status'), table_name='transactions')
-    op.drop_index(op.f('ix_transactions_possession_period_end_date'), table_name='transactions')
-    op.drop_index(op.f('ix_transactions_payment_processor_reference'), table_name='transactions')
-    op.drop_index(op.f('ix_transactions_payer_id'), table_name='transactions')
-    op.drop_index(op.f('ix_transactions_payee_id'), table_name='transactions')
-    op.drop_index(op.f('ix_transactions_listing_id'), table_name='transactions')
-    op.drop_index(op.f('ix_transactions_hold_expires_at'), table_name='transactions')
-    op.drop_table('transactions')
-    op.drop_index(op.f('ix_shortlet_listings_subtype'), table_name='shortlet_listings')
-    op.drop_index(op.f('ix_shortlet_listings_nightly_price'), table_name='shortlet_listings')
-    op.drop_index(op.f('ix_shortlet_listings_bathrooms'), table_name='shortlet_listings')
-    op.drop_table('shortlet_listings')
-    op.drop_index(op.f('ix_shareable_summaries_share_token'), table_name='shareable_summaries')
-    op.drop_index(op.f('ix_shareable_summaries_listing_id'), table_name='shareable_summaries')
-    op.drop_table('shareable_summaries')
-    op.drop_index(op.f('ix_listing_images_listing_id'), table_name='listing_images')
-    op.drop_table('listing_images')
-    op.drop_index(op.f('ix_listing_analytics_listing_id'), table_name='listing_analytics')
-    op.drop_table('listing_analytics')
-    op.drop_index(op.f('ix_commercial_listings_size_square_meters'), table_name='commercial_listings')
-    op.drop_index(op.f('ix_commercial_listings_property_subtype'), table_name='commercial_listings')
-    op.drop_index(op.f('ix_commercial_listings_price'), table_name='commercial_listings')
-    op.drop_index(op.f('ix_commercial_listings_deal_type'), table_name='commercial_listings')
-    op.drop_index(op.f('ix_commercial_listings_bathrooms'), table_name='commercial_listings')
-    op.drop_table('commercial_listings')
-    op.drop_index(op.f('ix_saved_searches_user_id'), table_name='saved_searches')
-    op.drop_table('saved_searches')
-    op.drop_index(op.f('ix_listings_status'), table_name='listings')
-    op.drop_index(op.f('ix_listings_location_state'), table_name='listings')
-    op.drop_index('ix_listings_location_point_gist', table_name='listings', postgresql_using='gist')
-    op.drop_index(op.f('ix_listings_location_city'), table_name='listings')
-    op.drop_index(op.f('ix_listings_listing_type'), table_name='listings')
-    op.drop_index(op.f('ix_listings_host_account_id'), table_name='listings')
-    op.drop_index(op.f('ix_listings_created_at'), table_name='listings')
-    op.drop_table('listings')
-    op.drop_table('host_account_surveyors')
-    op.drop_table('host_account_owners')
-    op.drop_table('host_account_lawyers')
-    op.drop_table('host_account_companies')
-    op.drop_table('host_account_architects')
-    op.drop_table('host_account_agents')
-    op.drop_index(op.f('ix_commission_rate_configs_transaction_type'), table_name='commission_rate_configs')
-    op.drop_index(op.f('ix_commission_rate_configs_effective_from'), table_name='commission_rate_configs')
-    op.drop_table('commission_rate_configs')
-    op.drop_index(op.f('ix_audit_log_entries_target_id'), table_name='audit_log_entries')
-    op.drop_index(op.f('ix_audit_log_entries_actor_id'), table_name='audit_log_entries')
-    op.drop_index(op.f('ix_audit_log_entries_action_type'), table_name='audit_log_entries')
-    op.drop_table('audit_log_entries')
-    op.drop_index(op.f('ix_agency_team_members_user_id'), table_name='agency_team_members')
-    op.drop_index(op.f('ix_agency_team_members_agency_id'), table_name='agency_team_members')
-    op.drop_table('agency_team_members')
-    op.drop_index(op.f('ix_users_role'), table_name='users')
-    op.drop_index(op.f('ix_users_phone_number'), table_name='users')
-    op.drop_index(op.f('ix_users_email'), table_name='users')
-    op.drop_table('users')
-    op.drop_index(op.f('ix_leads_status'), table_name='leads')
-    op.drop_index(op.f('ix_leads_listing_id'), table_name='leads')
-    op.drop_index(op.f('ix_leads_conversation_id'), table_name='leads')
-    op.drop_index(op.f('ix_leads_agency_id'), table_name='leads')
-    op.drop_table('leads')
-    op.drop_index(op.f('ix_lead_assignments_lead_id'), table_name='lead_assignments')
-    op.drop_table('lead_assignments')
-    op.drop_index(op.f('ix_host_accounts_user_id'), table_name='host_accounts')
-    op.drop_index(op.f('ix_host_accounts_status'), table_name='host_accounts')
-    op.drop_index(op.f('ix_host_accounts_host_type'), table_name='host_accounts')
-    op.drop_table('host_accounts')
+    op.drop_index(op.f("ix_receipts_receipt_number"), table_name="receipts")
+    op.drop_table("receipts")
+    op.drop_index(op.f("ix_disputes_transaction_id"), table_name="disputes")
+    op.drop_index(op.f("ix_disputes_status"), table_name="disputes")
+    op.drop_table("disputes")
+    op.drop_index(
+        op.f("ix_commercial_listing_rooms_commercial_listing_id"),
+        table_name="commercial_listing_rooms",
+    )
+    op.drop_table("commercial_listing_rooms")
+    op.drop_index(op.f("ix_transactions_transaction_type"), table_name="transactions")
+    op.drop_index(op.f("ix_transactions_status"), table_name="transactions")
+    op.drop_index(op.f("ix_transactions_possession_period_end_date"), table_name="transactions")
+    op.drop_index(op.f("ix_transactions_payment_processor_reference"), table_name="transactions")
+    op.drop_index(op.f("ix_transactions_payer_id"), table_name="transactions")
+    op.drop_index(op.f("ix_transactions_payee_id"), table_name="transactions")
+    op.drop_index(op.f("ix_transactions_listing_id"), table_name="transactions")
+    op.drop_index(op.f("ix_transactions_hold_expires_at"), table_name="transactions")
+    op.drop_table("transactions")
+    op.drop_index(op.f("ix_shortlet_listings_subtype"), table_name="shortlet_listings")
+    op.drop_index(op.f("ix_shortlet_listings_nightly_price"), table_name="shortlet_listings")
+    op.drop_index(op.f("ix_shortlet_listings_bathrooms"), table_name="shortlet_listings")
+    op.drop_table("shortlet_listings")
+    op.drop_index(op.f("ix_shareable_summaries_share_token"), table_name="shareable_summaries")
+    op.drop_index(op.f("ix_shareable_summaries_listing_id"), table_name="shareable_summaries")
+    op.drop_table("shareable_summaries")
+    op.drop_index(op.f("ix_listing_images_listing_id"), table_name="listing_images")
+    op.drop_table("listing_images")
+    op.drop_index(op.f("ix_listing_analytics_listing_id"), table_name="listing_analytics")
+    op.drop_table("listing_analytics")
+    op.drop_index(
+        op.f("ix_commercial_listings_size_square_meters"), table_name="commercial_listings"
+    )
+    op.drop_index(op.f("ix_commercial_listings_property_subtype"), table_name="commercial_listings")
+    op.drop_index(op.f("ix_commercial_listings_price"), table_name="commercial_listings")
+    op.drop_index(op.f("ix_commercial_listings_deal_type"), table_name="commercial_listings")
+    op.drop_index(op.f("ix_commercial_listings_bathrooms"), table_name="commercial_listings")
+    op.drop_table("commercial_listings")
+    op.drop_index(op.f("ix_saved_searches_user_id"), table_name="saved_searches")
+    op.drop_table("saved_searches")
+    op.drop_index(op.f("ix_listings_status"), table_name="listings")
+    op.drop_index(op.f("ix_listings_location_state"), table_name="listings")
+    op.drop_index("ix_listings_location_point_gist", table_name="listings", postgresql_using="gist")
+    op.drop_index(op.f("ix_listings_location_city"), table_name="listings")
+    op.drop_index(op.f("ix_listings_listing_type"), table_name="listings")
+    op.drop_index(op.f("ix_listings_host_account_id"), table_name="listings")
+    op.drop_index(op.f("ix_listings_created_at"), table_name="listings")
+    op.drop_table("listings")
+    op.drop_table("host_account_surveyors")
+    op.drop_table("host_account_owners")
+    op.drop_table("host_account_lawyers")
+    op.drop_table("host_account_companies")
+    op.drop_table("host_account_architects")
+    op.drop_table("host_account_agents")
+    op.drop_index(
+        op.f("ix_commission_rate_configs_transaction_type"), table_name="commission_rate_configs"
+    )
+    op.drop_index(
+        op.f("ix_commission_rate_configs_effective_from"), table_name="commission_rate_configs"
+    )
+    op.drop_table("commission_rate_configs")
+    op.drop_index(op.f("ix_audit_log_entries_target_id"), table_name="audit_log_entries")
+    op.drop_index(op.f("ix_audit_log_entries_actor_id"), table_name="audit_log_entries")
+    op.drop_index(op.f("ix_audit_log_entries_action_type"), table_name="audit_log_entries")
+    op.drop_table("audit_log_entries")
+    op.drop_index(op.f("ix_agency_team_members_user_id"), table_name="agency_team_members")
+    op.drop_index(op.f("ix_agency_team_members_agency_id"), table_name="agency_team_members")
+    op.drop_table("agency_team_members")
+    op.drop_index(op.f("ix_users_role"), table_name="users")
+    op.drop_index(op.f("ix_users_phone_number"), table_name="users")
+    op.drop_index(op.f("ix_users_email"), table_name="users")
+    op.drop_table("users")
+    op.drop_index(op.f("ix_leads_status"), table_name="leads")
+    op.drop_index(op.f("ix_leads_listing_id"), table_name="leads")
+    op.drop_index(op.f("ix_leads_conversation_id"), table_name="leads")
+    op.drop_index(op.f("ix_leads_agency_id"), table_name="leads")
+    op.drop_table("leads")
+    op.drop_index(op.f("ix_lead_assignments_lead_id"), table_name="lead_assignments")
+    op.drop_table("lead_assignments")
+    op.drop_index(op.f("ix_host_accounts_user_id"), table_name="host_accounts")
+    op.drop_index(op.f("ix_host_accounts_status"), table_name="host_accounts")
+    op.drop_index(op.f("ix_host_accounts_host_type"), table_name="host_accounts")
+    op.drop_table("host_accounts")
     # ### end Alembic commands ###

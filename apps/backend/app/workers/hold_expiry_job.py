@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction
-from app.services.email_service import BOOKING_HOLD_EXPIRED, send_transactional_email
+from app.services.email_service import BOOKING_HOLD_EXPIRED, notify_user
 
 
 async def expire_stale_holds(session: AsyncSession) -> int:
@@ -46,8 +46,9 @@ async def expire_stale_holds(session: AsyncSession) -> int:
         # Best-effort notification; a failure here must never roll back the
         # already-committed expiry transition.
         try:
-            await send_transactional_email(
-                to=txn.payer_id,
+            await notify_user(
+                session,
+                user_id=txn.payer_id,
                 template=BOOKING_HOLD_EXPIRED,
                 context={"transaction_id": txn.id, "listing_id": txn.listing_id},
             )

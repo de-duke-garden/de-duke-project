@@ -65,7 +65,9 @@ class Listing(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC), index=True, sa_type=DateTime(timezone=True)
     )
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+    )
 
     # Explicit GiST index for location_point -- required for ST_DWithin/<->
     # performance at scale (FEAT-006/007); not something SQLModel's plain
@@ -83,7 +85,9 @@ class ListingImage(SQLModel, table=True):
     image_url: str
     display_order: int
     is_primary: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+    )
 
 
 class CommercialListing(SQLModel, table=True):

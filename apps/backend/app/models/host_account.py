@@ -31,8 +31,12 @@ class HostAccount(SQLModel, table=True):
     # timezone-aware UTC (datetime.now(UTC)); without this, SQLModel maps
     # plain `datetime` to TIMESTAMP WITHOUT TIME ZONE, and asyncpg refuses
     # to encode a tz-aware value into a tz-naive column at insert time.
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+    )
 
 
 class HostAccountOwner(SQLModel, table=True):

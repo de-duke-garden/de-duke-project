@@ -25,6 +25,7 @@ from app.schemas.staff_account import (
     StaffActionResponse,
 )
 from app.services import staff_account_service as svc
+from app.services.email_service import STAFF_INVITE, send_transactional_email
 
 router = APIRouter()
 
@@ -65,13 +66,24 @@ async def invite_staff(
     except svc.EmailAlreadyInUseError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
-    # TODO(email_service): dispatch this link via SES (app/services/email_service.py)
-    # instead of returning it in the response body, once FEAT-024 wires
-    # staff-invite emails specifically (it currently covers onboarding/
-    # payment/verification only).
     admin_console_url = get_settings().admin_console_url.rstrip("/")
     invite_link = f"{admin_console_url}/accept-invite?token={raw_token}&uid={user.id}"
 
+    # Sent directly (not via notify_user) -- a brand-new Staff/Admin
+    # account's very first access to the platform isn't a discretionary
+    # notification a per-category preference should be able to suppress,
+    # and there's been no opportunity for this invitee to have set any
+    # preference yet anyway.
+    if user.email:
+        await send_transactional_email(
+            to=user.email,
+            template=STAFF_INVITE,
+            context={"full_name": user.full_name, "invite_link": invite_link},
+        )
+
+    # invite_link is still returned in the response body too (not just
+    # emailed) -- useful for the inviting Admin to copy/share directly if
+    # needed, and keeps this endpoint testable without an email backend.
     return InviteStaffResponse(account=_to_out(user), invite_link=invite_link)
 
 

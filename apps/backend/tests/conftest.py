@@ -74,6 +74,17 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+@pytest_asyncio.fixture
+async def session() -> AsyncGenerator[AsyncSession, None]:
+    """Direct DB session access for tests that need to set up/inspect rows
+    without going through an HTTP endpoint (e.g. test_email_service.py).
+    Same test_engine/table set as the `client` fixture's own session
+    override above, so rows created here are visible to requests made via
+    `client` in the same test."""
+    async with TestSessionFactory() as session:
+        yield session
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def _stub_redis(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None, None]:
     """Replaces app.core.cache's real Redis client with fakeredis (an

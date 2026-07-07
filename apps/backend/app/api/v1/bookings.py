@@ -15,7 +15,7 @@ from app.services.booking_service import (
     confirm_booking,
     get_transaction_for_owner,
 )
-from app.services.email_service import BOOKING_HOLD_CONFIRMED, send_transactional_email
+from app.services.email_service import BOOKING_HOLD_CONFIRMED, notify_user
 
 router = APIRouter()
 
@@ -48,8 +48,9 @@ async def confirm_booking_endpoint(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
 
-    await send_transactional_email(
-        to=current_user.user_id,
+    await notify_user(
+        session,
+        user_id=current_user.user_id,
         template=BOOKING_HOLD_CONFIRMED,
         context={
             "transaction_id": txn.id,

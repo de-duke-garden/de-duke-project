@@ -16,7 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Receipt, Transaction
 from app.services.commission_service import compute_breakdown, get_effective_rate
-from app.services.email_service import PAYMENT_FAILED, PAYMENT_SUCCEEDED, send_transactional_email
+from app.services.email_service import (
+    HOST_PAYOUT_SUMMARY,
+    PAYMENT_FAILED,
+    PAYMENT_SUCCEEDED,
+    notify_user,
+)
 from app.services.payment_service import verify_webhook_signature
 
 
@@ -70,9 +75,25 @@ async def handle_paystack_webhook(
         session.add(receipt)
         await session.commit()
 
-        await send_transactional_email(
-            to=txn.payer_id,
+        await notify_user(
+            session,
+            user_id=txn.payer_id,
             template=PAYMENT_SUCCEEDED,
+            context={
+                "transaction_id": txn.id,
+                "gross_amount": txn.gross_amount,
+                "commission_amount": txn.commission_amount,
+                "net_payout_amount": txn.net_payout_amount,
+            },
+        )
+        # FEAT-024 AC: "Host receives an email payout summary (gross,
+        # commission, net) when a transaction involving their listing
+        # completes." payee_id is the host being paid out (payer_id is the
+        # seeker who paid) -- see Transaction.payerId/payeeId in schema.md.
+        await notify_user(
+            session,
+            user_id=txn.payee_id,
+            template=HOST_PAYOUT_SUMMARY,
             context={
                 "transaction_id": txn.id,
                 "gross_amount": txn.gross_amount,
@@ -85,8 +106,9 @@ async def handle_paystack_webhook(
         session.add(txn)
         await session.commit()
 
-        await send_transactional_email(
-            to=txn.payer_id,
+        await notify_user(
+            session,
+            user_id=txn.payer_id,
             template=PAYMENT_FAILED,
             context={"transaction_id": txn.id},
         )
