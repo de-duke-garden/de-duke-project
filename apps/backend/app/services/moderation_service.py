@@ -1,9 +1,12 @@
 """Staff moderation queue business logic -- FEAT-025.
 
 Handles listing the under_review/flagged queue and recording approve/ban
-decisions. Host notification on a decision is a TODO: no notification
-provider (FCM/SES) credentials or client are wired up in this slice --
-see NOTE below, do not fabricate credentials.
+decisions. Host push notification on a decision is now wired (FEAT-022,
+push_service.LISTING_STATUS_CHANGED) -- host EMAIL notification remains a
+TODO: no listing-approved/banned email template exists yet in
+email_service.py (that module's CATEGORY_BY_TEMPLATE has no equivalent),
+so this stays push-only until that template is written; do not fabricate
+one here.
 """
 
 from __future__ import annotations
@@ -11,7 +14,9 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.host_account import HostAccount
 from app.models.listing import Listing
+from app.services import push_service
 
 MODERATABLE_STATUSES = ("under_review", "flagged")
 
@@ -62,16 +67,31 @@ async def apply_moderation_decision(
     await session.commit()
     await session.refresh(listing)
 
-    # TODO(notifications): notify the host of this moderation decision (push
-    # via FCM and/or email via SES) once a notification service/credentials
-    # exist. Intentionally not implemented here -- see AGENTS.md: never
-    # fabricate third-party provider credentials.
-    _notify_host_of_decision(listing, action, reason)
+    await _notify_host_of_decision(session, listing=listing, action=action, reason=reason)
 
     return listing
 
 
-def _notify_host_of_decision(listing: Listing, action: str, reason: str) -> None:
-    """TODO: wire to the real notification provider (FCM push + SES email)
-    once available. Left as a no-op stub deliberately."""
-    return None
+async def _notify_host_of_decision(
+    session: AsyncSession, *, listing: Listing, action: str, reason: str
+) -> None:
+    """FEAT-022: pushes LISTING_STATUS_CHANGED to the listing's host.
+    Email remains a TODO -- see this module's header docstring for why.
+
+    Resolves the host's user_id via Listing -> HostAccount.user_id, same
+    walk chat_service.resolve_property_management_id does for the
+    non-agency case (this notification is host-specific, not
+    agency-aware -- unlike chat's participant resolution, which also
+    checks Listing.agency_id, a moderation decision notifies the actual
+    HostAccount owner regardless of any agency assignment).
+    """
+    host_account = await session.get(HostAccount, listing.host_account_id)
+    if host_account is None:
+        return
+
+    await push_service.notify_user(
+        session,
+        user_id=host_account.user_id,
+        template=push_service.LISTING_STATUS_CHANGED,
+        context={"listing_id": listing.id, "action": action, "reason": reason},
+    )

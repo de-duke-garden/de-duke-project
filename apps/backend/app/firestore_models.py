@@ -35,3 +35,19 @@ class ChatMessage(BaseModel):
     # sending | sent | delivered | read | failed
     delivery_status: str
     sent_at: datetime
+
+
+class SupportConversation(BaseModel):
+    """FEAT-029 (General In-App Support / Help, screens.md Screen 26) --
+    a two-way thread (a single User <-> De-Duke Staff) not tied to a
+    listing, unlike ChatConversation above. Messages within it reuse
+    ChatMessage's exact shape (sender_id/sender_role/body/etc.) -- only
+    the parent conversation document's shape differs."""
+
+    id: str
+    user_id: str
+    assigned_staff_id: str | None = None
+    # open | resolved
+    status: str
+    last_message_at: datetime
+    created_at: datetime

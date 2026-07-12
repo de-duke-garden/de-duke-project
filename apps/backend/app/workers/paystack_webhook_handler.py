@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Receipt, Transaction
+from app.services import analytics_service, push_service
 from app.services.commission_service import compute_breakdown, get_effective_rate
 from app.services.email_service import (
     HOST_PAYOUT_SUMMARY,
@@ -75,16 +76,29 @@ async def handle_paystack_webhook(
         session.add(receipt)
         await session.commit()
 
+        payment_success_context = {
+            "transaction_id": txn.id,
+            "gross_amount": txn.gross_amount,
+            "commission_amount": txn.commission_amount,
+            "net_payout_amount": txn.net_payout_amount,
+        }
         await notify_user(
             session,
             user_id=txn.payer_id,
             template=PAYMENT_SUCCEEDED,
-            context={
-                "transaction_id": txn.id,
-                "gross_amount": txn.gross_amount,
-                "commission_amount": txn.commission_amount,
-                "net_payout_amount": txn.net_payout_amount,
-            },
+            context=payment_success_context,
+        )
+        # FEAT-022: push shares this trigger event with email -- see
+        # bookings.py's identical comment for the shared rationale. Only
+        # the payer's PAYMENT_SUCCEEDED gets a push, not the host's payout
+        # summary -- FEAT-022's AC scope is "payment success/failure" from
+        # the payer's perspective, not the payout-summary detail email is
+        # the durable record for (FEAT-024's own, email-specific AC).
+        await push_service.notify_user(
+            session,
+            user_id=txn.payer_id,
+            template=push_service.PAYMENT_SUCCEEDED,
+            context=payment_success_context,
         )
         # FEAT-024 AC: "Host receives an email payout summary (gross,
         # commission, net) when a transaction involving their listing
@@ -94,11 +108,21 @@ async def handle_paystack_webhook(
             session,
             user_id=txn.payee_id,
             template=HOST_PAYOUT_SUMMARY,
-            context={
+            context=payment_success_context,
+        )
+        # FEAT-028: no raw payment gateway details (no
+        # payment_processor_reference, no card/authorization data) --
+        # only IDs and the amounts already needed for FEAT-035's Gross
+        # Transaction Value / commission revenue metrics.
+        await analytics_service.track_event(
+            event_name=analytics_service.PAYMENT_COMPLETED,
+            user_id=txn.payer_id,
+            properties={
                 "transaction_id": txn.id,
+                "listing_id": txn.listing_id,
+                "transaction_type": txn.transaction_type,
                 "gross_amount": txn.gross_amount,
                 "commission_amount": txn.commission_amount,
-                "net_payout_amount": txn.net_payout_amount,
             },
         )
     else:
@@ -106,11 +130,18 @@ async def handle_paystack_webhook(
         session.add(txn)
         await session.commit()
 
+        payment_failed_context = {"transaction_id": txn.id}
         await notify_user(
             session,
             user_id=txn.payer_id,
             template=PAYMENT_FAILED,
-            context={"transaction_id": txn.id},
+            context=payment_failed_context,
+        )
+        await push_service.notify_user(
+            session,
+            user_id=txn.payer_id,
+            template=push_service.PAYMENT_FAILED,
+            context=payment_failed_context,
         )
 
     return txn

@@ -1,12 +1,14 @@
 /// screens.md Screen 21: Account Settings.
 ///
-/// Profile fields (name/contact) and notification preferences are shown
-/// read-only / as "not yet available" respectively -- schema.md/features.md
-/// do not define GET/PATCH /user/profile or /user/notification-preferences
-/// endpoints anywhere in this codebase (FEAT-022 push preferences is P1
-/// and not yet built), so this screen does not fabricate editable fields
-/// that would silently no-op. Log Out and Request Account Deletion are
-/// fully wired to real backend endpoints (FEAT-001, FEAT-030).
+/// Profile fields (name/contact) are shown read-only -- schema.md/features.md
+/// do not define a GET/PATCH /user/profile endpoint anywhere in this
+/// codebase, so this screen does not fabricate an editable field that
+/// would silently no-op. Push (FEAT-022, GET/PATCH
+/// /v1/notifications/preferences) and email (FEAT-024, GET/PATCH
+/// /v1/auth/me/notification-preferences) notification preferences are both
+/// real now -- previously a single disabled "Coming soon" placeholder
+/// covering both. Log Out and Request Account Deletion are fully wired to
+/// real backend endpoints (FEAT-001, FEAT-030).
 library;
 
 import 'package:flutter/material.dart';
@@ -14,6 +16,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../push_notifications/data/push_notification_repository.dart';
 import '../data/account_deletion_repository.dart';
 
 enum _ScreenState { loading, loaded, error, offline }
@@ -23,10 +26,12 @@ class AccountSettingsScreen extends StatefulWidget {
     super.key,
     required this.authRepository,
     required this.accountDeletionRepository,
+    required this.pushNotificationRepository,
   });
 
   final AuthRepository authRepository;
   final AccountDeletionRepository accountDeletionRepository;
+  final PushNotificationRepository pushNotificationRepository;
 
   @override
   State<AccountSettingsScreen> createState() => _AccountSettingsScreenState();
@@ -37,6 +42,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   CurrentUser? _user;
   String? _errorMessage;
   bool _actionInFlight = false;
+  Map<String, bool>? _pushPreferences;
+  Map<String, bool>? _emailPreferences;
 
   @override
   void initState() {
@@ -48,9 +55,28 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     setState(() => _state = _ScreenState.loading);
     try {
       final user = await widget.authRepository.getCurrentUser();
+      // Best-effort, separate from the critical profile fetch above --
+      // both preference sections are secondary to this screen's core
+      // purpose, so a failure in either shouldn't block the rest of
+      // Account Settings from loading (each toggle row just falls back to
+      // a disabled state, per _buildLoaded below).
+      Map<String, bool>? pushPreferences;
+      try {
+        pushPreferences = await widget.pushNotificationRepository.getPreferences();
+      } catch (_) {
+        pushPreferences = null;
+      }
+      Map<String, bool>? emailPreferences;
+      try {
+        emailPreferences = await widget.authRepository.getEmailPreferences();
+      } catch (_) {
+        emailPreferences = null;
+      }
       if (!mounted) return;
       setState(() {
         _user = user;
+        _pushPreferences = pushPreferences;
+        _emailPreferences = emailPreferences;
         _state = _ScreenState.loaded;
       });
     } catch (e) {
@@ -63,6 +89,41 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             ? "You're offline. Check your connection and try again."
             : message;
       });
+    }
+  }
+
+  Future<void> _togglePushPreference(String category, bool value) async {
+    final previous = _pushPreferences;
+    // Optimistic update -- reverted in the catch block if the PATCH fails,
+    // same UX pattern as a toggle switch anywhere else in this app.
+    setState(() => _pushPreferences = {...?_pushPreferences, category: value});
+    try {
+      final updated =
+          await widget.pushNotificationRepository.updatePreferences({category: value});
+      if (!mounted) return;
+      setState(() => _pushPreferences = updated);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _pushPreferences = previous);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't save that -- try again.")),
+      );
+    }
+  }
+
+  Future<void> _toggleEmailPreference(String category, bool value) async {
+    final previous = _emailPreferences;
+    setState(() => _emailPreferences = {...?_emailPreferences, category: value});
+    try {
+      final updated = await widget.authRepository.updateEmailPreferences({category: value});
+      if (!mounted) return;
+      setState(() => _emailPreferences = updated);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _emailPreferences = previous);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't save that -- try again.")),
+      );
     }
   }
 
@@ -86,7 +147,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     setState(() => _actionInFlight = true);
     await widget.authRepository.logout();
     if (!mounted) return;
-    context.go('/auth/login');
+    context.go('/auth?mode=login');
   }
 
   Future<void> _confirmDeleteAccount() async {
@@ -119,7 +180,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       await _showDeletionSummary(result);
       await widget.authRepository.logout();
       if (!mounted) return;
-      context.go('/auth/login');
+      context.go('/auth?mode=login');
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -170,7 +231,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        automaticallyImplyLeading: false, // tab root (core/routing/app_shell.dart)
+      ),
       body: switch (_state) {
         _ScreenState.loading => const _SkeletonList(),
         _ScreenState.error => _ErrorBanner(
@@ -216,25 +280,130 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         const SizedBox(height: AppSpacing.lg),
         _SectionHeader('Role'),
         Card(
-          child: ListTile(
-            leading: const Icon(Icons.badge_outlined),
-            title: Text(_roleLabel(user.role)),
-            trailing: (user.role == 'individual_host' || user.role == 'agency')
-                ? TextButton(
-                    onPressed: () => context.push('/become-host'),
-                    child: const Text('Verification status'),
-                  )
-                : null,
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.badge_outlined),
+                title: Text(_roleLabel(user.role)),
+                trailing: (user.role == 'individual_host' || user.role == 'agency')
+                    ? TextButton(
+                        onPressed: () => context.push('/verification'),
+                        child: const Text('Verification status'),
+                      )
+                    : null,
+              ),
+              // FEAT-003 AC: "Role can be changed later in account
+              // settings." Reuses RoleSelectionScreen -- its Data Flow's
+              // post-selection routing (Become a Host vs Home Feed)
+              // applies here too, since switching TO Host/Agency should
+              // still lead into that flow.
+              ListTile(
+                leading: const Icon(Icons.swap_horiz),
+                title: const Text('Change role'),
+                onTap: () => context.push('/auth/role'),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
-        _SectionHeader('Notifications'),
+        // FEAT-022 AC: "User can manage notification preferences per
+        // category in settings." Push's own category set (listings, chat,
+        // payments) -- see app/models/user.py's
+        // DEFAULT_PUSH_NOTIFICATION_PREFERENCES.
+        _SectionHeader('Push Notifications'),
+        Card(
+          child: _pushPreferences == null
+              ? const ListTile(
+                  leading: Icon(Icons.notifications_outlined),
+                  title: Text('Push preferences'),
+                  subtitle: Text('Not available right now'),
+                  enabled: false,
+                )
+              : Column(
+                  children: [
+                    SwitchListTile(
+                      secondary: const Icon(Icons.home_work_outlined),
+                      title: const Text('Listings'),
+                      subtitle: const Text('Listing status changes'),
+                      value: _pushPreferences!['listings'] ?? true,
+                      onChanged: (v) => _togglePushPreference('listings', v),
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.chat_bubble_outline),
+                      title: const Text('Chat'),
+                      subtitle: const Text('New messages'),
+                      value: _pushPreferences!['chat'] ?? true,
+                      onChanged: (v) => _togglePushPreference('chat', v),
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.payments_outlined),
+                      title: const Text('Payments'),
+                      subtitle: const Text('Bookings and payment confirmations'),
+                      value: _pushPreferences!['payments'] ?? true,
+                      onChanged: (v) => _togglePushPreference('payments', v),
+                    ),
+                  ],
+                ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        // FEAT-024 AC: "User can manage email notification preferences per
+        // category in settings, separate from push preferences." Email's
+        // own category set (account, verification, payments) --
+        // deliberately different from push's -- see
+        // app/models/user.py's DEFAULT_EMAIL_NOTIFICATION_PREFERENCES.
+        _SectionHeader('Email Notifications'),
+        Card(
+          child: _emailPreferences == null
+              ? const ListTile(
+                  leading: Icon(Icons.email_outlined),
+                  title: Text('Email preferences'),
+                  subtitle: Text('Not available right now'),
+                  enabled: false,
+                )
+              : Column(
+                  children: [
+                    SwitchListTile(
+                      secondary: const Icon(Icons.person_outline),
+                      title: const Text('Account'),
+                      subtitle: const Text('Welcome, password reset, deletion confirmation'),
+                      value: _emailPreferences!['account'] ?? true,
+                      onChanged: (v) => _toggleEmailPreference('account', v),
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.verified_outlined),
+                      title: const Text('Verification'),
+                      subtitle: const Text('Host verification approved/rejected'),
+                      value: _emailPreferences!['verification'] ?? true,
+                      onChanged: (v) => _toggleEmailPreference('verification', v),
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.payments_outlined),
+                      title: const Text('Payments'),
+                      subtitle: const Text('Booking, payment, and payout confirmations'),
+                      value: _emailPreferences!['payments'] ?? true,
+                      onChanged: (v) => _toggleEmailPreference('payments', v),
+                    ),
+                  ],
+                ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        // screens.md Screen 19 (Transaction History) Entry Points includes
+        // "Account Settings" -- previously missing here entirely.
         Card(
           child: ListTile(
-            leading: const Icon(Icons.notifications_outlined),
-            title: const Text('Push & email preferences'),
-            subtitle: const Text('Coming soon'),
-            enabled: false,
+            leading: const Icon(Icons.receipt_long_outlined),
+            title: const Text('Transaction History'),
+            onTap: () => context.push('/transactions'),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        // FEAT-029: General In-App Support / Help -- entry point for a
+        // conversation not tied to any specific listing.
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.help_outline),
+            title: const Text('Help & Support'),
+            onTap: () => context.push('/support'),
           ),
         ),
         const SizedBox(height: AppSpacing.lg),

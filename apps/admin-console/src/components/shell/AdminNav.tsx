@@ -7,13 +7,17 @@ import { LogoutButton } from "./LogoutButton";
 const STAFF_LINKS = [
   { href: "/", label: "Home" },
   { href: "/moderation-queue", label: "Moderation Queue" },
+  { href: "/disputes", label: "Disputes" },
   { href: "/host-verification", label: "Host Verification" },
   { href: "/conversations", label: "Conversations" },
+  { href: "/support", label: "Support" },
+  { href: "/analytics/operations", label: "Operations" },
 ];
 
 const ADMIN_ONLY_LINKS = [
   { href: "/commission-config", label: "Commission Config" },
   { href: "/staff-management", label: "Staff Management" },
+  { href: "/analytics/business", label: "Business & Revenue" },
 ];
 
 export function AdminNav({ session }: { session: AdminSession }) {

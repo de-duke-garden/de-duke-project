@@ -12,14 +12,11 @@
 #
 # Environment matrix
 # -------------------
-# Only `development` is active -- `infra/environments/staging` and
-# `infra/environments/production` are empty directories today (see
-# infra/README.md's Layout), so `terraform init` would simply fail against
-# them. Uncomment an entry once its environment is scaffolded with real
-# .tf files -- no other change to this file is required. Read the
-# apply job's own comments first, though: the matrix there enforces
-# development -> staging -> production promotion order, which only takes
-# effect once a second entry is uncommented.
+# All three environments are scaffolded with real .tf files (see
+# infra/environments/{staging,production}/main.tf). The apply job's matrix
+# enforces development -> staging -> production promotion order via
+# fail-fast + max-parallel: 1, so a broken development apply blocks staging
+# and production from ever being reached in the same run.
 name: Infra Terraform
 
 on:
@@ -52,8 +49,8 @@ jobs:
       matrix:
         include:
           - environment: development
-          # - environment: staging
-          # - environment: production
+          - environment: staging
+          - environment: production
     runs-on: ubuntu-latest
     environment: ${{ matrix.environment }}
     defaults:
@@ -115,8 +112,8 @@ jobs:
       matrix:
         include:
           - environment: development
-          # - environment: staging
-          # - environment: production
+          - environment: staging
+          - environment: production
     runs-on: ubuntu-latest
     environment: ${{ matrix.environment }}
     # Keyed per environment (not global) -- each environment has its own

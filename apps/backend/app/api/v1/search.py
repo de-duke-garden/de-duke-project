@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
+from app.core.security import CurrentUser, get_current_user_optional
 from app.schemas.search import (
     CommercialSubtype,
     DealTypeFilter,
@@ -22,6 +23,7 @@ from app.schemas.search import (
     SortDirection,
     SortField,
 )
+from app.services import analytics_service
 from app.services.search_service import DEFAULT_PAGE_SIZE, search_listings
 
 router = APIRouter()
@@ -30,6 +32,7 @@ router = APIRouter()
 @router.get("/listings", response_model=SearchResponse)
 async def search_listings_endpoint(
     session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[CurrentUser | None, Depends(get_current_user_optional)] = None,
     latitude: float | None = Query(default=None, ge=-90, le=90),
     longitude: float | None = Query(default=None, ge=-180, le=180),
     radius_km: float = Query(default=10.0, gt=0, le=200),
@@ -89,6 +92,22 @@ async def search_listings_endpoint(
         page = await search_listings(session, filters, cursor, page_size)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # FEAT-028: only the first page of a search counts as "a search was
+    # performed" -- cursor-paginated continuations of the same query are
+    # not a new funnel event.
+    if cursor is None:
+        await analytics_service.track_event(
+            event_name=analytics_service.SEARCH_PERFORMED,
+            user_id=current_user.user_id if current_user else None,
+            properties={
+                "listing_type": listing_type.value if listing_type else None,
+                "deal_type": deal_type.value if deal_type else None,
+                "has_query_text": query is not None,
+                "has_location": latitude is not None and longitude is not None,
+                "result_count": len(page.results),
+            },
+        )
 
     return SearchResponse(
         results=page.results,

@@ -1,13 +1,25 @@
-/// Screen 8 (implied by screens.md Screen 7 create flow): Listing Detail.
+/// screens.md Screen 6: Listing Detail.
 /// Fixed price display -- no negotiation/offer UI (AGENTS.md Behavior
 /// Rules: De-Duke lists at a fixed price, it does not broker negotiation).
 /// Shows an embedded map preview and a verified-host badge.
+///
+/// Exit Points (screens.md): Chat Thread ("Message Property Management"),
+/// Confirm Booking Details ("Book Now"/"Reserve"). Both were previously
+/// missing entirely -- this screen only rendered the loading/error/detail
+/// states, with no sticky action bar -- confirmed gap, fixed here.
+/// "Manage Listing" (owner viewing their own listing, per screens.md's
+/// Edge Cases) is NOT implemented -- that requires resolving whether the
+/// viewer's own HostAccount owns this listing, a separate fetch this
+/// screen doesn't make today; left as a known simplification rather than
+/// silently faked.
 library;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../chat/data/chat_repository.dart';
 import '../data/listing_models.dart';
 import '../data/listing_repository.dart';
 
@@ -18,10 +30,12 @@ class ListingDetailScreen extends StatefulWidget {
     super.key,
     required this.listingId,
     required this.repository,
+    required this.chatRepository,
   });
 
   final String listingId;
   final ListingRepository repository;
+  final ChatRepository chatRepository;
 
   @override
   State<ListingDetailScreen> createState() => _ListingDetailScreenState();
@@ -31,6 +45,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
   _LoadState _state = _LoadState.loading;
   Listing? _listing;
   String? _errorMessage;
+  bool _startingConversation = false;
 
   @override
   void initState() {
@@ -59,6 +74,33 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     }
   }
 
+  /// "Message Property Management" -- screens.md Screen 6's Components
+  /// table: "Navigates to Chat Thread". Firestore sign-in + conversation
+  /// creation happen here (not eagerly on screen mount) since starting a
+  /// conversation is a deliberate user action, not something to do on
+  /// every listing view.
+  Future<void> _messagePropertyManagement() async {
+    setState(() => _startingConversation = true);
+    try {
+      await widget.chatRepository.ensureSignedIn();
+      final conversationId =
+          await widget.chatRepository.startConversation(listingId: widget.listingId);
+      if (!mounted) return;
+      context.push('/chat/$conversationId');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't start a conversation. Try again.")),
+      );
+    } finally {
+      if (mounted) setState(() => _startingConversation = false);
+    }
+  }
+
+  /// "Book Now" / "Reserve" -- screens.md Screen 6's Components table:
+  /// "Navigates to Confirm Booking Details" (Screen 6b, `/listing/:id/confirm-booking`).
+  void _bookNow() => context.push('/listing/${widget.listingId}/confirm-booking');
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -82,6 +124,36 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
           ),
         _LoadState.loaded => _ListingBody(listing: _listing!),
       },
+      bottomNavigationBar: _state == _LoadState.loaded
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _startingConversation ? null : _messagePropertyManagement,
+                        child: _startingConversation
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Message Property Management'),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _bookNow,
+                        child: const Text('Book Now'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : null,
     );
   }
 }

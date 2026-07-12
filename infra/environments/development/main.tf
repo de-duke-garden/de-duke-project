@@ -86,6 +86,7 @@ module "backend" {
 
   media_bucket_name = module.media.bucket_name
   media_cdn_domain  = module.media.cdn_domain_name
+  redis_endpoint    = module.cache.primary_endpoint
 
   # Development runs the smallest viable footprint.
   min_task_count = 1

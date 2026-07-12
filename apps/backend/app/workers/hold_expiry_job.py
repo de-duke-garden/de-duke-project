@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction
+from app.services import push_service
 from app.services.email_service import BOOKING_HOLD_EXPIRED, notify_user
 
 
@@ -45,12 +46,24 @@ async def expire_stale_holds(session: AsyncSession) -> int:
     for txn in stale:
         # Best-effort notification; a failure here must never roll back the
         # already-committed expiry transition.
+        notification_context = {"transaction_id": txn.id, "listing_id": txn.listing_id}
         try:
             await notify_user(
                 session,
                 user_id=txn.payer_id,
                 template=BOOKING_HOLD_EXPIRED,
-                context={"transaction_id": txn.id, "listing_id": txn.listing_id},
+                context=notification_context,
+            )
+        except Exception:  # noqa: BLE001 -- best-effort notification only
+            pass
+        # FEAT-022: push shares this trigger event with email -- see
+        # bookings.py's identical comment for the shared rationale.
+        try:
+            await push_service.notify_user(
+                session,
+                user_id=txn.payer_id,
+                template=push_service.BOOKING_HOLD_EXPIRED,
+                context=notification_context,
             )
         except Exception:  # noqa: BLE001 -- best-effort notification only
             pass

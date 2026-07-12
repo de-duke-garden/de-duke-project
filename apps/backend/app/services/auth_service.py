@@ -291,3 +291,23 @@ async def update_notification_preferences(
     session.add(user)
     await session.commit()
     return preferences
+
+
+async def update_role(session: AsyncSession, *, user_id: str, role: str) -> User:
+    """FEAT-003 (Role Selection) -- Screen 2's initial choice, and its
+    change-later re-entry point from Account Settings (screens.md Screen 2
+    Edge Cases). `role` is already validated against SELF_SERVICE_ROLES by
+    UpdateRoleRequest before this is called -- this function trusts its
+    caller on that, the same way every other service function here trusts
+    its router to have validated the request shape.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
+
+    user.role = role
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user

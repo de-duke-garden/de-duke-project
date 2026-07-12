@@ -105,7 +105,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                 .jumpTo(_scrollController.position.maxScrollExtent);
           }
         });
-      });
+      }, onError: _onStreamError);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -114,6 +114,19 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             e is AuthException ? e.message : 'Something went wrong.';
       });
     }
+  }
+
+  /// Firestore stream errors (e.g. a missing composite index, a rules
+  /// regression, a permission change) surface here rather than through the
+  /// `_init()` try/catch above -- without this handler they'd terminate the
+  /// subscription silently and strand the screen on its loading spinner
+  /// forever with no visible signal to the user or the developer.
+  void _onStreamError(Object error, StackTrace stackTrace) {
+    if (!mounted) return;
+    setState(() {
+      _state = _ScreenState.error;
+      _errorMessage = 'Something went wrong.';
+    });
   }
 
   Future<void> _send() async {
@@ -152,7 +165,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             ? const Text('Chat')
             : GestureDetector(
                 onTap: () =>
-                    context.push('/listings/${_conversation!.listingId}'),
+                    context.push('/listing/${_conversation!.listingId}'),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,

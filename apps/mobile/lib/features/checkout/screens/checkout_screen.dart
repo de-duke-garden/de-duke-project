@@ -236,7 +236,12 @@ class _CheckoutScreenState extends State<CheckoutScreen>
           ),
         _ScreenState.holdExpired => _HoldExpiredView(
             onRestart: () {
-              if (txn != null) context.go('/booking/${txn.listingId}');
+              // screens.md Screen 10 Exit Points: "back to Confirm Booking
+              // Details (on cancel or hold expiry)" -- Screen 6b, not
+              // Listing Detail itself.
+              if (txn != null) {
+                context.go('/listing/${txn.listingId}/confirm-booking');
+              }
             },
           ),
         _ScreenState.paymentError =>
@@ -303,7 +308,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
           TextButton(
             onPressed: submitting
                 ? null
-                : () => context.go('/booking/${txn.listingId}'),
+                : () => context.go('/listing/${txn.listingId}/confirm-booking'),
             child: const Text('Cancel'),
           ),
         ],

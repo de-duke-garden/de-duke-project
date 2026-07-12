@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "162952114899",
+    "project_id": "project-31cb3884-0cd8-4040-b0c",
+    "storage_bucket": "project-31cb3884-0cd8-4040-b0c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:162952114899:android:fa276bd9bcab64e8599a26",
+        "android_client_info": {
+          "package_name": "com.deduke.de_duke_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCQ2uen7kzCWddSQ_IsPXGj9DtyH3ptf0E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

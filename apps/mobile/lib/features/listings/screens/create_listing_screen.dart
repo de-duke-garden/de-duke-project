@@ -8,10 +8,17 @@
 /// states.
 library;
 
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import '../../../core/services/places_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/address_autocomplete_field.dart';
+import '../../../core/widgets/image_source_picker.dart';
 import '../data/listing_models.dart';
 import '../data/listing_repository.dart';
 
@@ -42,6 +49,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _addressController = TextEditingController();
   final _cityController = TextEditingController();
   final _stateController = TextEditingController();
+  GoogleMapController? _mapController;
 
   // Commercial fields.
   String _dealType = 'sale';
@@ -83,31 +91,131 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _bedroomsController.dispose();
     _commercialBathroomsController.dispose();
     _shortletBathroomsController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
-  Future<void> _useGpsLocation() async {
-    // TODO: wire to a location plugin (e.g. geolocator) to read the
-    // device's actual coordinates. Left as a clear stub -- no fabricated
-    // GPS reading here.
-    setState(() => _locationMethod = LocationInputMethod.gps);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('GPS lookup not wired up yet -- enter address manually.'),
-      ),
+  /// Shared by the map's onTap and the marker's onDragEnd -- both resolve to
+  /// "the user placed the pin here", just via different gestures. Also
+  /// kicks off reverse geocoding so the address/city/state fields fill in
+  /// automatically -- the pin is the source of truth for location, so
+  /// whatever address Google resolves for it overwrites any address text
+  /// already there (including one the user typed by hand and didn't pick a
+  /// suggestion for, which never had a coordinate attached anyway).
+  void _setMapPin(LatLng position) {
+    setState(() {
+      _latitude = position.latitude;
+      _longitude = position.longitude;
+    });
+    _fillAddressFromCoordinates(position.latitude, position.longitude);
+  }
+
+  /// Reverse-geocodes [latitude]/[longitude] and writes the result into the
+  /// address/city/state fields. No-ops quietly (leaves whatever's already
+  /// in those fields) if geocoding is unconfigured or the lookup fails --
+  /// this is a convenience autofill, not a required step, per
+  /// `places_service.dart`'s degradation contract.
+  Future<void> _fillAddressFromCoordinates(
+      double latitude, double longitude) async {
+    final result = await reverseGeocode(latitude, longitude);
+    if (!mounted || result == null) return;
+    setState(() {
+      if (result.formattedAddress.isNotEmpty) {
+        _addressController.text = result.formattedAddress;
+      }
+      if (result.city.isNotEmpty) _cityController.text = result.city;
+      if (result.state.isNotEmpty) _stateController.text = result.state;
+    });
+  }
+
+  /// Handles a Places Autocomplete selection from the address field --
+  /// the address half of the bidirectional sync. A selected suggestion is
+  /// the only way the address field is allowed to set a coordinate (plain
+  /// typed text never does), which is what keeps a listing's address from
+  /// being an untraceable free-text string: it always resolves through a
+  /// real Google-verified place, a map pin, or a device GPS reading.
+  /// Switches to the Map pin tab and re-centers/animates the map so the
+  /// dropped pin is immediately visible, confirming what was picked.
+  void _applyPlaceSelection(PlaceDetails details) {
+    setState(() {
+      _latitude = details.latitude;
+      _longitude = details.longitude;
+      if (details.city.isNotEmpty) _cityController.text = details.city;
+      if (details.state.isNotEmpty) _stateController.text = details.state;
+      _locationMethod = LocationInputMethod.mapPin;
+    });
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(
+          LatLng(details.latitude, details.longitude), 16),
     );
   }
 
-  void _addPickedImagePlaceholder() {
-    // TODO: wire to image_picker to select a real file from camera/gallery.
-    // We synthesize a temp_key here so the reorder/primary-flag UI and the
-    // upload contract are fully exercised even before the picker lands.
+  /// Reads the device's actual coordinates via geolocator. Switches the
+  /// segmented control to GPS regardless of outcome (screens.md's three
+  /// input methods are always mutually exclusive selections), but only
+  /// populates _latitude/_longitude on success -- `_locationValidationError`
+  /// already treats a null lat/lng as "no location set yet" and blocks
+  /// submission with a clear message, so a failed GPS read degrades to the
+  /// same validation path a user would hit by not picking a method at all.
+  Future<void> _useGpsLocation() async {
+    setState(() => _locationMethod = LocationInputMethod.gps);
+
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      _showLocationMessage(
+          'Location services are turned off. Enable them in system settings.');
+      return;
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied) {
+      _showLocationMessage('Location permission denied.');
+      return;
+    }
+    if (permission == LocationPermission.deniedForever) {
+      _showLocationMessage(
+          'Location permission permanently denied. Enable it from app settings.');
+      return;
+    }
+
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+      });
+      _fillAddressFromCoordinates(position.latitude, position.longitude);
+    } on TimeoutException {
+      _showLocationMessage('Timed out getting your location. Try again.');
+    } catch (_) {
+      _showLocationMessage('Could not get your location. Try again.');
+    }
+  }
+
+  void _showLocationMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _addPickedImage() async {
+    final path = await pickImageFromCameraOrGallery(context);
+    if (path == null || !mounted) return;
     setState(() {
       final key = 'img_${_tempKeyCounter++}';
       _images.add(
         PendingListingImage(
           tempKey: key,
-          localPath: '', // populated once image_picker is wired up
+          localPath: path,
           displayOrder: _images.length,
           isPrimary: _images.isEmpty,
         ),
@@ -293,35 +401,86 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             ),
             const SizedBox(height: AppSpacing.sm),
             if (_locationMethod == LocationInputMethod.mapPin)
-              // TODO: embed an interactive Google Map for pin-drop; stubbed
-              // with manual lat/lng entry so the rest of the flow works.
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      decoration: const InputDecoration(labelText: 'Latitude'),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      enabled: !submitting,
-                      onChanged: (v) => _latitude = double.tryParse(v),
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        height: 220,
+                        child: GoogleMap(
+                          initialCameraPosition: CameraPosition(
+                            // Falls back to Lagos, Nigeria -- consistent
+                            // with SearchMapView's default center -- when
+                            // no coordinate has been picked by any method
+                            // yet (a user could switch to Map pin after
+                            // already using GPS/Address, in which case this
+                            // centers on whatever was already captured).
+                            target: LatLng(_latitude ?? 6.5244,
+                                _longitude ?? 3.3792),
+                            zoom: 14,
+                          ),
+                          onMapCreated: (controller) =>
+                              _mapController = controller,
+                          onTap: submitting ? null : _setMapPin,
+                          markers: _latitude != null && _longitude != null
+                              ? {
+                                  Marker(
+                                    markerId:
+                                        const MarkerId('listing-location'),
+                                    position:
+                                        LatLng(_latitude!, _longitude!),
+                                    draggable: !submitting,
+                                    onDragEnd: _setMapPin,
+                                  ),
+                                }
+                              : const {},
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: TextFormField(
-                      decoration: const InputDecoration(labelText: 'Longitude'),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      enabled: !submitting,
-                      onChanged: (v) => _longitude = double.tryParse(v),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      _latitude != null && _longitude != null
+                          ? 'Pinned: ${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)}'
+                          : 'Tap the map to drop a pin, or drag it to adjust.',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            TextFormField(
+            if (_locationMethod == LocationInputMethod.gps)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Icon(
+                      _latitude != null && _longitude != null
+                          ? Icons.gps_fixed
+                          : Icons.gps_not_fixed,
+                      size: 18,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        _latitude != null && _longitude != null
+                            ? 'Captured: ${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)}'
+                            : 'Getting your location...',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: submitting ? null : _useGpsLocation,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            AddressAutocompleteField(
               controller: _addressController,
-              decoration: const InputDecoration(labelText: 'Address line'),
               enabled: !submitting,
+              onPlaceSelected: _applyPlaceSelection,
             ),
             const SizedBox(height: AppSpacing.sm),
             Row(
@@ -360,7 +519,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               onSetPrimary: submitting ? (_) {} : _setPrimaryImage,
             ),
             TextButton.icon(
-              onPressed: submitting ? null : _addPickedImagePlaceholder,
+              onPressed: submitting ? null : _addPickedImage,
               icon: const Icon(Icons.add_a_photo),
               label: const Text('Add photo'),
             ),

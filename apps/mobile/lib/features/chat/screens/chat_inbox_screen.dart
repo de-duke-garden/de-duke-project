@@ -69,10 +69,11 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
       _pmSub?.cancel();
       _clientSub = widget.chatRepository
           .watchConversationsFor(user.userId, asClient: true)
-          .listen((items) => _onUpdate(client: items));
+          .listen((items) => _onUpdate(client: items), onError: _onStreamError);
       _pmSub = widget.chatRepository
           .watchConversationsFor(user.userId, asClient: false)
-          .listen((items) => _onUpdate(propertyManagement: items));
+          .listen((items) => _onUpdate(propertyManagement: items),
+              onError: _onStreamError);
     } catch (e) {
       if (!mounted) return;
       final message = e is AuthException ? e.message : 'Something went wrong.';
@@ -84,6 +85,19 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
             : message;
       });
     }
+  }
+
+  /// Firestore stream errors (e.g. a missing composite index, a rules
+  /// regression, a permission change) surface here rather than through the
+  /// `_init()` try/catch above -- without this handler they'd terminate the
+  /// subscription silently and strand the screen on the loading skeleton
+  /// forever with no visible signal to the user or the developer.
+  void _onStreamError(Object error, StackTrace stackTrace) {
+    if (!mounted) return;
+    setState(() {
+      _state = _ScreenState.error;
+      _errorMessage = 'Something went wrong.';
+    });
   }
 
   void _onUpdate(
@@ -115,7 +129,10 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Messages')),
+      appBar: AppBar(
+        title: const Text('Messages'),
+        automaticallyImplyLeading: false, // tab root (core/routing/app_shell.dart)
+      ),
       body: RefreshIndicator(
         onRefresh: _init,
         child: switch (_state) {

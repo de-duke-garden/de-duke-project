@@ -228,6 +228,50 @@ class AuthRepository {
     }
   }
 
+  /// FEAT-003 (Role Selection) -- Screen 2's initial choice, and its
+  /// change-later re-entry point from Account Settings. `role` must be one
+  /// of the four self-service values (seeker | individual_host | agency |
+  /// corporate) -- the backend rejects anything else (see
+  /// app/schemas/auth.py's SELF_SERVICE_ROLES).
+  Future<CurrentUser> updateRole(String role) async {
+    try {
+      final response =
+          await _apiClient.dio.patch('/v1/auth/me/role', data: {'role': role});
+      return CurrentUser.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw AuthException(_errorMessage(e, "Couldn't save your selection, try again."));
+    }
+  }
+
+  /// GET /v1/auth/me/notification-preferences -- FEAT-024. Mirrors
+  /// PushNotificationRepository.getPreferences exactly (see that file),
+  /// but for email's own category set (account | verification | payments
+  /// -- distinct from push's listings | chat | payments per FEAT-024's
+  /// "separate from push preferences" AC).
+  Future<Map<String, bool>> getEmailPreferences() async {
+    try {
+      final response = await _apiClient.dio.get('/v1/auth/me/notification-preferences');
+      final body = response.data as Map<String, dynamic>;
+      return Map<String, bool>.from(body['email_notification_preferences'] as Map);
+    } on DioException catch (e) {
+      throw AuthException(_errorMessage(e, 'Could not load notification preferences.'));
+    }
+  }
+
+  /// Partial update -- only the categories present in `updates` are
+  /// changed, mirroring the backend's own partial-update contract
+  /// (UpdateNotificationPreferencesRequest).
+  Future<Map<String, bool>> updateEmailPreferences(Map<String, bool> updates) async {
+    try {
+      final response =
+          await _apiClient.dio.patch('/v1/auth/me/notification-preferences', data: updates);
+      final body = response.data as Map<String, dynamic>;
+      return Map<String, bool>.from(body['email_notification_preferences'] as Map);
+    } on DioException catch (e) {
+      throw AuthException(_errorMessage(e, 'Could not update notification preferences.'));
+    }
+  }
+
   Future<void> logout() async {
     final refreshToken = await _sessionStore.readRefreshToken();
     if (refreshToken != null) {

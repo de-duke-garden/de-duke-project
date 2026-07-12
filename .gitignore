@@ -9,6 +9,12 @@ docs/De-Duke/
 !*.tfvars.example
 backend.hcl
 !backend.hcl.example
+# Saved plan files (binary, may embed sensitive plan data -- build
+# artifacts of a `terraform plan -out=...` run, never source).
+tfplan
+*.tfplan
+destroy-plan
+*plan.out
 crash.log
 
 # Python / backend
@@ -20,12 +26,19 @@ crash.log
 **/.mypy_cache/
 apps/backend/.env
 
+# Real credential files (never commit these -- see load_tests/README.md's
+# note on FIREBASE_SERVICE_ACCOUNT_JSON_STAGING: it's a GitHub secret's
+# VALUE, not a file meant to live in the repo).
+*firebase-adminsdk*.json
+*-service-account*.json
+
 # Node / Next.js apps
 **/node_modules/
 **/.next/
 **/out/
 **/.eslintcache
 **/.env
+**/.env.local
 
 # Flutter / Dart
 apps/mobile/.dart_tool/

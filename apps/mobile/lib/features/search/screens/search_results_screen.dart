@@ -229,7 +229,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
             ? _buildResultsList(state, showOfflineDisabled: false)
             : SearchMapView(
                 results: state.results,
-                onMarkerTap: (id) => context.push('/listings/$id'),
+                onMarkerTap: (id) => context.push('/listing/$id'),
                 onSearchThisArea: (lat, lng) => ref
                     .read(searchNotifierProvider.notifier)
                     .setLocation(latitude: lat, longitude: lng),
@@ -257,7 +257,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
             result: result,
             onTap: showOfflineDisabled
                 ? () {}
-                : () => context.push('/listings/${result.id}'),
+                : () => context.push('/listing/${result.id}'),
           );
         },
       ),

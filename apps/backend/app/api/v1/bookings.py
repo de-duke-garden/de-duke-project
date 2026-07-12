@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.security import CurrentUser, get_current_user
 from app.schemas.booking import BookingHoldResponse, ConfirmBookingRequest
+from app.services import analytics_service, push_service
 from app.services.booking_service import (
     InvalidBookingDatesError,
     ListingNotFoundError,
@@ -48,13 +49,34 @@ async def confirm_booking_endpoint(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
 
+    notification_context = {
+        "transaction_id": txn.id,
+        "hold_expires_at": txn.hold_expires_at.isoformat() if txn.hold_expires_at else None,
+    }
     await notify_user(
         session,
         user_id=current_user.user_id,
         template=BOOKING_HOLD_CONFIRMED,
-        context={
+        context=notification_context,
+    )
+    # FEAT-022: push shares this trigger event with email (architecture.md
+    # "Notification Service (Push & Email)": "Push and email share the
+    # same triggering events but serve different needs"). Additive, not a
+    # replacement -- both channels fire independently and each respects
+    # its own per-category preference.
+    await push_service.notify_user(
+        session,
+        user_id=current_user.user_id,
+        template=push_service.BOOKING_HOLD_CONFIRMED,
+        context=notification_context,
+    )
+    await analytics_service.track_event(
+        event_name=analytics_service.BOOKING_INITIATED,
+        user_id=current_user.user_id,
+        properties={
+            "listing_id": txn.listing_id,
             "transaction_id": txn.id,
-            "hold_expires_at": txn.hold_expires_at.isoformat() if txn.hold_expires_at else None,
+            "gross_amount": txn.gross_amount,
         },
     )
 

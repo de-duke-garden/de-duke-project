@@ -1,8 +1,27 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services")
+    // END: FlutterFire Configuration
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Google Maps API key -- read from android/local.properties (gitignored,
+// machine-specific, same file flutter.sdk/sdk.dir already live in) rather
+// than hardcoded here or committed anywhere. Falls back to an empty string
+// so a clean checkout without the key still builds -- the map screens
+// (Search's map view, Create Listing's map-pin picker) will just render
+// blank tiles until a real key is added, same degradation as any other
+// unconfigured third-party credential in this project (see AGENTS.md).
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { localProperties.load(it) }
+}
+val googleMapsApiKey: String = localProperties.getProperty("googleMaps.apiKey", "")
 
 android {
     namespace = "com.deduke.de_duke_mobile"
@@ -23,6 +42,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["googleMapsApiKey"] = googleMapsApiKey
     }
 
     buildTypes {

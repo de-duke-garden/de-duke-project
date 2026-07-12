@@ -84,3 +84,23 @@ async def start_conversation(
         last_message_at=conversation.last_message_at,
         created_at=conversation.created_at,
     )
+
+
+@router.post("/conversations/{conversation_id}/notify", status_code=status.HTTP_202_ACCEPTED)
+async def notify_new_message(
+    conversation_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, str]:
+    """FEAT-022 -- called by the SENDING client immediately after its own
+    Firestore message write succeeds (see svc.notify_new_message's
+    docstring for why this endpoint exists at all: the backend never sees
+    a Firestore write happen on its own). Best-effort/fire-and-forget from
+    the client's perspective -- 202, not 200/201, since there's no
+    resource being created from the caller's point of view, just a
+    side-effecting notification trigger.
+    """
+    await svc.notify_new_message(
+        session, conversation_id=conversation_id, sender_id=current_user.user_id
+    )
+    return {"status": "accepted"}

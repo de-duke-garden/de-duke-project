@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, UserRole, get_current_user
 from app.models.user import User
 from app.schemas.auth import (
     AuthTokenResponse,
@@ -21,6 +21,7 @@ from app.schemas.auth import (
     RegisterPhoneRequest,
     ResetPasswordRequest,
     UpdateNotificationPreferencesRequest,
+    UpdateRoleRequest,
     VerifyOtpRequest,
 )
 from app.services import auth_service
@@ -207,3 +208,40 @@ async def update_notification_preferences(
         session, user_id=current_user.user_id, updates=updates
     )
     return NotificationPreferencesResponse(email_notification_preferences=preferences)
+
+
+@router.patch("/me/role", response_model=CurrentUserResponse)
+async def update_role(
+    payload: UpdateRoleRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> CurrentUserResponse:
+    """FEAT-003 -- Screen 2 (Role Selection) and its Account Settings
+    re-entry point. `payload.role` is already restricted to
+    SELF_SERVICE_ROLES by UpdateRoleRequest's validator (see
+    app/schemas/auth.py) -- deduke_staff/deduke_admin are never acceptable
+    request values.
+
+    Additionally refuses the call entirely for a caller who is ALREADY
+    deduke_staff/deduke_admin -- those accounts don't go through
+    self-service role selection at all (they're created via invite/CLI
+    bootstrap, FEAT-033), and a staff member self-demoting to "seeker"
+    through this endpoint would be a real, unintended privilege change,
+    not a normal product-experience choice.
+    """
+    if current_user.role in (UserRole.DEDUKE_STAFF, UserRole.DEDUKE_ADMIN):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Staff/Admin accounts cannot change their role via self-service.",
+        )
+
+    user = await auth_service.update_role(session, user_id=current_user.user_id, role=payload.role)
+    return CurrentUserResponse(
+        user_id=user.id,
+        role=user.role,
+        full_name=user.full_name,
+        email=user.email,
+        phone_number=user.phone_number,
+        is_verified_host=user.is_verified_host,
+        is_active=user.is_active,
+    )

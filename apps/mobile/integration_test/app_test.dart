@@ -10,11 +10,20 @@
 /// Backend API Service.
 library;
 
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:de_duke_mobile/core/routing/app_router.dart';
 import 'package:de_duke_mobile/main.dart';
+
+/// Wraps DeDukeApp in a ProviderScope, matching main.dart's real runApp
+/// wiring -- confirmed real gap: pumping DeDukeApp bare (as this file
+/// originally did) throws "Bad state: No ProviderScope found" the moment
+/// any Riverpod-backed screen (Search Results) is reached, since these
+/// tests bypass main()'s own runApp(ProviderScope(...)) entirely.
+Widget _app() => const ProviderScope(child: DeDukeApp());
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +33,7 @@ void main() {
         'boots straight to Sign Up / Log In (no separate splash screen '
         'per screens.md Screen 1: "App launch (unauthenticated)" is its own '
         'documented entry point)', (tester) async {
-      await tester.pumpWidget(const DeDukeApp());
+      await tester.pumpWidget(_app());
       await tester.pumpAndSettle();
 
       expect(find.text('De-Duke'), findsOneWidget);
@@ -32,12 +41,15 @@ void main() {
       expect(find.text('Log In'), findsOneWidget);
     });
 
-    testWidgets('navigating to /auth/login shows the Sign Up / Log In screen',
+    testWidgets('navigating to /auth?mode=login shows the Sign Up / Log In screen',
         (tester) async {
-      await tester.pumpWidget(const DeDukeApp());
+      await tester.pumpWidget(_app());
       await tester.pumpAndSettle();
 
-      appRouter.go('/auth/login');
+      // screens.md Screen 1's route is a single `/auth` path with an
+      // internal tab toggle -- `?mode=login` preselects the Log In tab
+      // (see app_router.dart), not a separate `/auth/login` route.
+      appRouter.go('/auth?mode=login');
       await tester.pumpAndSettle();
 
       expect(find.text('De-Duke'), findsOneWidget);
@@ -50,10 +62,10 @@ void main() {
     testWidgets(
         'toggling "Use phone number instead" swaps the identifier field',
         (tester) async {
-      await tester.pumpWidget(const DeDukeApp());
+      await tester.pumpWidget(_app());
       await tester.pumpAndSettle();
 
-      appRouter.go('/auth/login');
+      appRouter.go('/auth?mode=login');
       await tester.pumpAndSettle();
 
       expect(find.text('Email'), findsOneWidget);
@@ -72,10 +84,10 @@ void main() {
 
     testWidgets('Forgot password link navigates to the reset flow',
         (tester) async {
-      await tester.pumpWidget(const DeDukeApp());
+      await tester.pumpWidget(_app());
       await tester.pumpAndSettle();
 
-      appRouter.go('/auth/login');
+      appRouter.go('/auth?mode=login');
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Forgot password?'));
@@ -84,12 +96,14 @@ void main() {
       expect(find.text('Reset password'), findsWidgets);
     });
 
-    testWidgets('navigating to /auth/signup shows the Sign Up tab pre-selected',
+    testWidgets('navigating to /auth shows the Sign Up tab pre-selected',
         (tester) async {
-      await tester.pumpWidget(const DeDukeApp());
+      await tester.pumpWidget(_app());
       await tester.pumpAndSettle();
 
-      appRouter.go('/auth/signup');
+      // `/auth` with no `mode` query param defaults to the Sign Up tab
+      // (see app_router.dart's `initialTabIndex` logic).
+      appRouter.go('/auth');
       await tester.pumpAndSettle();
 
       expect(find.text('Full name'), findsOneWidget);

@@ -3,3 +3,6 @@
 # team) IS tracked; only the local SDK symlink/cache is ignored.
 .fvm/flutter_sdk
 .fvm/versions
+.env.json
+.env.*.json
+!.env.example.json

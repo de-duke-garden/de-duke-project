@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/image_source_picker.dart';
 import '../data/host_account_models.dart';
 import '../data/host_account_repository.dart';
 
@@ -89,7 +90,6 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
 
   _ScreenState _state = _ScreenState.inProgress;
   String? _errorMessage;
-  int _tempKeyCounter = 0;
 
   @override
   void dispose() {
@@ -105,18 +105,16 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
   List<String> get _requiredDocs =>
       _requiredDocumentFields[widget.hostType] ?? const [];
 
-  void _pickProfilePhoto() {
-    // TODO: wire to image_picker (not yet a pubspec dependency) to select a
-    // real file from camera/gallery. Left as a clear stub, matching the
-    // convention already established in the Listings feature's image
-    // picker placeholder -- no fabricated file path here beyond a marker.
-    setState(() =>
-        _profilePhotoPath = 'picked://profile_photo_${_tempKeyCounter++}');
+  Future<void> _pickProfilePhoto() async {
+    final path = await pickImageFromCameraOrGallery(context);
+    if (path == null || !mounted) return;
+    setState(() => _profilePhotoPath = path);
   }
 
-  void _pickDocument(String field) {
-    setState(
-        () => _documentPaths[field] = 'picked://${field}_${_tempKeyCounter++}');
+  Future<void> _pickDocument(String field) async {
+    final path = await pickImageFromCameraOrGallery(context);
+    if (path == null || !mounted) return;
+    setState(() => _documentPaths[field] = path);
   }
 
   String? _missingFieldError() {
@@ -218,7 +216,10 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 ElevatedButton(
-                  onPressed: () => context.go('/home'),
+                  // screens.md Screen 3b Exit Points: "Host Dashboard
+                  // (submission successful, now In Review)" -- button
+                  // label already said this, but it routed to Home Feed.
+                  onPressed: () => context.go('/host'),
                   child: const Text('Go to Host Dashboard'),
                 ),
               ],

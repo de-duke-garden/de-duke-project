@@ -45,4 +45,15 @@ class ChatApi {
     );
     return response.data!['id'] as String;
   }
+
+  /// POST /v1/chat/conversations/{id}/notify -- FEAT-022. Called by the
+  /// SENDING client right after its own Firestore message write succeeds
+  /// (see chat_repository.dart's sendMessage) -- the backend never sees a
+  /// Firestore write happen on its own, so it can't trigger a push from
+  /// that write the way it can for e.g. a booking/payment event it
+  /// processes itself. See app/services/chat_service.py's
+  /// notify_new_message docstring for the full rationale on this design.
+  Future<void> notifyNewMessage(String conversationId) {
+    return _apiClient.dio.post('/v1/chat/conversations/$conversationId/notify');
+  }
 }

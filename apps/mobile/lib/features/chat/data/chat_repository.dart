@@ -7,6 +7,8 @@
 /// mobile) is relied on for offline handling -- messages sent while offline
 /// queue locally and sync automatically on reconnect; no custom retry/queue
 /// logic is implemented here.
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 
@@ -116,6 +118,15 @@ class ChatRepository {
     batch.update(
         conversationRef, {'lastMessageAt': FieldValue.serverTimestamp()});
     await batch.commit();
+
+    // FEAT-022: triggers a push to the OTHER participant -- see
+    // ChatApi.notifyNewMessage's docstring for why this is a separate
+    // backend call rather than something Firestore itself can trigger in
+    // this stack. Fire-and-forget: a failure here must never fail the
+    // message send itself (the message is already durably written above),
+    // and a missed push notification is not worth surfacing as a chat
+    // error to the sender.
+    unawaited(_chatApi.notifyNewMessage(conversationId).catchError((_) {}));
   }
 
   Future<void> markMessageRead(String conversationId, String messageId) {
@@ -126,10 +137,4 @@ class ChatRepository {
         .doc(messageId)
         .update({'deliveryStatus': 'read'});
   }
-
-  // TODO(FEAT-010/FCM): register the device's FCM token (via
-  // firebase_messaging, already a dependency) against the user's profile so
-  // new-message pushes can be routed while the app is backgrounded. Left
-  // out of scope for this slice -- push delivery/topic wiring belongs with
-  // the notifications feature.
 }

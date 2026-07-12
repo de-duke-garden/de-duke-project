@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, get_current_user_optional
 from app.core.storage import upload_file as upload_to_media_storage
 from app.models.host_account import HostAccount
 from app.models.listing import (
@@ -35,10 +35,12 @@ from app.schemas.listing import (
     ListingCreateIn,
     ListingUpdateIn,
 )
+from app.services import analytics_service
 from app.services.listing_service import (
     create_commercial_subtype,
     create_listing,
     create_shortlet_subtype,
+    increment_view_count,
     is_listing_available,
     listing_to_dict,
     make_location_point_wkt,
@@ -125,8 +127,20 @@ async def create_listing_endpoint(
 async def get_listing_endpoint(
     listing_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: CurrentUser | None = Depends(get_current_user_optional),
 ) -> dict:
-    return await _load_listing_bundle(session, listing_id)
+    bundle = await _load_listing_bundle(session, listing_id)
+    # Fire-and-forget-ish, but still awaited -- see increment_view_count's
+    # docstring for why this is a direct UPDATE, not a read-modify-write.
+    # Deliberately after _load_listing_bundle (which 404s on a missing
+    # listing) so a bad ID never increments anything.
+    await increment_view_count(session, listing_id)
+    await analytics_service.track_event(
+        event_name=analytics_service.LISTING_VIEWED,
+        user_id=current_user.user_id if current_user else None,
+        properties={"listing_id": listing_id},
+    )
+    return bundle
 
 
 @router.patch("/{listing_id}")

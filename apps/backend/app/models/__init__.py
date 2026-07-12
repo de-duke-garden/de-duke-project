@@ -29,6 +29,7 @@ from app.models.listing import (
     ShortletListing,
 )
 from app.models.ops import AuditLogEntry, CommissionRateConfig, Dispute
+from app.models.push_token import PushToken
 from app.models.transaction import Receipt, Transaction
 from app.models.user import User
 
@@ -57,4 +58,5 @@ __all__ = [
     "Dispute",
     "CommissionRateConfig",
     "AuditLogEntry",
+    "PushToken",
 ]

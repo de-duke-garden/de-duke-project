@@ -7,7 +7,7 @@ Firebase project or real credentials, per the task brief.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -113,6 +113,11 @@ async def test_create_conversation_writes_expected_shape_to_firestore() -> None:
 
     session = MagicMock()
     session.get = fake_get
+    # FEAT-017: create_conversation now also increments Listing.inquiry_count
+    # via session.execute/commit (see app/services/chat_service.py) --
+    # both must be awaitable, not plain MagicMock.
+    session.execute = AsyncMock()
+    session.commit = AsyncMock()
 
     fake_doc_ref = MagicMock()
     fake_collection = MagicMock()

@@ -20,4 +20,17 @@ class AppConfig {
     'API_BASE_URL',
     defaultValue: 'http://localhost:8000',
   );
+
+  /// Google Maps Platform API key -- same key used natively via
+  /// android/local.properties' googleMaps.apiKey (for the GoogleMap widget
+  /// itself), exposed here too so Dart code can call Google's REST APIs
+  /// directly (e.g. the Geocoding API for reverse-geocoding a dropped map
+  /// pin into a human-readable address). Empty default means reverse
+  /// geocoding silently no-ops rather than erroring when unconfigured --
+  /// consistent with this project's other optional-third-party-credential
+  /// degradation pattern.
+  static const String googleMapsApiKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+    defaultValue: '',
+  );
 }

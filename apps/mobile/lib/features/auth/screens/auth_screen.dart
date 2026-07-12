@@ -109,14 +109,16 @@ class _AuthScreenState extends State<AuthScreen>
     });
   }
 
-  void _onRoleRouted(AuthResult result) {
-    // TODO(FEAT-003, P1, not yet built): route through Role Selection for
-    // new sign-ups. Until that screen exists, every successful auth lands
-    // on Home -- returning users with an existing role/verification status
-    // will still reach the right destination once Home's own routing
-    // logic (host/agency dashboard vs seeker feed) is implemented there.
+  /// FEAT-003 (Role Selection): user_flow.md Flow 2 -- "On success, new
+  /// users navigate to Role Selection; returning users navigate to Home
+  /// Feed." `isNewSignUp` distinguishes the two call-site groups below
+  /// (register/verify-signup-OTP vs. login/verify-login-OTP) -- the
+  /// backend's AuthTokenResponse doesn't itself carry a "just created"
+  /// flag, so this is decided by which flow the client is in, not by
+  /// inspecting `result`.
+  void _onAuthSuccess(AuthResult result, {required bool isNewSignUp}) {
     if (!mounted) return;
-    context.go('/home');
+    context.go(isNewSignUp ? '/auth/role' : '/home');
   }
 
   Future<void> _submitEmailSignUp() async {
@@ -131,7 +133,7 @@ class _AuthScreenState extends State<AuthScreen>
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
-      _onRoleRouted(result);
+      _onAuthSuccess(result, isNewSignUp: true);
     } catch (e) {
       _handleAuthException(e);
     }
@@ -168,7 +170,7 @@ class _AuthScreenState extends State<AuthScreen>
         phoneNumber: _phoneController.text.trim(),
         otpCode: _otpController.text.trim(),
       );
-      _onRoleRouted(result);
+      _onAuthSuccess(result, isNewSignUp: true);
     } catch (e) {
       _handleAuthException(e);
     }
@@ -185,7 +187,7 @@ class _AuthScreenState extends State<AuthScreen>
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
-      _onRoleRouted(result);
+      _onAuthSuccess(result, isNewSignUp: false);
     } catch (e) {
       _handleAuthException(e);
     }
@@ -220,7 +222,7 @@ class _AuthScreenState extends State<AuthScreen>
         phoneNumber: _phoneController.text.trim(),
         otpCode: _otpController.text.trim(),
       );
-      _onRoleRouted(result);
+      _onAuthSuccess(result, isNewSignUp: false);
     } catch (e) {
       _handleAuthException(e);
     }

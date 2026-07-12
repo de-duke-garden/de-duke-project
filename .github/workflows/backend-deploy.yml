@@ -27,23 +27,17 @@
 #
 # Environment matrix
 # -------------------
-# Only `development` is active -- `infra/environments/staging` and
-# `infra/environments/production` are empty directories today (see
-# infra/README.md's Layout). Uncomment an entry in the `deploy`/
-# `smoke-test`/`rollback` jobs' matrices below once its environment is
-# scaffolded -- all three jobs' `include:` lists must stay identical.
-#
-# IMPORTANT before uncommenting a second entry: `smoke-test` and
-# `rollback` read `needs.deploy.outputs.*` (alb_dns_name,
-# previous_image_tag). GitHub Actions does not expose per-matrix-leg
-# outputs across jobs -- when a job runs as a matrix, a downstream job's
-# `needs.<job>.outputs.x` resolves to whichever leg happened to finish
-# last, not "the leg matching this same matrix entry". With a single
-# active leg (development) this is a no-op limitation, but it WILL cause
-# smoke-test/rollback to read the wrong environment's outputs the moment a
-# second leg is uncommented. Restructure `deploy`, `smoke-test`, and
-# `rollback` into one job (steps run in sequence, matrixed) before adding
-# a second environment here.
+# All three environments are scaffolded (infra/environments/{staging,
+# production}/main.tf). `deploy`, `smoke-test`, and `rollback` are folded
+# into a single matrixed job below (steps run in sequence per leg) rather
+# than three separate jobs linked by `needs.<job>.outputs.*` -- GitHub
+# Actions does not expose per-matrix-leg outputs across jobs (a downstream
+# job's `needs.<job>.outputs.x` resolves to whichever leg finished last,
+# not "the leg matching this same matrix entry"), which would silently mix
+# up environments' alb_dns_name/previous_image_tag the moment more than one
+# matrix leg is active. Within a single job, steps share `steps.<id>.outputs`
+# correctly scoped per matrix leg, so this restructuring is what makes
+# running staging/production here safe.
 name: Backend Deploy
 
 on:
@@ -132,23 +126,19 @@ jobs:
   deploy:
     needs: build-and-push
     strategy:
-      fail-fast: true # a failed apply blocks the next environment in the matrix
+      fail-fast: true # a failed leg blocks the next environment in the matrix
       max-parallel: 1 # enforces development -> staging -> production order
       matrix:
         include:
           - environment: development
-          # - environment: staging
-          # - environment: production
+          - environment: staging
+          - environment: production
     runs-on: ubuntu-latest
     environment: ${{ matrix.environment }}
-    # Keyed per environment -- shared with infra-terraform.yml's apply job
-    # and this workflow's own rollback job. See header comment.
+    # Keyed per environment -- shared with infra-terraform.yml's apply job.
     concurrency:
       group: terraform-${{ matrix.environment }}
       cancel-in-progress: false
-    outputs:
-      previous_image_tag: ${{ steps.previous-tag.outputs.value }}
-      alb_dns_name: ${{ steps.tf-outputs.outputs.alb_dns_name }}
     defaults:
       run:
         working-directory: infra/environments/${{ matrix.environment }}
@@ -242,80 +232,52 @@ jobs:
             exit 1
           fi
 
-  smoke-test:
-    needs: deploy
-    strategy:
-      fail-fast: true
-      max-parallel: 1
-      matrix:
-        include:
-          - environment: development
-          # - environment: staging
-          # - environment: production
-    runs-on: ubuntu-latest
-    steps:
-      - name: Wait for rolling deploy to finish, then hit /health/ready
-        # architecture.md step 5: "automated functional smoke tests, plus a
-        # lightweight performance smoke test ... a failure ... triggers an
-        # automatic rollback." This is the functional half; the lightweight
-        # performance subset (Load Testing & Performance Validation) is a
-        # separate, not-yet-built suite -- see roadmap.md's Launch Gate.
+      # architecture.md step 5: "automated functional smoke tests, plus a
+      # lightweight performance smoke test ... a failure ... triggers an
+      # automatic rollback." This is the functional half.
+      - name: Smoke test -- wait for rolling deploy to finish, then hit /health/ready
+        id: smoke-test
         run: |
-          URL="http://${{ needs.deploy.outputs.alb_dns_name }}/health/ready"
+          URL="http://${{ steps.tf-outputs.outputs.alb_dns_name }}/health/ready"
           for i in $(seq 1 10); do
             if curl -fsS "$URL"; then
-              echo "Smoke test passed."
+              echo "Functional smoke test passed."
               exit 0
             fi
             echo "Attempt $i failed, retrying in 15s..."
             sleep 15
           done
-          echo "Smoke test failed after 10 attempts."
+          echo "Functional smoke test failed after 10 attempts."
           exit 1
 
-  rollback:
-    needs: [build-and-push, deploy, smoke-test]
-    if: failure() && needs.deploy.outputs.previous_image_tag != ''
-    strategy:
-      matrix:
-        include:
-          - environment: development
-          # - environment: staging
-          # - environment: production
-    runs-on: ubuntu-latest
-    environment: ${{ matrix.environment }}
-    # Same shared concurrency group as deploy, keyed per environment.
-    concurrency:
-      group: terraform-${{ matrix.environment }}
-      cancel-in-progress: false
-    defaults:
-      run:
-        working-directory: infra/environments/${{ matrix.environment }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      # The lightweight performance half of the smoke test: a small, fast
+      # subset (~2-3 min) of the full load_tests/ suite, run against this
+      # same environment right after the functional check above passes.
+      # Catches obvious latency/error-rate regressions on every deploy
+      # without the cost/time of the full suite (see load_tests/README.md
+      # Cadence, and architecture.md's Load Testing & Performance
+      # Validation section). A failure here rolls back exactly like a
+      # functional smoke-test failure.
+      - name: Performance smoke test (lightweight k6 subset)
+        id: perf-smoke-test
+        uses: grafana/k6-action@v0.3.1
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ vars.AWS_REGION }}
+          filename: load_tests/scenarios/smoke.js
+        env:
+          BASE_URL: http://${{ steps.tf-outputs.outputs.alb_dns_name }}
+          K6_ENVIRONMENT: ${{ matrix.environment }}
 
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.11.4"
-
-      - name: terraform init
-        run: |
-          terraform init \
-            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
-            -backend-config="key=${{ matrix.environment }}/terraform.tfstate" \
-            -backend-config="region=${{ vars.TF_STATE_BUCKET_REGION }}" \
-            -backend-config="use_lockfile=true"
-
-      - name: Re-apply the previously-deployed image tag
+      - name: Rollback to previous image tag on failure
+        if: failure() && steps.previous-tag.outputs.value != ''
+        # Re-applies the previously-deployed image tag captured above,
+        # undoing this leg's deploy. Runs as a step (not a separate job) so
+        # it has direct access to this same matrix leg's `previous-tag`
+        # output -- see the header comment on why this can't be a
+        # cross-job `needs.*.outputs` reference once more than one
+        # environment is active in the matrix.
         run: |
           terraform apply -auto-approve \
             -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
             -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
-            -var="image_tag=${{ needs.deploy.outputs.previous_image_tag }}"
+            -var="image_tag=${{ steps.previous-tag.outputs.value }}"

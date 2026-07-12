@@ -130,6 +130,7 @@ class ListingOut(BaseModel):
     status: str
     status_reason: str | None
     view_count: int
+    inquiry_count: int
     images: list[ListingImageOut] = Field(default_factory=list)
     commercial: dict | None = None
     shortlet: dict | None = None

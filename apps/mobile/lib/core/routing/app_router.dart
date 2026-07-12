@@ -1,8 +1,23 @@
-/// Route skeleton -- go_router configuration with placeholder screens.
-/// Feature subagents register their real screens here in Phase B; this file
-/// stays a shared module (read/extend, do not restructure without
-/// coordinating across subagents to avoid navigation merge conflicts).
-import 'package:flutter/material.dart';
+/// go_router configuration -- route paths match docs/De-Duke/screens.md's
+/// Screen Inventory table exactly (route path column), and the nesting
+/// below mirrors that table's parent/child relationships (e.g.
+/// `/listing/:id/confirm-booking` is a child of `/listing/:id`,
+/// `/verification/:hostType` is a child of `/verification`) rather than a
+/// flat list of unrelated absolute paths.
+///
+/// The 5 bottom-nav tab roots (Home, Search, Chat, Dashboard, Profile --
+/// screens.md Screen 4's layout) live inside a `StatefulShellRoute.indexedStack`
+/// (see app_shell.dart) so the nav bar and each tab's own navigation stack
+/// persist across tab switches. Every other screen is a plain top-level
+/// `GoRoute`, which pushes full-screen ABOVE the shell (no bottom nav
+/// visible) -- this matches how Listing Detail, Chat Thread, Checkout,
+/// etc. are actually specified (their own dedicated `AppBar`, no bottom
+/// nav coexisting), and is the standard go_router pattern for a shell.
+///
+/// Feature subagents register their real screens here; this file stays a
+/// shared module (read/extend, do not restructure without coordinating
+/// across subagents to avoid navigation merge conflicts).
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/data/auth_repository.dart';
@@ -15,6 +30,9 @@ import '../../features/chat/data/chat_api.dart';
 import '../../features/chat/data/chat_repository.dart';
 import '../../features/chat/screens/chat_inbox_screen.dart';
 import '../../features/chat/screens/chat_thread_screen.dart';
+import '../../features/support/data/support_api.dart';
+import '../../features/support/data/support_repository.dart';
+import '../../features/support/screens/support_screen.dart';
 import '../../features/account_settings/data/account_deletion_repository.dart';
 import '../../features/account_settings/screens/account_settings_screen.dart';
 import '../../features/become_host/screens/host_type_selection_screen.dart';
@@ -27,12 +45,21 @@ import '../../features/checkout/screens/payment_confirmation_screen.dart';
 import '../../features/listings/data/listing_repository.dart';
 import '../../features/listings/screens/create_listing_screen.dart';
 import '../../features/listings/screens/listing_detail_screen.dart';
+import '../../features/search/data/search_repository.dart';
 import '../../features/search/screens/search_results_screen.dart';
+import '../../features/transactions/data/dispute_repository.dart';
 import '../../features/transactions/data/transactions_repository.dart';
 import '../../features/transactions/screens/transaction_history_screen.dart';
+import '../../features/role_selection/screens/role_selection_screen.dart';
+import '../../features/home_feed/screens/home_feed_screen.dart';
+import '../../features/host_dashboard/data/host_dashboard_repository.dart';
+import '../../features/host_dashboard/screens/host_dashboard_screen.dart';
+import '../../features/push_notifications/data/push_notification_repository.dart';
+import '../../features/push_notifications/data/push_notification_service.dart';
 import '../api/api_client.dart';
 import '../auth/session_store.dart';
 import '../config/env.dart';
+import 'app_shell.dart';
 
 // TODO: replace with real DI (e.g. Provider/Riverpod) once a shared
 // composition root exists; this is a minimal, additive wiring so each
@@ -71,8 +98,17 @@ final ApiClient _chatApiClient = ApiClient(
   baseUrl: AppConfig.apiBaseUrl,
   sessionStore: SessionStore(),
 );
-final ChatRepository _chatRepository =
-    ChatRepository(chatApi: ChatApi(_chatApiClient));
+final ChatApi _chatApi = ChatApi(_chatApiClient);
+final ChatRepository _chatRepository = ChatRepository(chatApi: _chatApi);
+
+final ApiClient _supportApiClient = ApiClient(
+  baseUrl: AppConfig.apiBaseUrl,
+  sessionStore: SessionStore(),
+);
+final SupportRepository _supportRepository = SupportRepository(
+  supportApi: SupportApi(_supportApiClient),
+  chatApi: _chatApi,
+);
 
 final ApiClient _bookingApiClient = ApiClient(
   baseUrl: AppConfig.apiBaseUrl,
@@ -93,129 +129,239 @@ final ApiClient _transactionsApiClient = ApiClient(
 );
 final TransactionsRepository _transactionsRepository =
     TransactionsRepository(_transactionsApiClient);
+final DisputeRepository _disputeRepository =
+    DisputeRepository(_transactionsApiClient);
 
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({required this.routeName});
+final ApiClient _homeFeedSearchApiClient = ApiClient(
+  baseUrl: AppConfig.apiBaseUrl,
+  sessionStore: SessionStore(),
+);
+final SearchRepository _homeFeedSearchRepository =
+    SearchRepository(apiClient: _homeFeedSearchApiClient);
 
-  final String routeName;
+final ApiClient _pushNotificationApiClient = ApiClient(
+  baseUrl: AppConfig.apiBaseUrl,
+  sessionStore: SessionStore(),
+);
+final PushNotificationRepository _pushNotificationRepository =
+    PushNotificationRepository(_pushNotificationApiClient);
+final PushNotificationService _pushNotificationService =
+    PushNotificationService(repository: _pushNotificationRepository);
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(child: Text('$routeName -- not yet implemented')),
-    );
-  }
-}
+final ApiClient _hostDashboardApiClient = ApiClient(
+  baseUrl: AppConfig.apiBaseUrl,
+  sessionStore: SessionStore(),
+);
+final HostDashboardRepository _hostDashboardRepository =
+    HostDashboardRepository(_hostDashboardApiClient);
 
 final GoRouter appRouter = GoRouter(
-  // Screens.md Screen 1 (Sign-Up / Login) documents its own entry point as
+  // screens.md Screen 1 (Sign-Up / Login) documents its own entry point as
   // "App launch (unauthenticated)" -- there is no separate Splash/Onboarding
   // screen in the docs, so app launch goes straight there. `/` redirects
   // rather than rendering its own placeholder, in case anything still links
   // to the bare root path.
-  initialLocation: '/auth/signup',
-  redirect: (context, state) => state.uri.path == '/' ? '/auth/signup' : null,
+  initialLocation: '/auth',
+  redirect: (context, state) => state.uri.path == '/' ? '/auth' : null,
   routes: [
+    // -- Screen 1: Sign-Up / Login. screens.md's route is a single `/auth`
+    // path with an internal Sign Up / Log In tab toggle, not two separate
+    // routes -- `?mode=login` preselects the Log In tab (AuthScreen's
+    // existing initialTabIndex), defaulting to Sign Up.
     GoRoute(
-      path: '/auth/login',
-      builder: (context, state) =>
-          AuthScreen(repository: _authRepository, initialTabIndex: 1),
-    ),
-    GoRoute(
-      path: '/auth/signup',
-      builder: (context, state) =>
-          AuthScreen(repository: _authRepository, initialTabIndex: 0),
-    ),
-    GoRoute(
-      path: '/auth/forgot-password',
-      builder: (context, state) =>
-          ForgotPasswordScreen(repository: _authRepository),
-    ),
-    GoRoute(
-      path: '/become-host',
-      builder: (context, state) =>
-          HostTypeSelectionScreen(repository: _hostAccountRepository),
-    ),
-    GoRoute(
-      path: '/become-host/:hostType',
-      builder: (context, state) => DocumentSubmissionScreen(
-        repository: _hostAccountRepository,
-        hostType: hostTypeFromApiValue(state.pathParameters['hostType']!),
+      path: '/auth',
+      builder: (context, state) => AuthScreen(
+        // Confirmed real bug: without an explicit key, navigating from
+        // `/auth?mode=login` back to plain `/auth` (or vice versa) keeps
+        // reusing the SAME AuthScreen Element (same widget type, same
+        // tree position) -- Flutter calls didUpdateWidget, not initState,
+        // so `initialTabIndex` (only consumed once, in initState's
+        // TabController) never re-applies and the tab stays wherever it
+        // was left. Keying by the resolved mode forces a fresh Element
+        // (and a fresh initState) whenever the mode actually changes.
+        key: ValueKey('auth-${state.uri.queryParameters['mode'] ?? 'signup'}'),
+        repository: _authRepository,
+        initialTabIndex: state.uri.queryParameters['mode'] == 'login' ? 1 : 0,
       ),
+      routes: [
+        // Screen 2: Role Selection.
+        GoRoute(
+          path: 'role',
+          builder: (context, state) => RoleSelectionScreen(repository: _authRepository),
+        ),
+        GoRoute(
+          path: 'forgot-password',
+          builder: (context, state) => ForgotPasswordScreen(repository: _authRepository),
+        ),
+      ],
     ),
+
+    // -- Screen 3a/3b: Become a Host.
     GoRoute(
-        path: '/home',
-        builder: (context, state) =>
-            const _PlaceholderScreen(routeName: 'Home / Discovery')),
-    GoRoute(
-      path: '/search',
-      builder: (context, state) =>
-          SearchResultsScreen(initialQuery: state.uri.queryParameters['q']),
+      path: '/verification',
+      builder: (context, state) => HostTypeSelectionScreen(repository: _hostAccountRepository),
+      routes: [
+        GoRoute(
+          path: ':hostType',
+          builder: (context, state) => DocumentSubmissionScreen(
+            repository: _hostAccountRepository,
+            hostType: hostTypeFromApiValue(state.pathParameters['hostType']!),
+          ),
+        ),
+      ],
     ),
+
+    // -- Screen 7: Create Listing. A sibling of `/listing/:id`, not a
+    // child -- declared BEFORE it below so the static "new" segment is
+    // never captured by the dynamic `:id` param (go_router matches
+    // top-level routes in declaration order, same as nested ones).
     GoRoute(
-      path: '/listings/:id',
+      path: '/listing/new',
+      builder: (context, state) => CreateListingScreen(repository: _listingRepository),
+    ),
+    // -- Screen 6/6b: Listing Detail + Confirm Booking Details.
+    GoRoute(
+      path: '/listing/:id',
       builder: (context, state) => ListingDetailScreen(
         listingId: state.pathParameters['id']!,
         repository: _listingRepository,
-      ),
-    ),
-    GoRoute(
-      path: '/listings/create',
-      builder: (context, state) =>
-          CreateListingScreen(repository: _listingRepository),
-    ),
-    GoRoute(
-      path: '/chat',
-      builder: (context, state) => ChatInboxScreen(
         chatRepository: _chatRepository,
-        authRepository: _authRepository,
       ),
+      routes: [
+        GoRoute(
+          path: 'confirm-booking',
+          builder: (context, state) => BookingScreen(
+            listingId: state.pathParameters['id']!,
+            listingRepository: _listingRepository,
+            // Fresh controller per visit -- it owns a single booking
+            // attempt's countdown/timer state, never shared across
+            // different bookings.
+            bookingController: BookingController(_bookingApi),
+          ),
+        ),
+      ],
     ),
+
+    // -- Screen 9: Chat Thread. Pushed full-screen (its own AppBar +
+    // input bar takes the whole screen per screens.md's layout, no bottom
+    // nav coexisting) -- not nested under the Chat tab's `/chat` branch.
     GoRoute(
-      path: '/chat/:conversationId',
+      path: '/chat/:id',
       builder: (context, state) => ChatThreadScreen(
-        conversationId: state.pathParameters['conversationId']!,
+        conversationId: state.pathParameters['id']!,
         chatRepository: _chatRepository,
         authRepository: _authRepository,
       ),
     ),
-    GoRoute(
-      path: '/booking/:listingId',
-      builder: (context, state) => BookingScreen(
-        listingId: state.pathParameters['listingId']!,
-        listingRepository: _listingRepository,
-        // Fresh controller per visit -- it owns a single booking attempt's
-        // countdown/timer state, never shared across different bookings.
-        bookingController: BookingController(_bookingApi),
-      ),
-    ),
+
+    // -- Screen 10/11: Checkout + Payment Confirmation.
     GoRoute(
       path: '/checkout/:transactionId',
       builder: (context, state) => CheckoutScreen(
         transactionId: state.pathParameters['transactionId']!,
         repository: _checkoutRepository,
       ),
+      routes: [
+        GoRoute(
+          path: 'confirmation',
+          builder: (context, state) => PaymentConfirmationScreen(
+            transactionId: state.pathParameters['transactionId']!,
+            repository: _checkoutRepository,
+          ),
+        ),
+      ],
     ),
-    GoRoute(
-      path: '/checkout/:transactionId/confirmation',
-      builder: (context, state) => PaymentConfirmationScreen(
-        transactionId: state.pathParameters['transactionId']!,
-        repository: _checkoutRepository,
-      ),
-    ),
+
+    // -- Screen 19: Transaction History. Entry points include both
+    // Payment Confirmation and Account Settings (Profile tab) -- pushed
+    // full-screen from either, not itself a bottom-nav tab (screens.md
+    // Screen 4's tab list is Home/Chat/Dashboard/Profile only).
     GoRoute(
       path: '/transactions',
       builder: (context, state) => TransactionHistoryScreen(
         transactionsRepository: _transactionsRepository,
         checkoutRepository: _checkoutRepository,
+        disputeRepository: _disputeRepository,
       ),
     ),
+
+    // -- FEAT-029: General In-App Support / Help. Not a screens.md-numbered
+    // mobile screen (only the Admin Web Console side is documented,
+    // Screen 26) -- entry point is Account Settings' "Help & Support" row.
     GoRoute(
-      path: '/account-settings',
-      builder: (context, state) => AccountSettingsScreen(
+      path: '/support',
+      builder: (context, state) => SupportScreen(
+        supportRepository: _supportRepository,
         authRepository: _authRepository,
-        accountDeletionRepository: _accountDeletionRepository,
       ),
+    ),
+
+    // -- Screen 5: Search Results. Deliberately NOT a shell branch --
+    // screens.md Screen 4's Layout: "Search is intentionally not a
+    // persistent tab; it's reached via the prominent search entry field"
+    // on Home Feed. Pushed full-screen (no bottom nav) from that field,
+    // same as Listing Detail/Checkout/etc.
+    GoRoute(
+      path: '/search',
+      builder: (context, state) =>
+          SearchResultsScreen(initialQuery: state.uri.queryParameters['q']),
+    ),
+
+    // -- Screens 4/8/12/21: the 4 bottom-nav tab roots, per screens.md
+    // Screen 4's "BottomNavigationBar with tabs: Home, Chat, Dashboard
+    // (Host/Agency, shown per role), Profile". Branch order here MUST
+    // match app_shell.dart's _visibleBranches index mapping (0=Home,
+    // 1=Chat, 2=Dashboard, 3=Profile).
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) =>
+          AppShell(navigationShell: navigationShell, authRepository: _authRepository),
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/home',
+              builder: (context, state) => HomeFeedScreen(
+                searchRepository: _homeFeedSearchRepository,
+                pushNotificationService: _pushNotificationService,
+              ),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/chat',
+              builder: (context, state) => ChatInboxScreen(
+                chatRepository: _chatRepository,
+                authRepository: _authRepository,
+              ),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/host',
+              builder: (context, state) => HostDashboardScreen(
+                dashboardRepository: _hostDashboardRepository,
+                hostAccountRepository: _hostAccountRepository,
+              ),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/settings',
+              builder: (context, state) => AccountSettingsScreen(
+                authRepository: _authRepository,
+                accountDeletionRepository: _accountDeletionRepository,
+                pushNotificationRepository: _pushNotificationRepository,
+              ),
+            ),
+          ],
+        ),
+      ],
     ),
   ],
 );

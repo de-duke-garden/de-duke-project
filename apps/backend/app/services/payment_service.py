@@ -112,6 +112,34 @@ async def initiate_paystack_transaction(
     )
 
 
+async def refund_paystack_transaction(*, reference: str, amount_kobo: int | None = None) -> None:
+    """Calls Paystack's `POST /refund` -- FEAT-026 (Dispute & Refund
+    Management), used when Staff/Admin resolve a dispute with
+    "Resolve with Refund". `amount_kobo` omitted means a full refund of
+    the original charge; dispute_service.py always passes an explicit
+    amount (the Staff-entered refund_amount), since a dispute may resolve
+    with a partial refund.
+
+    Same bounded-timeout, fail-closed-if-unconfigured contract as
+    `initiate_paystack_transaction` -- raises `PaystackNotConfiguredError`
+    if keys aren't populated, and lets `httpx.HTTPError` propagate for the
+    caller to catch and surface as a retryable failure (never silently
+    treated as a successful refund).
+    """
+    _require_configured()
+
+    headers = {"Authorization": f"Bearer {settings.paystack_secret_key}"}
+    payload: dict[str, object] = {"transaction": reference}
+    if amount_kobo is not None:
+        payload["amount"] = amount_kobo
+
+    async with httpx.AsyncClient(
+        base_url=PAYSTACK_BASE_URL, timeout=PAYSTACK_TIMEOUT_SECONDS
+    ) as client:
+        response = await client.post("/refund", json=payload, headers=headers)
+        response.raise_for_status()
+
+
 def verify_webhook_signature(raw_body: bytes, signature_header: str | None) -> bool:
     """Verifies the `x-paystack-signature` header against an HMAC-SHA512
     of the raw request body, keyed by `paystack_webhook_secret`.

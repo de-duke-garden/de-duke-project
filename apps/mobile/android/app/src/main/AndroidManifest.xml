@@ -3,11 +3,31 @@
          checkout, Firebase/Firestore chat); the debug manifest alone
          only covers debug builds, this is needed for profile/release too. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Required by image_picker's ImageSource.camera (Become a Host document
+         submission and Create Listing photo grid both require camera/gallery
+         pickers per screens.md). Gallery selection via image_picker's
+         document-provider intent needs no storage permission on this app's
+         target SDK. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Required by geolocator's "Use my GPS location" input method on
+         Create Listing (screens.md Screen 7's three-method location input).
+         COARSE alone is sufficient for a listing's approximate map
+         placement, but FINE is requested too since some OEM location
+         settings screens only expose an all-or-nothing toggle. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
     <application
         android:label="de_duke_mobile"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Google Maps SDK key, injected by app/build.gradle.kts's
+             manifestPlaceholders from android/local.properties'
+             googleMaps.apiKey (gitignored, never committed). Used by
+             Search's map view and Create Listing's map-pin picker. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${googleMapsApiKey}" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -1,0 +1,13 @@
+# Copy to backend.hcl (gitignored) and fill in before terraform init.
+# Run terraform init -backend-config=backend.hcl -- do not hardcode these
+# values into versions.tf, so the same backend "s3" {} block works for every
+# environment.
+#
+# bucket is the name of the already-existing, externally managed S3 bucket
+# used for Terraform state (not provisioned by this repo's Terraform config).
+
+bucket       = "REPLACE_ME" # name of the existing Terraform state S3 bucket
+key          = "staging/terraform.tfstate"
+region       = "REPLACE_ME" # must match this environment's aws_region
+encrypt      = true
+use_lockfile = true # S3 native state locking -- no DynamoDB table needed

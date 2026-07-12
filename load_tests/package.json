@@ -1,0 +1,14 @@
+{
+  "name": "de-duke-load-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Node driver for load_tests/scenarios/chat_volume.js (Priority Scenario 5) -- the only scenario in this suite that isn't a k6 script, since chat is client-to-Firestore directly. See load_tests/README.md.",
+  "type": "commonjs",
+  "scripts": {
+    "chat-volume": "node scenarios/chat_volume.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.2",
+    "node-fetch": "^2.7.0"
+  }
+}

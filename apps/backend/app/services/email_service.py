@@ -36,6 +36,7 @@ PAYMENT_SUCCEEDED = "payment_succeeded"
 PAYMENT_FAILED = "payment_failed"
 HOST_PAYOUT_SUMMARY = "host_payout_summary"
 STAFF_INVITE = "staff_invite"
+DISPUTE_RESOLVED = "dispute_resolved"
 
 # FEAT-024 AC: "User can manage email notification preferences per
 # category in settings, separate from push preferences." Three categories
@@ -53,6 +54,7 @@ CATEGORY_BY_TEMPLATE: dict[str, str] = {
     PAYMENT_SUCCEEDED: "payments",
     PAYMENT_FAILED: "payments",
     HOST_PAYOUT_SUMMARY: "payments",
+    DISPUTE_RESOLVED: "payments",
 }
 
 

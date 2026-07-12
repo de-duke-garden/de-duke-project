@@ -7,19 +7,24 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../checkout/data/checkout_repository.dart';
 import '../../checkout/data/transaction_models.dart';
+import '../data/dispute_repository.dart';
 import '../data/transactions_repository.dart';
 
 enum _ScreenState { loading, loaded, empty, error, offline }
+
+enum _TransactionAction { viewReceipt, reportIssue }
 
 class TransactionHistoryScreen extends StatefulWidget {
   const TransactionHistoryScreen({
     super.key,
     required this.transactionsRepository,
     required this.checkoutRepository,
+    required this.disputeRepository,
   });
 
   final TransactionsRepository transactionsRepository;
   final CheckoutRepository checkoutRepository;
+  final DisputeRepository disputeRepository;
 
   @override
   State<TransactionHistoryScreen> createState() =>
@@ -94,6 +99,31 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     }
   }
 
+  /// FEAT-026: the mobile entry point for raising a dispute -- there is no
+  /// dedicated mobile screen for this (screens.md's Dispute & Refund
+  /// Management, Screen 24, is Admin Web Console-only), so it's a
+  /// lightweight bottom sheet reachable from the transaction it concerns,
+  /// keeping every dispute tied to a real Transaction.id per the Dispute
+  /// model's required transaction_id field.
+  Future<void> _openReportIssueSheet(TransactionSummary txn) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _ReportIssueSheet(
+        transaction: txn,
+        disputeRepository: widget.disputeRepository,
+      ),
+    );
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              "Report submitted. De-Duke's team will review it and follow up."),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -143,7 +173,31 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     title: Text('Listing ${txn.listingId}'),
                     subtitle: Text(
                         '${_statusLabel(txn.status)} • ${_formatDate(txn.createdAt)}'),
-                    trailing: Text('₦${txn.grossAmount.toStringAsFixed(0)}'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('₦${txn.grossAmount.toStringAsFixed(0)}'),
+                        PopupMenuButton<_TransactionAction>(
+                          icon: const Icon(Icons.more_vert),
+                          onSelected: (action) => switch (action) {
+                            _TransactionAction.viewReceipt =>
+                              _openReceipt(txn.id),
+                            _TransactionAction.reportIssue =>
+                              _openReportIssueSheet(txn),
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: _TransactionAction.viewReceipt,
+                              child: Text('View receipt'),
+                            ),
+                            PopupMenuItem(
+                              value: _TransactionAction.reportIssue,
+                              child: Text('Report an issue'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                     onTap: () => _openReceipt(txn.id),
                   ),
                 );
@@ -233,6 +287,135 @@ class _ErrorView extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             ElevatedButton(
                 onPressed: () => onRetry(), child: const Text('Retry')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// FEAT-026 "Report an issue" form -- reason dropdown + free-text
+/// description, matching the fields app/schemas/dispute.py's
+/// DisputeCreateRequest requires. Pops `true` on a successful submit so
+/// the caller (TransactionHistoryScreen) can show a confirmation snackbar.
+class _ReportIssueSheet extends StatefulWidget {
+  const _ReportIssueSheet({
+    required this.transaction,
+    required this.disputeRepository,
+  });
+
+  final TransactionSummary transaction;
+  final DisputeRepository disputeRepository;
+
+  @override
+  State<_ReportIssueSheet> createState() => _ReportIssueSheetState();
+}
+
+class _ReportIssueSheetState extends State<_ReportIssueSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _descriptionController = TextEditingController();
+  DisputeReason _reason = DisputeReason.serviceIssue;
+  bool _submitting = false;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
+    try {
+      await widget.disputeRepository.raiseDispute(
+        transactionId: widget.transaction.id,
+        reason: _reason,
+        description: _descriptionController.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      final message = e is DisputeException ? e.message : null;
+      setState(() {
+        _submitting = false;
+        _errorMessage = message == 'offline'
+            ? "You're offline. Try again once connected."
+            : (message ?? 'Could not submit your report. Please try again.');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: AppSpacing.md,
+        right: AppSpacing.md,
+        top: AppSpacing.md,
+        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.md,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Report an issue',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'De-Duke staff will review this transaction and follow up. '
+              'This does not automatically pause or refund the payment.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            if (_errorMessage != null) ...[
+              Text(_errorMessage!,
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.error)),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            DropdownButtonFormField<DisputeReason>(
+              initialValue: _reason,
+              decoration: const InputDecoration(labelText: 'Reason'),
+              items: DisputeReason.values
+                  .map((r) =>
+                      DropdownMenuItem(value: r, child: Text(r.label)))
+                  .toList(),
+              onChanged: _submitting
+                  ? null
+                  : (value) {
+                      if (value != null) setState(() => _reason = value);
+                    },
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextFormField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                  labelText: 'What happened?', alignLabelWithHint: true),
+              minLines: 3,
+              maxLines: 6,
+              enabled: !_submitting,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Please describe the issue.'
+                  : null,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            FilledButton(
+              onPressed: _submitting ? null : _submit,
+              child: _submitting
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Submit report'),
+            ),
           ],
         ),
       ),

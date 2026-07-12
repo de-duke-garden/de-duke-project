@@ -9,10 +9,10 @@ shared models and wired up here.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.host_account import HostAccount
@@ -237,6 +237,7 @@ def listing_to_dict(
         "status": listing.status,
         "status_reason": listing.status_reason,
         "view_count": listing.view_count,
+        "inquiry_count": listing.inquiry_count,
         "images": [
             {
                 "id": img.id,
@@ -280,3 +281,83 @@ def listing_to_dict(
 
 def touch_updated_at(listing: Listing) -> None:
     listing.updated_at = datetime.now(UTC)
+
+
+async def increment_view_count(session: AsyncSession, listing_id: str) -> None:
+    """FEAT-017 (Host Dashboard) AC: listing cards show view counts.
+    `Listing.view_count` existed in the model since Phase 1 but was never
+    actually incremented anywhere -- confirmed gap, fixed here. Called from
+    GET /v1/listings/{listing_id} (app/api/v1/listings.py), the one
+    genuine "someone looked at this listing" read path -- deliberately NOT
+    called from the create/update paths that also load a listing bundle,
+    since those aren't views.
+
+    Uses a direct UPDATE (not a SELECT-then-increment-in-Python round
+    trip) so concurrent views never lose an increment to a race -- this
+    endpoint is public/high-traffic and unauthenticated, so contention is
+    expected, not an edge case.
+    """
+    await session.execute(
+        update(Listing).where(Listing.id == listing_id).values(view_count=Listing.view_count + 1)
+    )
+    await session.commit()
+
+
+# FEAT-017 AC: "Dashboard flags listings with zero activity after a set
+# period." No existing config surface for this (unlike, say, commission
+# rates' FEAT-027 admin-configurable table) -- a plain module constant,
+# same tier of "business rule that could later move to config" as
+# booking_hold_duration_minutes in app/core/config.py.
+STALE_LISTING_THRESHOLD_DAYS = 14
+
+
+async def list_host_listings(
+    session: AsyncSession, *, host_account_id: str
+) -> list[dict[str, Any]]:
+    """GET /v1/host/listings (Screen 12, FEAT-017) -- every listing owned by
+    the caller's own HostAccount, newest first, with the dashboard-specific
+    `is_stale` flag computed here rather than left to the client.
+    """
+    result = await session.execute(
+        select(Listing)
+        .where(Listing.host_account_id == host_account_id)
+        .order_by(Listing.created_at.desc())
+    )
+    listings = list(result.scalars().all())
+    if not listings:
+        return []
+
+    listing_ids = [listing.id for listing in listings]
+    images_result = await session.execute(
+        select(ListingImage)
+        .where(ListingImage.listing_id.in_(listing_ids))
+        .where(ListingImage.is_primary == True)  # noqa: E712 -- SQLAlchemy column comparison, not a Python bool check
+    )
+    primary_image_by_listing = {
+        img.listing_id: img.image_url for img in images_result.scalars().all()
+    }
+
+    now = datetime.now(UTC)
+    stale_cutoff = now - timedelta(days=STALE_LISTING_THRESHOLD_DAYS)
+
+    items = []
+    for listing in listings:
+        is_stale = (
+            listing.view_count == 0
+            and listing.inquiry_count == 0
+            and listing.created_at < stale_cutoff
+        )
+        items.append(
+            {
+                "id": listing.id,
+                "title": listing.title,
+                "listing_type": listing.listing_type,
+                "status": listing.status,
+                "status_reason": listing.status_reason,
+                "view_count": listing.view_count,
+                "inquiry_count": listing.inquiry_count,
+                "primary_image_url": primary_image_by_listing.get(listing.id),
+                "is_stale": is_stale,
+            }
+        )
+    return items

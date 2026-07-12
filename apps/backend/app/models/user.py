@@ -19,6 +19,17 @@ DEFAULT_EMAIL_NOTIFICATION_PREFERENCES: dict[str, bool] = {
     "payments": True,
 }
 
+# FEAT-022 AC: "User can manage notification preferences per category in
+# settings" -- push's own category set (listings, chat, payments),
+# deliberately DIFFERENT from email's (account, verification, payments)
+# per FEAT-024's "separate from push preferences" AC -- see
+# app/services/push_service.py's CATEGORY_BY_TEMPLATE for the mapping.
+DEFAULT_PUSH_NOTIFICATION_PREFERENCES: dict[str, bool] = {
+    "listings": True,
+    "chat": True,
+    "payments": True,
+}
+
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
@@ -49,6 +60,10 @@ class User(SQLModel, table=True):
 
     email_notification_preferences: dict[str, bool] = Field(
         default_factory=lambda: dict(DEFAULT_EMAIL_NOTIFICATION_PREFERENCES),
+        sa_column=Column(JSON),
+    )
+    push_notification_preferences: dict[str, bool] = Field(
+        default_factory=lambda: dict(DEFAULT_PUSH_NOTIFICATION_PREFERENCES),
         sa_column=Column(JSON),
     )
 

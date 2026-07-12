@@ -1,0 +1,9 @@
+# Copy this file to terraform.tfvars (gitignored) and fill in real values
+# before ever running `terraform plan`/`apply` against this environment.
+# Do not commit terraform.tfvars.
+
+gcp_project_id     = "REPLACE_ME"        # GCP project hosting Firestore for this environment
+aws_account_suffix = "REPLACE_ME"        # e.g. your AWS account ID, for globally-unique bucket naming
+
+# Leave blank until a domain + ACM certificate exist for this environment.
+acm_certificate_arn = ""

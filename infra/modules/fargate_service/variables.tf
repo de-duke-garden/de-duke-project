@@ -45,6 +45,12 @@ variable "db_proxy_role_arn" { type = string }
 variable "media_bucket_name" { type = string }
 variable "media_cdn_domain" { type = string }
 
+# module.cache's primary_endpoint output (infra/modules/redis/outputs.tf) --
+# threaded through so this module can set REDIS_URL in the container's
+# environment. See this module's main.tf REDIS_URL comment for why this
+# was previously missing entirely.
+variable "redis_endpoint" { type = string }
+
 # FEAT-001 phone OTP delivery (app/services/sms_service.py, Amazon SNS) --
 # not a secret, no separate vendor account; a plain string identifying
 # this app's registered SNS Sender ID.

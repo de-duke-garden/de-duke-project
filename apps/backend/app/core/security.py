@@ -18,6 +18,7 @@ from app.core.config import get_settings
 settings = get_settings()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
+_optional_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 class UserRole(StrEnum):
@@ -78,6 +79,32 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired session token",
         ) from exc
+
+
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_optional_bearer_scheme),
+) -> CurrentUser | None:
+    """Same decoding as get_current_user, but for public/unauthenticated-
+    allowed endpoints (e.g. GET /v1/search/listings, per user_flow.md's
+    Flow 0: a seeker can search before signing up) that still want to
+    attribute an analytics event to a user WHEN one happens to be signed
+    in (FEAT-028 AC), without forcing auth on the endpoint itself. Returns
+    None for a missing, malformed, or expired token -- never raises."""
+    if credentials is None:
+        return None
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.jwt_signing_secret,
+            algorithms=[settings.jwt_algorithm],
+        )
+        user_id: str | None = payload.get("sub")
+        role_value: str | None = payload.get("role")
+        if user_id is None or role_value is None:
+            return None
+        return CurrentUser(user_id=user_id, role=UserRole(role_value))
+    except (JWTError, ValueError):
+        return None
 
 
 def require_roles(*allowed_roles: UserRole):

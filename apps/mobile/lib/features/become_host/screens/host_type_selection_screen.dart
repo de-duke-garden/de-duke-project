@@ -58,7 +58,7 @@ class _HostTypeSelectionScreenState extends State<HostTypeSelectionScreen> {
   }
 
   void _selectType(HostType type) {
-    context.push('/become-host/${type.apiValue}');
+    context.push('/verification/${type.apiValue}');
   }
 
   @override
@@ -83,7 +83,9 @@ class _HostTypeSelectionScreenState extends State<HostTypeSelectionScreen> {
             message:
                 'Your ${_submission?.hostType ?? ''} application has been approved.',
             actionLabel: 'Go to Host Dashboard',
-            onAction: () => context.go('/home'),
+            // screens.md Screen 3a Verified state: "CTA to Host Dashboard"
+            // -- was incorrectly routing to Home Feed instead.
+            onAction: () => context.go('/host'),
           ),
         _ScreenState.rejected => _StatusView(
             icon: Icons.error_outline,
@@ -93,7 +95,7 @@ class _HostTypeSelectionScreenState extends State<HostTypeSelectionScreen> {
             actionLabel: 'Resubmit',
             onAction: () {
               final hostType = _submission?.hostType;
-              if (hostType != null) context.push('/become-host/$hostType');
+              if (hostType != null) context.push('/verification/$hostType');
             },
           ),
       },

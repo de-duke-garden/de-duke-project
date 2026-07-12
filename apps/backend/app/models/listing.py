@@ -57,6 +57,12 @@ class Listing(SQLModel, table=True):
     status_reason: str | None = Field(default=None)
 
     view_count: int = Field(default=0)
+    # FEAT-017 (Host Dashboard) AC: listing cards show "basic metrics
+    # (views, inquiries)". Denormalized counter, same pattern as
+    # view_count -- incremented in app/services/chat_service.py's
+    # start_conversation, since an "inquiry" is a chat conversation
+    # started against this listing (schema.md's Conversation.listing_id).
+    inquiry_count: int = Field(default=0)
 
     # sa_type=DateTime(timezone=True) -- every datetime in this codebase is
     # timezone-aware UTC (datetime.now(UTC)); without this, SQLModel maps

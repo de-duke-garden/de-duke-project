@@ -1,0 +1,309 @@
+# Full load/stress/spike/failover suite -- the Phase 1 public-launch gate
+# (docs/De-Duke/roadmap.md's "Launch Gate": "Public launch does not proceed
+# until the platform passes its full load/stress/spike/failover test suite
+# at target scale ... This is a hard gate, not a target to aim for.") and
+# the re-run required before each subsequent roadmap phase per
+# docs/De-Duke/architecture.md's Load Testing & Performance Validation
+# Cadence.
+#
+# Deliberately NOT run on every push -- see load_tests/README.md Cadence:
+# the lightweight per-deploy subset lives in backend-deploy.yml's
+# "Performance smoke test" step instead. This workflow is for the real
+# gate/re-run, which is expensive (hours) and destructive to staging's
+# seeded data, so it only runs manually or on the documented schedule.
+#
+# Why `seed`/`verify-payment-correctness` run as one-off ECS Fargate tasks,
+# not plain GitHub Actions steps: GitHub-hosted runners have no network
+# path into the VPC's private subnets where the RDS Proxy lives, so a
+# direct psycopg/asyncpg connection from a runner would never succeed
+# regardless of credentials. apps/backend/scripts/seed_load_test_data.py
+# and verify_no_double_booking.py instead run INSIDE the VPC, the same way
+# backend-deploy.yml's "Run database migrations" step already does, reusing
+# the app's own database_url assembly (DB_PROXY_ENDPOINT + Secrets Manager
+# -- see app/core/config.py) rather than a separately-supplied plaintext DB
+# URL secret.
+#
+# Required GitHub repo configuration, `staging` GitHub Environment:
+#   Secrets (in addition to the ones backend-deploy.yml/infra-terraform.yml
+#   already require for staging):
+#     TF_PAYSTACK_WEBHOOK_SECRET_TEST - staging's test-mode Paystack SECRET
+#                                        KEY (sk_test_..., from the Paystack
+#                                        dashboard's API Keys page -- NOT a
+#                                        separate "webhook secret" value,
+#                                        Paystack signs webhooks with your
+#                                        integration's own secret key). Used
+#                                        by scenarios/checkout_payment.js to
+#                                        forge signed webhook payloads.
+#                                        IMPORTANT: this value must ALSO be
+#                                        entered manually into staging's
+#                                        `staging/de-duke/app-secrets` AWS
+#                                        Secrets Manager secret
+#                                        (PAYSTACK_SECRET_KEY and
+#                                        PAYSTACK_WEBHOOK_SECRET keys) --
+#                                        see infra/modules/secrets/main.tf's
+#                                        "populated manually" note. This
+#                                        GitHub secret and that Secrets
+#                                        Manager value must match, or every
+#                                        forged webhook in this scenario
+#                                        will fail signature verification
+#                                        against the real deployed backend.
+#     FIREBASE_SERVICE_ACCOUNT_JSON_STAGING - contents (not a file path) of
+#                                        the staging Firestore project's
+#                                        service account JSON key, used by
+#                                        scenarios/chat_volume.js
+name: Load Test (Full Suite)
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: "Which Test Type to run (see load_tests/README.md)"
+        required: true
+        default: load
+        type: choice
+        options: [load, stress, soak, spike, failover, all]
+      reseed:
+        description: "Reseed synthetic data before running (slow -- skip only when re-running against already-seeded staging)"
+        required: true
+        default: true
+        type: boolean
+
+  schedule:
+    # Recurring full-scale run per Cadence -- quarterly. Business/ops can
+    # also trigger workflow_dispatch manually once real traffic approaches
+    # prior test targets, per the same Cadence section.
+    - cron: "0 2 1 */3 *"
+
+permissions:
+  id-token: write # AWS OIDC federation, same as backend-deploy.yml/infra-terraform.yml
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  # Never run two full-suite runs against staging simultaneously -- they'd
+  # corrupt each other's seeded fixture pools and pass/fail signal.
+  group: load-test-full-staging
+  cancel-in-progress: false
+
+jobs:
+  resolve-staging-environment:
+    runs-on: ubuntu-latest
+    environment: staging
+    outputs:
+      alb_dns_name: ${{ steps.tf-outputs.outputs.alb_dns_name }}
+      cluster_name: ${{ steps.tf-outputs.outputs.cluster_name }}
+      private_subnet_ids: ${{ steps.tf-outputs.outputs.private_subnet_ids }}
+      service_security_group_id: ${{ steps.tf-outputs.outputs.service_security_group_id }}
+    defaults:
+      run:
+        working-directory: infra/environments/staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+      - name: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=staging/terraform.tfstate" \
+            -backend-config="region=${{ vars.TF_STATE_BUCKET_REGION }}" \
+            -backend-config="use_lockfile=true"
+      - name: Read outputs from state (no apply -- this workflow only reads the already-deployed environment)
+        id: tf-outputs
+        run: |
+          echo "alb_dns_name=$(terraform output -raw alb_dns_name)" >> "$GITHUB_OUTPUT"
+          echo "cluster_name=$(terraform output -raw cluster_name)" >> "$GITHUB_OUTPUT"
+          echo "private_subnet_ids=$(terraform output -json private_subnet_ids | jq -c .)" >> "$GITHUB_OUTPUT"
+          echo "service_security_group_id=$(terraform output -raw service_security_group_id)" >> "$GITHUB_OUTPUT"
+
+  seed:
+    needs: resolve-staging-environment
+    if: github.event.inputs.reseed != 'false'
+    runs-on: ubuntu-latest
+    environment: staging
+    outputs:
+      # Base64-encoded so multi-line/complex JSON survives GITHUB_OUTPUT's
+      # single-line constraint intact -- decoded again in run-scenarios.
+      seed_outputs_b64: ${{ steps.extract-seed-outputs.outputs.seed_outputs_b64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Same one-off-Fargate-task pattern as backend-deploy.yml's "Run
+      # database migrations" step -- runs inside the VPC, in the SAME
+      # subnets/security group as the real service, so it reaches the RDS
+      # Proxy identically (see that step's comment for the full rationale).
+      - name: Run seed_load_test_data.py as a one-off ECS task
+        id: run-seed-task
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ needs.resolve-staging-environment.outputs.cluster_name }}" \
+            --task-definition "staging-de-duke-api" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=${{ needs.resolve-staging-environment.outputs.private_subnet_ids }},securityGroups=[\"${{ needs.resolve-staging-environment.outputs.service_security_group_id }}\"],assignPublicIp=DISABLED}" \
+            --overrides '{"containerOverrides":[{"name":"backend-api","command":["python","scripts/seed_load_test_data.py"]}]}' \
+            --query "tasks[0].taskArn" --output text)
+          echo "task_arn=${TASK_ARN}" >> "$GITHUB_OUTPUT"
+          echo "Seed task: ${TASK_ARN}"
+          aws ecs wait tasks-stopped --cluster "${{ needs.resolve-staging-environment.outputs.cluster_name }}" --tasks "${TASK_ARN}"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "${{ needs.resolve-staging-environment.outputs.cluster_name }}" \
+            --tasks "${TASK_ARN}" \
+            --query "tasks[0].containers[0].exitCode" --output text)
+          echo "Seed task exit code: ${EXIT_CODE}"
+          if [ "${EXIT_CODE}" != "0" ]; then
+            echo "Seeding failed -- see the task's CloudWatch log stream for details."
+            exit 1
+          fi
+
+      # Reads the task's own CloudWatch log stream and pulls out every
+      # SEED_OUTPUT_JSON:: marker line the script printed (see
+      # scripts/seed_load_test_data.py's SEED_OUTPUT_MARKER comment for why
+      # this indirection is necessary -- a one-off task has no other way to
+      # hand data back to this workflow).
+      - name: Extract seed output JSON from CloudWatch Logs
+        id: extract-seed-outputs
+        run: |
+          TASK_ID=$(basename "${{ steps.run-seed-task.outputs.task_arn }}")
+          # Log group name: infra/modules/fargate_service/main.tf's
+          # aws_cloudwatch_log_group.backend ("/de-duke/<environment>/backend-api").
+          # Log stream name: awslogs-stream-prefix ("backend-api") + container
+          # name ("backend-api") + task ID, per the awslogs driver's naming
+          # convention -- see that same resource's logConfiguration block.
+          LOG_STREAM="backend-api/backend-api/${TASK_ID}"
+          aws logs get-log-events \
+            --log-group-name "/de-duke/staging/backend-api" \
+            --log-stream-name "${LOG_STREAM}" \
+            --query "events[].message" --output text \
+            | grep "SEED_OUTPUT_JSON::" \
+            | sed 's/^.*SEED_OUTPUT_JSON:://' > /tmp/seed_outputs.ndjson
+
+          mkdir -p load_tests/seed
+          # Each line is {"filename": "...", "data": ...} -- fan each one
+          # out into its own file under load_tests/seed/ so the k6 scripts'
+          # existing `import ... from '../seed/<file>.json'` statements
+          # keep working unmodified.
+          while IFS= read -r line; do
+            filename=$(echo "$line" | jq -r '.filename')
+            echo "$line" | jq -c '.data' > "load_tests/seed/${filename}"
+          done < /tmp/seed_outputs.ndjson
+
+          tar -C load_tests/seed -czf /tmp/seed_outputs.tar.gz .
+          echo "seed_outputs_b64=$(base64 -w0 /tmp/seed_outputs.tar.gz)" >> "$GITHUB_OUTPUT"
+
+  run-scenarios:
+    needs: [resolve-staging-environment, seed]
+    if: always() && needs.resolve-staging-environment.result == 'success'
+    runs-on: ubuntu-latest
+    environment: staging
+    strategy:
+      fail-fast: false # let every scenario run/report even if one fails, rather than hiding results
+      matrix:
+        scenario:
+          - search_discovery
+          - booking_hold_contention
+          - checkout_payment
+          - listing_creation
+          - rate_limiter
+          - fargate_scaleout
+          - spike
+          - failover
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore seed outputs
+        if: github.event.inputs.reseed != 'false' && needs.seed.outputs.seed_outputs_b64 != ''
+        run: |
+          echo "${{ needs.seed.outputs.seed_outputs_b64 }}" | base64 -d > /tmp/seed_outputs.tar.gz
+          mkdir -p load_tests/seed
+          tar -C load_tests/seed -xzf /tmp/seed_outputs.tar.gz
+      - name: Run ${{ matrix.scenario }}.js
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: load_tests/scenarios/${{ matrix.scenario }}.js
+        env:
+          BASE_URL: http://${{ needs.resolve-staging-environment.outputs.alb_dns_name }}
+          K6_ENVIRONMENT: staging
+          PAYSTACK_WEBHOOK_SECRET_TEST: ${{ secrets.TF_PAYSTACK_WEBHOOK_SECRET_TEST }}
+          DURATION: ${{ github.event.inputs.test_type == 'soak' && '6h' || '' }}
+          RAMP_BEYOND_TARGET: ${{ github.event.inputs.test_type == 'stress' && 'true' || 'false' }}
+
+  chat-volume:
+    needs: [resolve-staging-environment, seed]
+    if: always() && needs.resolve-staging-environment.result == 'success'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - working-directory: load_tests
+        run: npm install
+      - name: Write Firestore service account credentials
+        # FIREBASE_SERVICE_ACCOUNT_JSON_STAGING holds the JSON key file's
+        # CONTENTS (paste the whole file into the GitHub secret value) --
+        # not a path, since a path on anyone's local machine means nothing
+        # to this runner.
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_STAGING }}' > /tmp/firebase-sa.json
+      - name: Run chat_volume.js (Priority Scenario 5)
+        working-directory: load_tests
+        env:
+          BACKEND_BASE_URL: http://${{ needs.resolve-staging-environment.outputs.alb_dns_name }}
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
+        run: node scenarios/chat_volume.js
+
+  verify-payment-correctness:
+    # The hard, non-negotiable gate (README "Pass/Fail Criteria" and
+    # architecture.md's "zero double-bookings and zero duplicate charges
+    # ... hard pass/fail gate, not a tunable threshold") -- runs regardless
+    # of whether the HTTP-level k6 checks in run-scenarios passed, since a
+    # bug could return correct-looking status codes while still writing
+    # bad rows. See apps/backend/scripts/verify_no_double_booking.py's docstring.
+    needs: [resolve-staging-environment, run-scenarios]
+    if: always() && needs.resolve-staging-environment.result == 'success'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Run verify_no_double_booking.py as a one-off ECS task
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ needs.resolve-staging-environment.outputs.cluster_name }}" \
+            --task-definition "staging-de-duke-api" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=${{ needs.resolve-staging-environment.outputs.private_subnet_ids }},securityGroups=[\"${{ needs.resolve-staging-environment.outputs.service_security_group_id }}\"],assignPublicIp=DISABLED}" \
+            --overrides '{"containerOverrides":[{"name":"backend-api","command":["python","scripts/verify_no_double_booking.py"]}]}' \
+            --query "tasks[0].taskArn" --output text)
+          echo "Verify task: ${TASK_ARN}"
+          aws ecs wait tasks-stopped --cluster "${{ needs.resolve-staging-environment.outputs.cluster_name }}" --tasks "${TASK_ARN}"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "${{ needs.resolve-staging-environment.outputs.cluster_name }}" \
+            --tasks "${TASK_ARN}" \
+            --query "tasks[0].containers[0].exitCode" --output text)
+          echo "Verify task exit code: ${EXIT_CODE}"
+          if [ "${EXIT_CODE}" != "0" ]; then
+            echo "FAIL: double-booking or duplicate-charge invariant violated -- see the task's CloudWatch log stream for details. This is the hard launch gate; do not launch."
+            exit 1
+          fi
+          echo "PASS: zero double-bookings, zero duplicate charges."

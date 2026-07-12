@@ -175,6 +175,29 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "MEDIA_CDN_DOMAIN", value = var.media_cdn_domain },
         { name = "AWS_REGION", value = var.aws_region },
         { name = "AWS_SNS_SENDER_ID", value = var.aws_sns_sender_id },
+        # Confirmed bug, found via a real staging deploy: this was missing
+        # in every environment (development included) -- app/core/config.py's
+        # `redis_url` field has no deployed-environment wiring of its own
+        # (unlike database_url's DB_PROXY_ENDPOINT/DB_CREDENTIALS
+        # assembly), so it silently stayed at its "redis://localhost:6379/0"
+        # placeholder default in every real deployment, and GET
+        # /health/ready's cache check has been failing with
+        # ConnectionRefusedError against localhost ever since the readiness
+        # check started checking the cache. pydantic-settings reads a plain
+        # `redis_url: str` field from the REDIS_URL env var by its own
+        # default naming convention -- no alias needed on the Settings side,
+        # just this previously-missing env var.
+        #
+        # `rediss://` (double-s), not `redis://` -- modules/redis sets
+        # transit_encryption_enabled = true, so ElastiCache expects a TLS
+        # handshake on 6379; app/core/cache.py's redis.from_url() picks up
+        # TLS purely from this URL scheme (redis-py's own convention, see
+        # its ssl.py connection class selection). A plain `redis://` here
+        # connects the TCP socket successfully but then hangs / times out
+        # on read_response, since the client speaks plaintext RESP against
+        # a socket that's actually waiting for a TLS ClientHello --
+        # confirmed by that exact failure mode against this environment.
+        { name = "REDIS_URL", value = "rediss://${var.redis_endpoint}:6379/0" },
       ]
       secrets = [
         { name = "APP_SECRETS", valueFrom = var.app_secret_arn },
