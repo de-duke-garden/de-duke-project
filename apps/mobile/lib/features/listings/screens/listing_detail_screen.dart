@@ -17,6 +17,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../chat/data/chat_repository.dart';
@@ -86,7 +87,10 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       final conversationId =
           await widget.chatRepository.startConversation(listingId: widget.listingId);
       if (!mounted) return;
-      context.push('/chat/$conversationId');
+      context.pushNamed(
+        RouteNames.chatThread,
+        pathParameters: {'id': conversationId},
+      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -99,7 +103,10 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
 
   /// "Book Now" / "Reserve" -- screens.md Screen 6's Components table:
   /// "Navigates to Confirm Booking Details" (Screen 6b, `/listing/:id/confirm-booking`).
-  void _bookNow() => context.push('/listing/${widget.listingId}/confirm-booking');
+  void _bookNow() => context.pushNamed(
+        RouteNames.listingConfirmBooking,
+        pathParameters: {'id': widget.listingId},
+      );
 
   @override
   Widget build(BuildContext context) {

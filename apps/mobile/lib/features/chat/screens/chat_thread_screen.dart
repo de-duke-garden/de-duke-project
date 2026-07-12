@@ -9,6 +9,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/chat_models.dart';
@@ -164,8 +165,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
         title: _conversation == null
             ? const Text('Chat')
             : GestureDetector(
-                onTap: () =>
-                    context.push('/listing/${_conversation!.listingId}'),
+                onTap: () => context.pushNamed(
+                  RouteNames.listingDetail,
+                  pathParameters: {'id': _conversation!.listingId},
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,

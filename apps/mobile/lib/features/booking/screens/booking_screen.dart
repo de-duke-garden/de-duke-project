@@ -10,6 +10,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../listings/data/listing_models.dart';
 import '../../listings/data/listing_repository.dart';
@@ -165,7 +166,10 @@ class _BookingScreenState extends State<BookingScreen> {
       checkInDate: _checkInDate,
       checkOutDate: _checkOutDate,
       onProceedToCheckout: (BookingHold hold) {
-        context.push('/checkout/${hold.transactionId}');
+        context.pushNamed(
+          RouteNames.checkoutTransaction,
+          pathParameters: {'transactionId': hold.transactionId},
+        );
       },
     );
   }

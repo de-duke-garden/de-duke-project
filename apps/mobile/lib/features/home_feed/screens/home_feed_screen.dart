@@ -26,6 +26,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../push_notifications/data/push_notification_service.dart';
 import '../../search/data/search_models.dart';
@@ -156,7 +157,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(
                   AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
-              child: _SearchEntryField(onTap: () => context.push('/search')),
+              child: _SearchEntryField(onTap: () => context.pushNamed(RouteNames.search)),
             ),
             Expanded(child: _buildBody(context)),
           ],
@@ -215,7 +216,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
               const Text('No listings near you yet'),
               const SizedBox(height: AppSpacing.sm),
               OutlinedButton(
-                onPressed: () => context.push('/search'),
+                onPressed: () => context.pushNamed(RouteNames.search),
                 child: const Text('Widen search'),
               ),
             ],
@@ -243,7 +244,10 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
           for (final result in _nearYou)
             ListingResultCard(
               result: result,
-              onTap: () => context.push('/listing/${result.id}'),
+              onTap: () => context.pushNamed(
+                RouteNames.listingDetail,
+                pathParameters: {'id': result.id},
+              ),
             ),
         ],
         if (_recentlyAdded.isNotEmpty) ...[
@@ -254,7 +258,10 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
           for (final result in _recentlyAdded)
             ListingResultCard(
               result: result,
-              onTap: () => context.push('/listing/${result.id}'),
+              onTap: () => context.pushNamed(
+                RouteNames.listingDetail,
+                pathParameters: {'id': result.id},
+              ),
             ),
         ],
       ],

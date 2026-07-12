@@ -14,6 +14,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../push_notifications/data/push_notification_repository.dart';
@@ -147,7 +148,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     setState(() => _actionInFlight = true);
     await widget.authRepository.logout();
     if (!mounted) return;
-    context.go('/auth?mode=login');
+    context.goNamed(
+      RouteNames.auth,
+      queryParameters: const {'mode': 'login'},
+    );
   }
 
   Future<void> _confirmDeleteAccount() async {
@@ -180,7 +184,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       await _showDeletionSummary(result);
       await widget.authRepository.logout();
       if (!mounted) return;
-      context.go('/auth?mode=login');
+      context.goNamed(
+      RouteNames.auth,
+      queryParameters: const {'mode': 'login'},
+    );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -287,7 +294,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 title: Text(_roleLabel(user.role)),
                 trailing: (user.role == 'individual_host' || user.role == 'agency')
                     ? TextButton(
-                        onPressed: () => context.push('/verification'),
+                        onPressed: () => context.pushNamed(RouteNames.verification),
                         child: const Text('Verification status'),
                       )
                     : null,
@@ -300,7 +307,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               ListTile(
                 leading: const Icon(Icons.swap_horiz),
                 title: const Text('Change role'),
-                onTap: () => context.push('/auth/role'),
+                onTap: () => context.pushNamed(RouteNames.authRole),
               ),
             ],
           ),
@@ -393,7 +400,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           child: ListTile(
             leading: const Icon(Icons.receipt_long_outlined),
             title: const Text('Transaction History'),
-            onTap: () => context.push('/transactions'),
+            onTap: () => context.pushNamed(RouteNames.transactions),
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -403,7 +410,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           child: ListTile(
             leading: const Icon(Icons.help_outline),
             title: const Text('Help & Support'),
-            onTap: () => context.push('/support'),
+            onTap: () => context.pushNamed(RouteNames.support),
           ),
         ),
         const SizedBox(height: AppSpacing.lg),

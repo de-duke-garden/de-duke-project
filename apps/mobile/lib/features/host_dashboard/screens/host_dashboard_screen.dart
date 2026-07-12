@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../become_host/data/host_account_models.dart';
 import '../../become_host/data/host_account_repository.dart';
@@ -79,7 +80,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
               padding: const EdgeInsets.only(right: AppSpacing.md),
               child: Center(
                 child: TextButton(
-                  onPressed: () => context.push('/verification'),
+                  onPressed: () => context.pushNamed(RouteNames.verification),
                   child: Text(_verification!.status == 'verified' ? 'Verified Host' : 'Verify'),
                 ),
               ),
@@ -88,8 +89,8 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _state == _ScreenState.unverified
-            ? () => context.push('/verification')
-            : () => context.push('/listing/new'),
+            ? () => context.pushNamed(RouteNames.verification)
+            : () => context.pushNamed(RouteNames.listingNew),
         icon: const Icon(Icons.add),
         label: const Text('New Listing'),
       ),
@@ -127,7 +128,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   ElevatedButton(
-                    onPressed: () => context.push('/verification'),
+                    onPressed: () => context.pushNamed(RouteNames.verification),
                     child: const Text('Become a Host'),
                   ),
                 ],
@@ -145,7 +146,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
               const Text("You haven't listed anything yet"),
               const SizedBox(height: AppSpacing.sm),
               ElevatedButton(
-                onPressed: () => context.push('/listing/new'),
+                onPressed: () => context.pushNamed(RouteNames.listingNew),
                 child: const Text('Create your first listing'),
               ),
             ],
@@ -184,7 +185,10 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
       itemCount: _listings.length,
       itemBuilder: (context, index) => _ListingStatusCard(
         listing: _listings[index],
-        onTap: () => context.push('/listing/${_listings[index].id}'),
+        onTap: () => context.pushNamed(
+          RouteNames.listingDetail,
+          pathParameters: {'id': _listings[index].id},
+        ),
       ),
     );
   }
@@ -269,7 +273,7 @@ class _ListingStatusCard extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.chat_bubble_outline),
                 tooltip: 'Chat threads',
-                onPressed: () => context.push('/chat'),
+                onPressed: () => context.pushNamed(RouteNames.chat),
               ),
             ],
           ),

@@ -8,6 +8,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../data/host_account_models.dart';
 import '../data/host_account_repository.dart';
@@ -58,7 +59,10 @@ class _HostTypeSelectionScreenState extends State<HostTypeSelectionScreen> {
   }
 
   void _selectType(HostType type) {
-    context.push('/verification/${type.apiValue}');
+    context.pushNamed(
+      RouteNames.verificationHostType,
+      pathParameters: {'hostType': type.apiValue},
+    );
   }
 
   @override
@@ -85,7 +89,7 @@ class _HostTypeSelectionScreenState extends State<HostTypeSelectionScreen> {
             actionLabel: 'Go to Host Dashboard',
             // screens.md Screen 3a Verified state: "CTA to Host Dashboard"
             // -- was incorrectly routing to Home Feed instead.
-            onAction: () => context.go('/host'),
+            onAction: () => context.goNamed(RouteNames.host),
           ),
         _ScreenState.rejected => _StatusView(
             icon: Icons.error_outline,
@@ -95,7 +99,12 @@ class _HostTypeSelectionScreenState extends State<HostTypeSelectionScreen> {
             actionLabel: 'Resubmit',
             onAction: () {
               final hostType = _submission?.hostType;
-              if (hostType != null) context.push('/verification/$hostType');
+              if (hostType != null) {
+                context.pushNamed(
+                  RouteNames.verificationHostType,
+                  pathParameters: {'hostType': hostType},
+                );
+              }
             },
           ),
       },

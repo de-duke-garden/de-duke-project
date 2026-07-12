@@ -60,6 +60,7 @@ import '../api/api_client.dart';
 import '../auth/session_store.dart';
 import '../config/env.dart';
 import 'app_shell.dart';
+import 'route_names.dart';
 
 // TODO: replace with real DI (e.g. Provider/Riverpod) once a shared
 // composition root exists; this is a minimal, additive wiring so each
@@ -170,6 +171,7 @@ final GoRouter appRouter = GoRouter(
     // existing initialTabIndex), defaulting to Sign Up.
     GoRoute(
       path: '/auth',
+      name: RouteNames.auth,
       builder: (context, state) => AuthScreen(
         // Confirmed real bug: without an explicit key, navigating from
         // `/auth?mode=login` back to plain `/auth` (or vice versa) keeps
@@ -187,10 +189,12 @@ final GoRouter appRouter = GoRouter(
         // Screen 2: Role Selection.
         GoRoute(
           path: 'role',
+          name: RouteNames.authRole,
           builder: (context, state) => RoleSelectionScreen(repository: _authRepository),
         ),
         GoRoute(
           path: 'forgot-password',
+          name: RouteNames.authForgotPassword,
           builder: (context, state) => ForgotPasswordScreen(repository: _authRepository),
         ),
       ],
@@ -199,10 +203,12 @@ final GoRouter appRouter = GoRouter(
     // -- Screen 3a/3b: Become a Host.
     GoRoute(
       path: '/verification',
+      name: RouteNames.verification,
       builder: (context, state) => HostTypeSelectionScreen(repository: _hostAccountRepository),
       routes: [
         GoRoute(
           path: ':hostType',
+          name: RouteNames.verificationHostType,
           builder: (context, state) => DocumentSubmissionScreen(
             repository: _hostAccountRepository,
             hostType: hostTypeFromApiValue(state.pathParameters['hostType']!),
@@ -217,11 +223,13 @@ final GoRouter appRouter = GoRouter(
     // top-level routes in declaration order, same as nested ones).
     GoRoute(
       path: '/listing/new',
+      name: RouteNames.listingNew,
       builder: (context, state) => CreateListingScreen(repository: _listingRepository),
     ),
     // -- Screen 6/6b: Listing Detail + Confirm Booking Details.
     GoRoute(
       path: '/listing/:id',
+      name: RouteNames.listingDetail,
       builder: (context, state) => ListingDetailScreen(
         listingId: state.pathParameters['id']!,
         repository: _listingRepository,
@@ -230,6 +238,7 @@ final GoRouter appRouter = GoRouter(
       routes: [
         GoRoute(
           path: 'confirm-booking',
+          name: RouteNames.listingConfirmBooking,
           builder: (context, state) => BookingScreen(
             listingId: state.pathParameters['id']!,
             listingRepository: _listingRepository,
@@ -247,6 +256,7 @@ final GoRouter appRouter = GoRouter(
     // nav coexisting) -- not nested under the Chat tab's `/chat` branch.
     GoRoute(
       path: '/chat/:id',
+      name: RouteNames.chatThread,
       builder: (context, state) => ChatThreadScreen(
         conversationId: state.pathParameters['id']!,
         chatRepository: _chatRepository,
@@ -257,6 +267,7 @@ final GoRouter appRouter = GoRouter(
     // -- Screen 10/11: Checkout + Payment Confirmation.
     GoRoute(
       path: '/checkout/:transactionId',
+      name: RouteNames.checkoutTransaction,
       builder: (context, state) => CheckoutScreen(
         transactionId: state.pathParameters['transactionId']!,
         repository: _checkoutRepository,
@@ -264,6 +275,7 @@ final GoRouter appRouter = GoRouter(
       routes: [
         GoRoute(
           path: 'confirmation',
+          name: RouteNames.checkoutConfirmation,
           builder: (context, state) => PaymentConfirmationScreen(
             transactionId: state.pathParameters['transactionId']!,
             repository: _checkoutRepository,
@@ -278,6 +290,7 @@ final GoRouter appRouter = GoRouter(
     // Screen 4's tab list is Home/Chat/Dashboard/Profile only).
     GoRoute(
       path: '/transactions',
+      name: RouteNames.transactions,
       builder: (context, state) => TransactionHistoryScreen(
         transactionsRepository: _transactionsRepository,
         checkoutRepository: _checkoutRepository,
@@ -290,6 +303,7 @@ final GoRouter appRouter = GoRouter(
     // Screen 26) -- entry point is Account Settings' "Help & Support" row.
     GoRoute(
       path: '/support',
+      name: RouteNames.support,
       builder: (context, state) => SupportScreen(
         supportRepository: _supportRepository,
         authRepository: _authRepository,
@@ -303,6 +317,7 @@ final GoRouter appRouter = GoRouter(
     // same as Listing Detail/Checkout/etc.
     GoRoute(
       path: '/search',
+      name: RouteNames.search,
       builder: (context, state) =>
           SearchResultsScreen(initialQuery: state.uri.queryParameters['q']),
     ),
@@ -320,6 +335,7 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/home',
+              name: RouteNames.home,
               builder: (context, state) => HomeFeedScreen(
                 searchRepository: _homeFeedSearchRepository,
                 pushNotificationService: _pushNotificationService,
@@ -331,6 +347,7 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/chat',
+              name: RouteNames.chat,
               builder: (context, state) => ChatInboxScreen(
                 chatRepository: _chatRepository,
                 authRepository: _authRepository,
@@ -342,6 +359,7 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/host',
+              name: RouteNames.host,
               builder: (context, state) => HostDashboardScreen(
                 dashboardRepository: _hostDashboardRepository,
                 hostAccountRepository: _hostAccountRepository,
@@ -353,6 +371,7 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/settings',
+              name: RouteNames.settings,
               builder: (context, state) => AccountSettingsScreen(
                 authRepository: _authRepository,
                 accountDeletionRepository: _accountDeletionRepository,

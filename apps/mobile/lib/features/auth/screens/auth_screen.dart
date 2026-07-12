@@ -6,6 +6,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../data/auth_repository.dart';
 
@@ -118,7 +119,7 @@ class _AuthScreenState extends State<AuthScreen>
   /// inspecting `result`.
   void _onAuthSuccess(AuthResult result, {required bool isNewSignUp}) {
     if (!mounted) return;
-    context.go(isNewSignUp ? '/auth/role' : '/home');
+    context.goNamed(isNewSignUp ? RouteNames.authRole : RouteNames.home);
   }
 
   Future<void> _submitEmailSignUp() async {
@@ -362,7 +363,7 @@ class _AuthScreenState extends State<AuthScreen>
                 TextButton(
                   onPressed: submitting
                       ? null
-                      : () => context.push('/auth/forgot-password'),
+                      : () => context.pushNamed(RouteNames.authForgotPassword),
                   child: const Text('Forgot password?'),
                 ),
               const SizedBox(height: AppSpacing.lg),

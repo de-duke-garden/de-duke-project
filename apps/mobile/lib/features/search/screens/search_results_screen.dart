@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../data/search_models.dart';
@@ -229,7 +230,10 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
             ? _buildResultsList(state, showOfflineDisabled: false)
             : SearchMapView(
                 results: state.results,
-                onMarkerTap: (id) => context.push('/listing/$id'),
+                onMarkerTap: (id) => context.pushNamed(
+                  RouteNames.listingDetail,
+                  pathParameters: {'id': id},
+                ),
                 onSearchThisArea: (lat, lng) => ref
                     .read(searchNotifierProvider.notifier)
                     .setLocation(latitude: lat, longitude: lng),
@@ -257,7 +261,10 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
             result: result,
             onTap: showOfflineDisabled
                 ? () {}
-                : () => context.push('/listing/${result.id}'),
+                : () => context.pushNamed(
+                    RouteNames.listingDetail,
+                    pathParameters: {'id': result.id},
+                  ),
           );
         },
       ),

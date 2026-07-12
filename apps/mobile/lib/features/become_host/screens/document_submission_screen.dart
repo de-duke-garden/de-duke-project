@@ -7,6 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/image_source_picker.dart';
 import '../data/host_account_models.dart';
@@ -219,7 +220,7 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
                   // screens.md Screen 3b Exit Points: "Host Dashboard
                   // (submission successful, now In Review)" -- button
                   // label already said this, but it routed to Home Feed.
-                  onPressed: () => context.go('/host'),
+                  onPressed: () => context.goNamed(RouteNames.host),
                   child: const Text('Go to Host Dashboard'),
                 ),
               ],

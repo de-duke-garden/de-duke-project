@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/chat_models.dart';
@@ -171,7 +172,10 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                     : 'You are property management',
                 chatRepository: widget.chatRepository,
                 currentUserId: _currentUserId,
-                onTap: () => context.push('/chat/${conversation.id}'),
+                onTap: () => context.pushNamed(
+                  RouteNames.chatThread,
+                  pathParameters: {'id': conversation.id},
+                ),
               );
             },
           ),

@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../data/checkout_repository.dart';
 import '../data/transaction_models.dart';
@@ -201,7 +202,10 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     if (txn != null && txn.status == 'succeeded') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          context.go('/checkout/${widget.transactionId}/confirmation');
+          context.goNamed(
+            RouteNames.checkoutConfirmation,
+            pathParameters: {'transactionId': widget.transactionId},
+          );
         }
       });
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -240,7 +244,10 @@ class _CheckoutScreenState extends State<CheckoutScreen>
               // Details (on cancel or hold expiry)" -- Screen 6b, not
               // Listing Detail itself.
               if (txn != null) {
-                context.go('/listing/${txn.listingId}/confirm-booking');
+                context.goNamed(
+                  RouteNames.listingConfirmBooking,
+                  pathParameters: {'id': txn.listingId},
+                );
               }
             },
           ),
@@ -308,7 +315,10 @@ class _CheckoutScreenState extends State<CheckoutScreen>
           TextButton(
             onPressed: submitting
                 ? null
-                : () => context.go('/listing/${txn.listingId}/confirm-booking'),
+                : () => context.goNamed(
+                      RouteNames.listingConfirmBooking,
+                      pathParameters: {'id': txn.listingId},
+                    ),
             child: const Text('Cancel'),
           ),
         ],

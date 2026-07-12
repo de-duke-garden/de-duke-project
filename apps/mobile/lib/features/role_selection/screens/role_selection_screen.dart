@@ -6,6 +6,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../auth/data/auth_repository.dart';
 
@@ -65,9 +66,9 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   void _routeAfterSelection(String role) {
     if (!mounted) return;
     if (role == 'individual_host' || role == 'agency') {
-      context.go('/verification');
+      context.goNamed(RouteNames.verification);
     } else {
-      context.go('/home');
+      context.goNamed(RouteNames.home);
     }
   }
 

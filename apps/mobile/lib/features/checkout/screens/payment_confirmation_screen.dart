@@ -6,6 +6,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../data/checkout_repository.dart';
 import '../data/transaction_models.dart';
@@ -101,13 +102,13 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => context.go('/transactions'),
+                    onPressed: () => context.goNamed(RouteNames.transactions),
                     child: const Text('View Receipt'),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextButton(
-                  onPressed: () => context.go('/home'),
+                  onPressed: () => context.goNamed(RouteNames.home),
                   child: const Text('Back to Home'),
                 ),
               ],
