@@ -14,7 +14,10 @@ type LoadState = "loading" | "loaded" | "empty" | "error";
 
 /** branding.md `status-badge-pop`: tone per dispute status so the pill
  * reads at a glance and pops when it changes. */
-const STATUS_TONE: Record<DisputeStatus, "info" | "warning" | "success" | "neutral"> = {
+const STATUS_TONE: Record<
+  DisputeStatus,
+  "info" | "warning" | "success" | "neutral"
+> = {
   open: "info",
   under_review: "warning",
   resolved_refunded: "success",
@@ -31,7 +34,9 @@ const STATUS_FILTERS: { value: DisputeStatus | "all"; label: string }[] = [
   { value: "closed", label: "Closed" },
 ];
 
-async function fetchDisputes(statusFilter: DisputeStatus | "all"): Promise<DisputeListItem[]> {
+async function fetchDisputes(
+  statusFilter: DisputeStatus | "all",
+): Promise<DisputeListItem[]> {
   const query = statusFilter === "all" ? "" : `?status_filter=${statusFilter}`;
   const response = await fetch(`${API_BASE_URL}/disputes${query}`);
   if (!response.ok) {
@@ -47,7 +52,9 @@ export function DisputesClient() {
   const [state, setState] = useState<LoadState>("loading");
   const [items, setItems] = useState<DisputeListItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<DisputeStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<DisputeStatus | "all">(
+    "all",
+  );
   const [openDisputeId, setOpenDisputeId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -106,40 +113,50 @@ export function DisputesClient() {
         )}
 
         {state === "loaded" && (
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-text-secondary">
-                <th className="py-sm pr-md">Transaction</th>
-                <th className="py-sm pr-md">Raised by</th>
-                <th className="py-sm pr-md">Reason</th>
-                <th className="py-sm pr-md">Status</th>
-                <th className="py-sm pr-md">Assigned</th>
-                <th className="py-sm">Raised</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr
-                  key={item.id}
-                  className="cursor-pointer border-b border-border transition-colors duration-[120ms] ease-out-smooth hover:bg-surface-secondary dark:hover:bg-surface-secondary-dark"
-                  onClick={() => setOpenDisputeId(item.id)}
-                >
-                  <td className="py-sm pr-md font-medium">{item.transaction_id}</td>
-                  <td className="py-sm pr-md">{item.raised_by_name}</td>
-                  <td className="py-sm pr-md">{REASON_LABELS[item.reason]}</td>
-                  <td className="py-sm pr-md">
-                    <StatusBadge
-                      value={item.status}
-                      label={item.status.replace(/_/g, " ")}
-                      tone={STATUS_TONE[item.status]}
-                    />
-                  </td>
-                  <td className="py-sm pr-md">{item.assigned_staff_name ?? "Unassigned"}</td>
-                  <td className="py-sm">{new Date(item.created_at).toLocaleString()}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-text-secondary">
+                  <th className="py-sm pr-md">Transaction</th>
+                  <th className="py-sm pr-md">Raised by</th>
+                  <th className="py-sm pr-md">Reason</th>
+                  <th className="py-sm pr-md">Status</th>
+                  <th className="py-sm pr-md">Assigned</th>
+                  <th className="py-sm">Raised</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="cursor-pointer border-b border-border transition-colors duration-[120ms] ease-out-smooth hover:bg-surface-secondary dark:hover:bg-surface-secondary-dark"
+                    onClick={() => setOpenDisputeId(item.id)}
+                  >
+                    <td className="py-sm pr-md font-medium">
+                      {item.transaction_id}
+                    </td>
+                    <td className="py-sm pr-md">{item.raised_by_name}</td>
+                    <td className="py-sm pr-md">
+                      {REASON_LABELS[item.reason]}
+                    </td>
+                    <td className="py-sm pr-md">
+                      <StatusBadge
+                        value={item.status}
+                        label={item.status.replace(/_/g, " ")}
+                        tone={STATUS_TONE[item.status]}
+                      />
+                    </td>
+                    <td className="py-sm pr-md">
+                      {item.assigned_staff_name ?? "Unassigned"}
+                    </td>
+                    <td className="py-sm">
+                      {new Date(item.created_at).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

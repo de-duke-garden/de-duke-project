@@ -37,69 +37,140 @@ const ADMIN_ONLY_LINKS = [
  * table, 180ms `ease-out-smooth`): a left-edge bar in `primary` slides
  * to the active route rather than jumping, giving persistent wayfinding
  * continuity as staff move between modules.
+ *
+ * Layout: `h-full` + `flex flex-col` so this stretches to exactly the
+ * shell's viewport-bounded height (see AdminShell.tsx) with the link
+ * list (`<nav>`) as the only flexible/scrollable region -- the header and
+ * footer stay put, and the link list gets its own scrollbar rather than
+ * overflowing the sidebar on a short viewport (e.g. a laptop in a
+ * half-height window) once Staff + Admin-only links are all present.
+ *
+ * Responsive: below the `md` breakpoint this becomes an off-canvas drawer
+ * (fixed position, slid off-screen via `-translate-x-full` until
+ * `mobileOpen`), toggled by AdminShell's mobile top-bar hamburger button.
+ * At `md` and above it reverts to `md:static md:translate-x-0` -- always
+ * visible, part of the normal flex layout, exactly as before.
  */
-export function AdminNav({ session }: { session: AdminSession }) {
+export function AdminNav({
+  session,
+  mobileOpen,
+  onCloseMobile,
+}: {
+  session: AdminSession;
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
+}) {
   const links =
-    session.role === "deduke_admin" ? [...STAFF_LINKS, ...ADMIN_ONLY_LINKS] : STAFF_LINKS;
+    session.role === "deduke_admin"
+      ? [...STAFF_LINKS, ...ADMIN_ONLY_LINKS]
+      : STAFF_LINKS;
   const pathname = usePathname();
 
   const navRef = useRef<HTMLElement>(null);
-  const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
+  const [indicator, setIndicator] = useState<{
+    top: number;
+    height: number;
+  } | null>(null);
 
   useLayoutEffect(() => {
-    const activeEl = navRef.current?.querySelector<HTMLElement>('[data-active="true"]');
+    const activeEl = navRef.current?.querySelector<HTMLElement>(
+      '[data-active="true"]',
+    );
     if (activeEl) {
       setIndicator({ top: activeEl.offsetTop, height: activeEl.offsetHeight });
     }
   }, [pathname, links.length]);
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface dark:border-border-dark dark:bg-surface-dark">
-      <div className="p-md">
-        <span className="font-heading text-lg font-bold text-primary dark:text-primary-dark">
-          De-Duke
-        </span>
-        <p className="mt-xs text-xs text-text-secondary dark:text-text-secondary-dark">
-          Admin Console
-        </p>
-      </div>
+    <>
+      {/* Backdrop -- mobile drawer only, dismisses on tap outside. */}
+      {mobileOpen && (
+        <div
+          aria-hidden
+          onClick={onCloseMobile}
+          className="fixed inset-0 z-30 animate-backdrop-enter bg-black/40 md:hidden"
+        />
+      )}
 
-      <nav ref={navRef} className="relative flex-1 space-y-xs overflow-y-auto px-sm">
-        {indicator && (
-          <span
-            aria-hidden
-            className="absolute left-0 w-[3px] rounded-full bg-primary transition-[top,height] duration-[180ms] ease-out-smooth dark:bg-primary-dark"
-            style={{ top: indicator.top, height: indicator.height }}
-          />
-        )}
-        {links.map((link) => {
-          const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              data-active={isActive}
-              className={`block rounded-md px-sm py-sm text-sm font-medium transition-colors duration-150 ease-out-smooth ${
-                isActive
-                  ? "bg-primary-light text-primary dark:bg-primary-light-dark dark:text-primary-dark"
-                  : "text-text-secondary hover:bg-surface-secondary hover:text-text-primary dark:text-text-secondary-dark dark:hover:bg-surface-secondary-dark dark:hover:text-text-primary-dark"
-              }`}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex h-full w-64 shrink-0 flex-col border-r border-border bg-surface transition-transform duration-200 ease-out-smooth md:static md:translate-x-0 dark:border-border-dark dark:bg-surface-dark ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex items-start justify-between p-md">
+          <div>
+            <span className="font-heading text-lg font-bold text-primary dark:text-primary-dark">
+              De-Duke
+            </span>
+            <p className="mt-xs text-xs text-text-secondary dark:text-text-secondary-dark">
+              Admin Console
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            aria-label="Close navigation"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-surface-secondary hover:text-text-primary md:hidden dark:text-text-secondary-dark dark:hover:bg-surface-secondary-dark dark:hover:text-text-primary-dark"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden
             >
-              {link.label}
-            </Link>
-          );
-        })}
-      </nav>
+              <path d="M2 2l12 12M14 2L2 14" />
+            </svg>
+          </button>
+        </div>
 
-      <div className="border-t border-border p-md dark:border-border-dark">
-        <p className="truncate text-sm text-text-secondary dark:text-text-secondary-dark">
-          {session.fullName}
-        </p>
-        <p className="mb-sm text-xs text-text-secondary dark:text-text-secondary-dark">
-          {session.role === "deduke_admin" ? "Admin" : "Staff"}
-        </p>
-        <LogoutButton />
-      </div>
-    </aside>
+        <nav
+          ref={navRef}
+          className="relative min-h-0 flex-1 space-y-xs overflow-y-auto px-sm"
+        >
+          {indicator && (
+            <span
+              aria-hidden
+              className="absolute left-0 w-[3px] rounded-full bg-primary transition-[top,height] duration-[180ms] ease-out-smooth dark:bg-primary-dark"
+              style={{ top: indicator.top, height: indicator.height }}
+            />
+          )}
+          {links.map((link) => {
+            const isActive =
+              link.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                data-active={isActive}
+                onClick={onCloseMobile}
+                className={`block rounded-md px-sm py-sm text-sm font-medium transition-colors duration-150 ease-out-smooth ${
+                  isActive
+                    ? "bg-primary-light text-primary dark:bg-primary-light-dark dark:text-primary-dark"
+                    : "text-text-secondary hover:bg-surface-secondary hover:text-text-primary dark:text-text-secondary-dark dark:hover:bg-surface-secondary-dark dark:hover:text-text-primary-dark"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="shrink-0 border-t border-border p-md dark:border-border-dark">
+          <p className="truncate text-sm text-text-secondary dark:text-text-secondary-dark">
+            {session.fullName}
+          </p>
+          <p className="mb-sm text-xs text-text-secondary dark:text-text-secondary-dark">
+            {session.role === "deduke_admin" ? "Admin" : "Staff"}
+          </p>
+          <LogoutButton />
+        </div>
+      </aside>
+    </>
   );
 }

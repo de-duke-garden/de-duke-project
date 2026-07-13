@@ -16,10 +16,14 @@ const API_BASE_URL = "/api/backend/v1";
 
 type LoadState = "loading" | "loaded" | "error";
 
-async function fetchRate(transactionType: string): Promise<CommissionRateHistoryResponse> {
+async function fetchRate(
+  transactionType: string,
+): Promise<CommissionRateHistoryResponse> {
   const response = await fetch(API_BASE_URL + "/commission/" + transactionType);
   if (response.ok === false) {
-    throw new Error("Failed to load " + transactionType + " rate (" + response.status + ")");
+    throw new Error(
+      "Failed to load " + transactionType + " rate (" + response.status + ")",
+    );
   }
   return response.json();
 }
@@ -28,11 +32,16 @@ async function saveRate(transactionType: string, ratePercentage: number) {
   const response = await fetch(API_BASE_URL + "/commission", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transaction_type: transactionType, rate_percentage: ratePercentage }),
+    body: JSON.stringify({
+      transaction_type: transactionType,
+      rate_percentage: ratePercentage,
+    }),
   });
   if (response.ok === false) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.detail ?? "Failed to save the new rate (" + response.status + ")");
+    throw new Error(
+      body?.detail ?? "Failed to save the new rate (" + response.status + ")",
+    );
   }
 }
 
@@ -42,15 +51,21 @@ async function saveRate(transactionType: string, ratePercentage: number) {
  * -- `isAdmin` here is a UX nicety, never the security boundary. */
 export function CommissionConfigClient({ isAdmin }: { isAdmin: boolean }) {
   const [state, setState] = useState<LoadState>("loading");
-  const [rates, setRates] = useState<Record<string, CommissionRateHistoryResponse>>({});
+  const [rates, setRates] = useState<
+    Record<string, CommissionRateHistoryResponse>
+  >({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [editingType, setEditingType] = useState<string | null>(null);
-  const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({});
+  const [expandedHistory, setExpandedHistory] = useState<
+    Record<string, boolean>
+  >({});
 
   const load = useCallback(async () => {
     setState("loading");
     try {
-      const results = await Promise.all(TRANSACTION_TYPES.map((t) => fetchRate(t)));
+      const results = await Promise.all(
+        TRANSACTION_TYPES.map((t) => fetchRate(t)),
+      );
       const byType: Record<string, CommissionRateHistoryResponse> = {};
       results.forEach((r) => {
         byType[r.transaction_type] = r;
@@ -101,13 +116,18 @@ export function CommissionConfigClient({ isAdmin }: { isAdmin: boolean }) {
         const isExpanded = expandedHistory[type] ?? false;
 
         return (
-          <div key={type} className="rounded-lg border border-border p-md dark:border-border-dark">
+          <div
+            key={type}
+            className="rounded-lg border border-border p-md dark:border-border-dark"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-heading text-base font-semibold">
                   {TRANSACTION_TYPE_LABELS[type] ?? type}
                 </h3>
-                <RateFigure value={current ? current.rate_percentage + "%" : "Not set"} />
+                <RateFigure
+                  value={current ? current.rate_percentage + "%" : "Not set"}
+                />
               </div>
               {isAdmin && (
                 <button
@@ -127,7 +147,9 @@ export function CommissionConfigClient({ isAdmin }: { isAdmin: boolean }) {
                 setExpandedHistory((prev) => ({ ...prev, [type]: !prev[type] }))
               }
             >
-              {isExpanded ? "Hide history" : "Show history (" + history.length + ")"}
+              {isExpanded
+                ? "Hide history"
+                : "Show history (" + history.length + ")"}
             </button>
 
             {/* branding.md Screen 25 Modernization Notes: the history
@@ -140,8 +162,8 @@ export function CommissionConfigClient({ isAdmin }: { isAdmin: boolean }) {
                 isExpanded ? "grid-rows-[1fr] mt-sm" : "grid-rows-[0fr]"
               }`}
             >
-              <div className="min-h-0">
-                <table className="w-full border-collapse text-sm">
+              <div className="min-h-0 overflow-x-auto">
+                <table className="w-full min-w-[420px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border text-left text-text-secondary">
                       <th className="py-xs pr-md">Rate</th>
@@ -152,8 +174,12 @@ export function CommissionConfigClient({ isAdmin }: { isAdmin: boolean }) {
                   <tbody>
                     {history.map((entry) => (
                       <tr key={entry.id} className="border-b border-border">
-                        <td className="py-xs pr-md">{entry.rate_percentage}%</td>
-                        <td className="py-xs pr-md">{new Date(entry.effective_from).toLocaleString()}</td>
+                        <td className="py-xs pr-md">
+                          {entry.rate_percentage}%
+                        </td>
+                        <td className="py-xs pr-md">
+                          {new Date(entry.effective_from).toLocaleString()}
+                        </td>
                         <td className="py-xs">{entry.set_by_id}</td>
                       </tr>
                     ))}
@@ -196,7 +222,9 @@ function RateFigure({ value }: { value: string }) {
   }, [value]);
 
   return (
-    <p className={`mt-xs text-2xl font-semibold text-primary ${popping ? "animate-badge-pop" : ""}`}>
+    <p
+      className={`mt-xs text-2xl font-semibold text-primary ${popping ? "animate-badge-pop" : ""}`}
+    >
       {value}
     </p>
   );

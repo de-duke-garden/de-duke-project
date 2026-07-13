@@ -22,10 +22,26 @@ const ACTION_COPY: Record<
   PendingAction["kind"],
   { title: string; confirmLabel: string; endpoint: string }
 > = {
-  deactivate: { title: "Deactivate this account?", confirmLabel: "Deactivate", endpoint: "deactivate" },
-  reactivate: { title: "Reactivate this account?", confirmLabel: "Reactivate", endpoint: "reactivate" },
-  promote: { title: "Promote to Admin?", confirmLabel: "Promote", endpoint: "promote" },
-  demote: { title: "Demote to Staff?", confirmLabel: "Demote", endpoint: "demote" },
+  deactivate: {
+    title: "Deactivate this account?",
+    confirmLabel: "Deactivate",
+    endpoint: "deactivate",
+  },
+  reactivate: {
+    title: "Reactivate this account?",
+    confirmLabel: "Reactivate",
+    endpoint: "reactivate",
+  },
+  promote: {
+    title: "Promote to Admin?",
+    confirmLabel: "Promote",
+    endpoint: "promote",
+  },
+  demote: {
+    title: "Demote to Staff?",
+    confirmLabel: "Demote",
+    endpoint: "demote",
+  },
 };
 
 /** Minimal, screen-scoped toast for "Invitation sent to [email]"
@@ -35,7 +51,13 @@ const ACTION_COPY: Record<
  * exists yet in this app, so this is local component state rather than
  * a shared system -- see AGENTS.md scope note if a second screen needs
  * this later. */
-function InviteToast({ email, onDismiss }: { email: string; onDismiss: () => void }) {
+function InviteToast({
+  email,
+  onDismiss,
+}: {
+  email: string;
+  onDismiss: () => void;
+}) {
   const hovering = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -77,7 +99,9 @@ export function StaffAccountsClient() {
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [toastEmail, setToastEmail] = useState<string | null>(null);
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(
+    null,
+  );
   const [actionBusy, setActionBusy] = useState(false);
 
   const loadAccounts = useCallback(async () => {
@@ -96,7 +120,9 @@ export function StaffAccountsClient() {
       }
       setAccounts(await response.json());
     } catch {
-      setError("Could not reach the server. Check your connection and try again.");
+      setError(
+        "Could not reach the server. Check your connection and try again.",
+      );
       setAccounts([]);
     }
   }, []);
@@ -125,7 +151,9 @@ export function StaffAccountsClient() {
       setToastEmail(email);
       await loadAccounts();
     } catch {
-      setError("Could not reach the server. Check your connection and try again.");
+      setError(
+        "Could not reach the server. Check your connection and try again.",
+      );
       setInviteBusy(false);
     }
   }
@@ -136,7 +164,11 @@ export function StaffAccountsClient() {
     const endpoint = ACTION_COPY[pendingAction.kind].endpoint;
     try {
       const response = await fetch(
-        API_BASE_URL + "/staff-accounts/" + pendingAction.account.id + "/" + endpoint,
+        API_BASE_URL +
+          "/staff-accounts/" +
+          pendingAction.account.id +
+          "/" +
+          endpoint,
         { method: "POST" },
       );
       const body = await response.json().catch(() => ({}));
@@ -147,7 +179,9 @@ export function StaffAccountsClient() {
       setActionBusy(false);
       await loadAccounts();
     } catch {
-      setError("Could not reach the server. Check your connection and try again.");
+      setError(
+        "Could not reach the server. Check your connection and try again.",
+      );
       setActionBusy(false);
     }
   }
@@ -167,15 +201,19 @@ export function StaffAccountsClient() {
       )}
 
       {error && (
-        <div role="alert" className="mb-md rounded-md border border-error bg-error/10 p-sm text-sm text-error">
+        <div
+          role="alert"
+          className="mb-md rounded-md border border-error bg-error/10 p-sm text-sm text-error"
+        >
           {error}
         </div>
       )}
 
       {inviteLink && (
         <div className="mb-md rounded-md border border-primary bg-primary-light p-sm text-sm">
-          Invite created. Share this one-time link with the new staff member (email dispatch is
-          not yet wired up): <code className="break-all">{inviteLink}</code>
+          Invite created. Share this one-time link with the new staff member
+          (email dispatch is not yet wired up):{" "}
+          <code className="break-all">{inviteLink}</code>
         </div>
       )}
 
@@ -191,76 +229,88 @@ export function StaffAccountsClient() {
       {accounts.length === 0 ? (
         <p className="text-text-secondary">No staff accounts yet.</p>
       ) : (
-        <table className="w-full border-collapse text-left text-sm">
-          <thead>
-            <tr className="border-b border-border dark:border-border-dark">
-              <th className="p-sm">Name</th>
-              <th className="p-sm">Email</th>
-              <th className="p-sm">Role</th>
-              <th className="p-sm">Status</th>
-              <th className="p-sm">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {accounts.map((account) => (
-              <tr
-                key={account.id}
-                className="border-b border-border transition-colors duration-[120ms] ease-out-smooth hover:bg-surface-secondary dark:border-border-dark dark:hover:bg-surface-secondary-dark"
-              >
-                <td className="p-sm">{account.full_name}</td>
-                <td className="p-sm">{account.email ?? "--"}</td>
-                <td className="p-sm">
-                  <StatusBadge
-                    value={account.role}
-                    label={account.role.replace("deduke_", "")}
-                    tone={account.role === "deduke_admin" ? "primary" : "neutral"}
-                  />
-                </td>
-                <td className="p-sm">
-                  <StatusBadge
-                    value={account.is_active ? "active" : "deactivated"}
-                    label={account.is_active ? "Active" : "Deactivated"}
-                    tone={account.is_active ? "success" : "error"}
-                  />
-                </td>
-                <td className="p-sm">
-                  <div className="flex flex-wrap gap-xs">
-                    {account.is_active ? (
-                      <button
-                        className="text-error underline"
-                        onClick={() => setPendingAction({ account, kind: "deactivate" })}
-                      >
-                        Deactivate
-                      </button>
-                    ) : (
-                      <button
-                        className="text-primary underline"
-                        onClick={() => setPendingAction({ account, kind: "reactivate" })}
-                      >
-                        Reactivate
-                      </button>
-                    )}
-                    {account.role === "deduke_staff" ? (
-                      <button
-                        className="text-primary underline"
-                        onClick={() => setPendingAction({ account, kind: "promote" })}
-                      >
-                        Promote to Admin
-                      </button>
-                    ) : (
-                      <button
-                        className="text-text-secondary underline"
-                        onClick={() => setPendingAction({ account, kind: "demote" })}
-                      >
-                        Demote to Staff
-                      </button>
-                    )}
-                  </div>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-border dark:border-border-dark">
+                <th className="p-sm">Name</th>
+                <th className="p-sm">Email</th>
+                <th className="p-sm">Role</th>
+                <th className="p-sm">Status</th>
+                <th className="p-sm">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {accounts.map((account) => (
+                <tr
+                  key={account.id}
+                  className="border-b border-border transition-colors duration-[120ms] ease-out-smooth hover:bg-surface-secondary dark:border-border-dark dark:hover:bg-surface-secondary-dark"
+                >
+                  <td className="p-sm">{account.full_name}</td>
+                  <td className="p-sm">{account.email ?? "--"}</td>
+                  <td className="p-sm">
+                    <StatusBadge
+                      value={account.role}
+                      label={account.role.replace("deduke_", "")}
+                      tone={
+                        account.role === "deduke_admin" ? "primary" : "neutral"
+                      }
+                    />
+                  </td>
+                  <td className="p-sm">
+                    <StatusBadge
+                      value={account.is_active ? "active" : "deactivated"}
+                      label={account.is_active ? "Active" : "Deactivated"}
+                      tone={account.is_active ? "success" : "error"}
+                    />
+                  </td>
+                  <td className="p-sm">
+                    <div className="flex flex-wrap gap-xs">
+                      {account.is_active ? (
+                        <button
+                          className="text-error underline"
+                          onClick={() =>
+                            setPendingAction({ account, kind: "deactivate" })
+                          }
+                        >
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          className="text-primary underline"
+                          onClick={() =>
+                            setPendingAction({ account, kind: "reactivate" })
+                          }
+                        >
+                          Reactivate
+                        </button>
+                      )}
+                      {account.role === "deduke_staff" ? (
+                        <button
+                          className="text-primary underline"
+                          onClick={() =>
+                            setPendingAction({ account, kind: "promote" })
+                          }
+                        >
+                          Promote to Admin
+                        </button>
+                      ) : (
+                        <button
+                          className="text-text-secondary underline"
+                          onClick={() =>
+                            setPendingAction({ account, kind: "demote" })
+                          }
+                        >
+                          Demote to Staff
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {showInvite && (
