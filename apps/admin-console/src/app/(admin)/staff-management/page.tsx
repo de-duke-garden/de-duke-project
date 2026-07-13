@@ -5,7 +5,7 @@ export default function Page() {
     <main className="p-lg">
       <h1 className="font-heading text-xl font-semibold">Staff Management</h1>
       <p className="text-text-secondary">
-        Invite, deactivate, promote, or demote Staff and Admin accounts (FEAT-033). Admin-only.
+        Invite, deactivate, promote, or demote Staff and Admin accounts. Admin-only.
       </p>
       <StaffAccountsClient />
     </main>

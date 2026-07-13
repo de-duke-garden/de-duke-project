@@ -412,6 +412,13 @@ class _AuthScreenState extends State<AuthScreen>
                       : () => context.pushNamed(RouteNames.authForgotPassword),
                   child: const Text('Forgot password?'),
                 ),
+              if (!_isSignUpTab)
+                TextButton(
+                  onPressed: submitting
+                      ? null
+                      : () => context.pushNamed(RouteNames.authAcceptInvite),
+                  child: const Text('Have an invite link?'),
+                ),
               const SizedBox(height: AppSpacing.lg),
               Text(
                 'By continuing you agree to our Terms of Service and Privacy Policy.',

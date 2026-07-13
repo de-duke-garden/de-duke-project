@@ -103,7 +103,10 @@ async def invite_team_member(
     except agency_service.AgencyError as exc:
         raise _handle_agency_error(exc) from exc
 
-    mobile_app_url = get_settings().admin_console_url.rstrip("/")
+    # Fixed bug: this previously reused admin_console_url (a Staff/Admin-
+    # only web tool) -- agency team members accept their invite in the
+    # MOBILE app instead (see mobile_app_invite_base_url's docstring).
+    mobile_app_url = get_settings().mobile_app_invite_base_url.rstrip("/")
     invite_link = f"{mobile_app_url}/accept-invite?token={raw_token}&uid={user.id}"
 
     if user.email:

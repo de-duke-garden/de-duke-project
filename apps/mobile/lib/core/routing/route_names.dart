@@ -21,6 +21,9 @@ abstract final class RouteNames {
   // -- Forgot Password (child of /auth).
   static const authForgotPassword = 'authForgotPassword';
 
+  // -- Accept Invite (child of /auth) -- FEAT-012/FEAT-033 invite flows.
+  static const authAcceptInvite = 'authAcceptInvite';
+
   // -- Screen 3a: Become a Host / verification type picker.
   static const verification = 'verification';
 

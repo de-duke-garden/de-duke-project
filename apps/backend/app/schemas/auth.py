@@ -65,6 +65,16 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
+class AcceptInviteRequest(BaseModel):
+    """FEAT-033 (Staff/Admin invite) and FEAT-012 (Agency team invite)
+    share this one endpoint -- both invite flows produce the same
+    `?token=...&uid=...` link shape, see auth_service.accept_invite."""
+
+    user_id: str
+    invite_token: str
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class CurrentUserResponse(BaseModel):
     """GET /v1/auth/me -- resolves the caller's identity from their access
     token. Used by server-side consumers (e.g. the Admin Web Console) that

@@ -216,6 +216,38 @@ class AuthRepository {
     }
   }
 
+  /// FEAT-012's Agency Team invite AC ("the invitee sets their own
+  /// password"): an invited team member pastes the userId + invite token
+  /// from their invite email/link (see AcceptInviteScreen) and chooses a
+  /// real password here. Returns a full session -- same shape as
+  /// register/login -- so the invitee lands signed-in immediately.
+  Future<AuthResult> acceptInvite({
+    required String userId,
+    required String inviteToken,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await _apiClient.dio.post(
+        '/v1/auth/accept-invite',
+        data: {
+          'user_id': userId,
+          'invite_token': inviteToken,
+          'new_password': newPassword,
+        },
+      );
+      final body = response.data as Map<String, dynamic>;
+      await _persistSession(body);
+      return AuthResult(
+        userId: body['user_id'] as String,
+        role: body['role'] as String,
+        isVerifiedHost: body['is_verified_host'] as bool,
+      );
+    } on DioException catch (e) {
+      throw AuthException(_errorMessage(
+          e, 'This invite link is invalid or has already been used.'));
+    }
+  }
+
   /// Revokes the refresh token server-side (best-effort -- proceeds to
   /// clear local session even if the network call fails, since the user
   /// must always be able to log out locally regardless of connectivity).

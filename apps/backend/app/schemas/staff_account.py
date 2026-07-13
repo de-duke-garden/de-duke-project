@@ -29,11 +29,11 @@ class InviteStaffResponse(BaseModel):
     account: StaffAccountOut
     invite_link: str = Field(
         description=(
-            "One-time link the invitee uses to set their own password. "
-            "TODO(email dispatch): app/services/email_service.py does not yet exist "
-            "(no other subagent has created it) -- this link is returned in the "
-            "response instead of being emailed. Wire this through SES once that "
-            "service lands."
+            "One-time link the invitee uses to set their own password via "
+            "POST /v1/auth/accept-invite (app/services/auth_service.py). "
+            "Also emailed to the invitee directly (see "
+            "app/api/v1/staff_accounts.py's invite_staff) -- returned here too "
+            "so the inviting Admin can copy/share it directly if needed."
         )
     )
 

@@ -27,6 +27,7 @@ import '../../features/agency/screens/portfolio_list_screen.dart';
 import '../../features/agency/screens/team_management_screen.dart';
 import '../../features/agency/screens/unassigned_leads_inbox_screen.dart';
 import '../../features/auth/data/auth_repository.dart';
+import '../../features/auth/screens/accept_invite_screen.dart';
 import '../../features/auth/screens/auth_screen.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/become_host/data/host_account_models.dart';
@@ -220,6 +221,14 @@ final GoRouter appRouter = GoRouter(
           name: RouteNames.authForgotPassword,
           builder: (context, state) =>
               ForgotPasswordScreen(repository: _authRepository),
+        ),
+        GoRoute(
+          path: 'accept-invite',
+          name: RouteNames.authAcceptInvite,
+          builder: (context, state) => AcceptInviteScreen(
+            repository: _authRepository,
+            onAccepted: (_) => context.goNamed(RouteNames.home),
+          ),
         ),
       ],
     ),

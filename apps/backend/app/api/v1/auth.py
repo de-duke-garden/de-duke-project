@@ -11,6 +11,7 @@ from app.core.db import get_session
 from app.core.security import CurrentUser, UserRole, get_current_user
 from app.models.user import User
 from app.schemas.auth import (
+    AcceptInviteRequest,
     AuthTokenResponse,
     CurrentUserResponse,
     ForgotPasswordRequest,
@@ -179,6 +180,34 @@ async def reset_password(
 ) -> None:
     await auth_service.reset_password(
         session, reset_token=payload.reset_token, new_password=payload.new_password
+    )
+
+
+@router.post("/accept-invite", response_model=AuthTokenResponse, status_code=status.HTTP_200_OK)
+async def accept_invite(
+    payload: AcceptInviteRequest, session: AsyncSession = Depends(get_session)
+) -> AuthTokenResponse:
+    """FEAT-033 (Admin Web Console Staff/Admin invite) and FEAT-012 (mobile
+    Agency team invite) AC: "the invitee sets their own password via an
+    emailed invitation link" -- shared by both invite flows since they
+    produce the same link shape (see auth_service.accept_invite). Returns
+    a full session (like register/login) so the invitee lands signed-in
+    immediately after choosing their password, rather than being sent back
+    to a separate login screen.
+    """
+    user = await auth_service.accept_invite(
+        session,
+        user_id=payload.user_id,
+        invite_token=payload.invite_token,
+        new_password=payload.new_password,
+    )
+    access_token, refresh_token = await auth_service.issue_tokens(user)
+    return AuthTokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user_id=user.id,
+        role=user.role,
+        is_verified_host=user.is_verified_host,
     )
 
 

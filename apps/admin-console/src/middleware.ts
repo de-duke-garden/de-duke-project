@@ -16,7 +16,9 @@ import { SESSION_COOKIE_NAME } from "@/lib/auth";
 // route `/s/:token`) -- explicitly "Web (external, unauthenticated)"; a
 // non-app-user approver must be able to load it with no session cookie at
 // all, so it's allowlisted here alongside the login page itself.
-const PUBLIC_PATHS = ["/login", "/api/session", "/s"];
+// "/accept-invite" is FEAT-033's invite-acceptance page -- a brand-new
+// Staff/Admin invitee has no session cookie yet either.
+const PUBLIC_PATHS = ["/login", "/api/session", "/s", "/accept-invite"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

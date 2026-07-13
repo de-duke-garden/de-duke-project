@@ -149,6 +149,19 @@ class Settings(BaseSettings):
     # invite links). Never hardcode this -- it differs per environment
     # (local dev, staging, production).
     admin_console_url: str = "http://localhost:3000"
+    # Placeholder base for FEAT-012's Agency Team invite link -- distinct
+    # from admin_console_url above: agency team members accept their invite
+    # in the MOBILE app (AcceptInviteScreen), not the Admin Web Console, so
+    # this must never reuse admin_console_url (that was a real bug -- see
+    # app/api/v1/agency.py's fix). No Android App Links / iOS Universal
+    # Links are configured anywhere in this codebase yet (that requires
+    # hosting assetlinks.json/apple-app-site-association at a real
+    # production domain -- an infra/deploy concern, not fabricated here),
+    # so this URL doesn't need to auto-open the app: the invite email
+    # instructs the recipient to paste the link into the app's "Have an
+    # invite link?" screen instead. Update once a real marketing/landing
+    # domain and mobile deep-linking are configured.
+    mobile_app_invite_base_url: str = "https://app.deduke.example"
 
     @model_validator(mode="after")
     def _apply_deployed_secrets(self) -> "Settings":

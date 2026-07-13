@@ -267,6 +267,54 @@ async def reset_password(session: AsyncSession, *, reset_token: str, new_passwor
     await session.commit()
 
 
+async def accept_invite(
+    session: AsyncSession, *, user_id: str, invite_token: str, new_password: str
+) -> User:
+    """FEAT-033 AC ("the invitee sets their own password via an emailed
+    invitation link") and FEAT-012's identical agency-team-invite flow
+    (app/services/agency_service.py::invite_team_member) -- both invite
+    flows create the new account with `password_hash = hash_password(raw_token)`
+    (see staff_account_service.invite_staff), using the invite token itself
+    as a one-time bootstrap password rather than standing up a whole
+    separate token store (the Cache-backed pattern `reset_password` above
+    uses) for what is, structurally, the exact same "prove you hold the
+    token, then set a real password" operation.
+
+    This endpoint is that missing second half: it verifies `invite_token`
+    against the account's *current* password hash (i.e. logs the invitee in
+    with the token as their password, without going through the public
+    /auth/login endpoint's is_active gate quirks) and then overwrites
+    password_hash with a password the invitee actually chose. This is
+    naturally single-use and needs no separate expiry/consumption tracking:
+    once accepted, password_hash no longer matches the original raw token,
+    so replaying the same invite link a second time simply fails the
+    verify_password check below -- exactly like a reused one-time code
+    would, but without a second piece of state to keep in sync.
+    """
+    user = await session.get(User, user_id)
+    if (
+        user is None
+        or user.password_hash is None
+        or not verify_password(invite_token, user.password_hash)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This invite link is invalid or has already been used.",
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account has been deactivated. Contact an Admin for a new invite.",
+        )
+
+    user.password_hash = hash_password(new_password)
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
 async def get_notification_preferences(session: AsyncSession, *, user_id: str) -> dict[str, bool]:
     user = await session.get(User, user_id)
     if user is None:
