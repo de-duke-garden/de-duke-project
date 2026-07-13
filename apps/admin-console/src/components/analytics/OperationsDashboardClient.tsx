@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { CardGridSkeleton } from "@/components/ui/Skeleton";
+
 import { CardSection, MetricCard } from "./MetricCard";
 import type { OperationsDashboard } from "./types";
 
@@ -60,7 +62,7 @@ export function OperationsDashboardClient() {
   }, [load]);
 
   if (state === "loading") {
-    return <p className="text-text-secondary">Loading operations metrics...</p>;
+    return <CardGridSkeleton count={6} />;
   }
 
   if (state === "error") {
@@ -83,10 +85,11 @@ export function OperationsDashboardClient() {
   }
 
   const workloadEntries = Object.entries(data.staff_workload);
+  const maxWorkload = Math.max(1, ...workloadEntries.map(([, count]) => count));
 
   return (
-    <>
-      <CardSection title="Moderation & Verification">
+    <div key="loaded">
+      <CardSection title="Moderation & Verification" startIndex={0}>
         <MetricCard
           label="Moderation Queue size"
           value={data.moderation_queue.queue_size}
@@ -101,7 +104,7 @@ export function OperationsDashboardClient() {
         />
       </CardSection>
 
-      <CardSection title="Trust & Safety">
+      <CardSection title="Trust & Safety" startIndex={2}>
         <MetricCard
           label="Open disputes"
           value={data.disputes.open_count}
@@ -115,7 +118,7 @@ export function OperationsDashboardClient() {
         />
       </CardSection>
 
-      <CardSection title="Support">
+      <CardSection title="Support" startIndex={4}>
         {/* screens.md Screen 29 AC: Support Inbox volume/first-response
          * time. Genuinely unavailable -- that data lives in Firestore, out
          * of reach of this Primary-Database-only aggregation (see
@@ -129,7 +132,7 @@ export function OperationsDashboardClient() {
         />
       </CardSection>
 
-      <CardSection title="Bookings">
+      <CardSection title="Bookings" startIndex={5}>
         <MetricCard
           label="Hold-to-payment conversion"
           value={pct(data.booking_holds.hold_to_payment_conversion_rate)}
@@ -148,16 +151,24 @@ export function OperationsDashboardClient() {
         {workloadEntries.length === 0 ? (
           <p className="mt-sm text-text-secondary">No open items currently assigned to staff.</p>
         ) : (
-          <ul className="mt-sm space-y-xs">
+          <ul className="mt-sm space-y-sm">
             {workloadEntries.map(([staffId, count]) => (
-              <li key={staffId} className="flex justify-between border-b border-border py-xs text-sm">
-                <span>{staffId}</span>
-                <span className="font-medium">{count}</span>
+              <li key={staffId} className="text-sm">
+                <div className="flex justify-between">
+                  <span>{staffId}</span>
+                  <span className="font-medium">{count}</span>
+                </div>
+                <div className="mt-1 h-1.5 w-full origin-left rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
+                  <div
+                    className="animate-grow-in h-1.5 origin-left rounded-full bg-primary"
+                    style={{ width: `${(count / maxWorkload) * 100}%` }}
+                  />
+                </div>
               </li>
             ))}
           </ul>
         )}
       </section>
-    </>
+    </div>
   );
 }

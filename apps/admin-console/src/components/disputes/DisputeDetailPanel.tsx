@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 
+import { Modal } from "@/components/ui/Modal";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { StaffAccount } from "../staff-management/types";
 import { REASON_LABELS } from "./types";
-import type { DisputeDetail, DisputeResolution } from "./types";
+import type { DisputeDetail, DisputeResolution, DisputeStatus } from "./types";
 
 const API_BASE_URL = "/api/backend/v1";
 
@@ -13,6 +15,16 @@ interface Props {
   onClose: () => void;
   onChanged: () => void;
 }
+
+/** branding.md `status-badge-pop`: tone per dispute status, mirrored from
+ * DisputesClient so the pill reads consistently and pops on change. */
+const STATUS_TONE: Record<DisputeStatus, "info" | "warning" | "success" | "neutral"> = {
+  open: "info",
+  under_review: "warning",
+  resolved_refunded: "success",
+  resolved_no_refund: "neutral",
+  closed: "neutral",
+};
 
 async function fetchDetail(id: string): Promise<DisputeDetail> {
   const response = await fetch(`${API_BASE_URL}/disputes/${id}`);
@@ -76,6 +88,16 @@ export function DisputeDetailPanel({ disputeId, onClose, onChanged }: Props) {
   const [refundAmount, setRefundAmount] = useState("");
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
+
+  // branding.md Screen 24 Modernization Notes: opening the Dispute Detail
+  // View slides in at `duration-normal` from the table rather than an
+  // instant swap -- mounted starts false and flips true a frame later so
+  // the transition actually runs.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   async function load() {
     try {
@@ -142,8 +164,16 @@ export function DisputeDetailPanel({ disputeId, onClose, onChanged }: Props) {
   const isResolved = detail?.status === "resolved_refunded" || detail?.status === "resolved_no_refund";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-md">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-surface p-lg shadow-xl dark:bg-surface-secondary-dark">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-end bg-black/40 p-md transition-opacity duration-200 ease-out-smooth ${
+        mounted ? "opacity-100" : "opacity-0"
+      }`}
+    >
+      <div
+        className={`max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-surface p-lg shadow-xl transition-transform duration-200 ease-out-smooth dark:bg-surface-secondary-dark ${
+          mounted ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
         <div className="flex items-center justify-between">
           <h2 className="font-heading text-lg font-semibold">Dispute detail</h2>
           <button type="button" className="text-sm text-text-secondary" onClick={onClose}>
@@ -180,12 +210,25 @@ export function DisputeDetailPanel({ disputeId, onClose, onChanged }: Props) {
             </div>
             <div>
               <p className="font-medium">Status</p>
-              <p className="capitalize text-text-secondary">{detail.status.replace(/_/g, " ")}</p>
+              <div className="mt-xs">
+                <StatusBadge
+                  value={detail.status}
+                  label={detail.status.replace(/_/g, " ")}
+                  tone={STATUS_TONE[detail.status]}
+                />
+              </div>
             </div>
 
             {isResolved ? (
               <div className="rounded-md border border-border p-md">
-                <p className="font-medium">Resolution</p>
+                <div className="flex items-center gap-sm">
+                  <p className="font-medium">Resolution</p>
+                  <StatusBadge
+                    value={detail.status}
+                    label={detail.status === "resolved_refunded" ? "Refunded" : "No refund"}
+                    tone={detail.status === "resolved_refunded" ? "success" : "neutral"}
+                  />
+                </div>
                 <p className="text-text-secondary">
                   {detail.status === "resolved_refunded"
                     ? `Refunded ₦${detail.refund_amount?.toLocaleString()}`
@@ -253,12 +296,21 @@ export function DisputeDetailPanel({ disputeId, onClose, onChanged }: Props) {
                     </button>
                   </div>
                 ) : (
-                  <div className="rounded-md border border-border p-md">
-                    <p className="font-medium">
+                  <Modal
+                    size="sm"
+                    labelledBy="resolve-dispute-heading"
+                    onClose={() => {
+                      if (!resolving) {
+                        setPendingResolution(null);
+                        setResolveError(null);
+                      }
+                    }}
+                  >
+                    <h3 id="resolve-dispute-heading" className="font-medium">
                       {pendingResolution === "resolved_refunded"
                         ? "Resolve with refund"
                         : "Resolve without refund"}
-                    </p>
+                    </h3>
                     {pendingResolution === "resolved_refunded" && (
                       <>
                         <label className="mt-sm block text-sm" htmlFor="refund-amount">
@@ -311,7 +363,7 @@ export function DisputeDetailPanel({ disputeId, onClose, onChanged }: Props) {
                         {resolving ? "Submitting..." : "Confirm"}
                       </button>
                     </div>
-                  </div>
+                  </Modal>
                 )}
               </>
             )}

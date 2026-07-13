@@ -7,7 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/de_duke_logo.dart';
+import '../../../core/widgets/tap_scale.dart';
 import '../data/auth_repository.dart';
 
 enum _ScreenState { idle, submitting, otpSent, error, offline }
@@ -32,6 +35,10 @@ class _AuthScreenState extends State<AuthScreen>
   bool _usePhone = false;
   bool _otpRequested = false;
 
+  /// screens.md Screen 1 Modernization Notes: onboarding illustration
+  /// fades/settles in at `duration-slow` on first paint.
+  double _brandOpacity = 0;
+
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -50,6 +57,10 @@ class _AuthScreenState extends State<AuthScreen>
       vsync: this,
       initialIndex: widget.initialTabIndex,
     );
+    // Kick off the branded top section's fade-in on first paint.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _brandOpacity = 1);
+    });
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         setState(() {
@@ -260,10 +271,22 @@ class _AuthScreenState extends State<AuthScreen>
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
-              const SizedBox(height: AppSpacing.xl),
-              Text('De-Duke',
-                  style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: AppSpacing.xs),
+              const SizedBox(height: AppSpacing.lg),
+              // screens.md Screen 1 Modernization Notes: full-bleed branded
+              // top section. branding.md's Logo Usage row calls for the
+              // full lockup (mark + separately-set Manrope wordmark) here,
+              // fading/settling in at `duration-slow` on first paint. The
+              // real shipped mark (de-duke.png) is the sole brand glyph on
+              // this screen -- the placeholder house-glyph illustration
+              // previously duplicated here has been removed so it doesn't
+              // compete with the actual logo.
+              AnimatedOpacity(
+                opacity: _brandOpacity,
+                duration: AppDurations.slow,
+                curve: AppCurves.easeOutSmooth,
+                child: const Center(child: DeDukeLogoLockup(markSize: 96)),
+              ),
+              const SizedBox(height: AppSpacing.lg),
               Text(
                 'Verified property. Real conversations. Deals that close.',
                 style: Theme.of(context).textTheme.bodyMedium,
@@ -289,75 +312,98 @@ class _AuthScreenState extends State<AuthScreen>
                       'Enter the code we sent to ${_phoneController.text.trim()}.',
                   isInfo: true,
                 ),
-              if (_isSignUpTab)
-                TextFormField(
-                  controller: _fullNameController,
-                  decoration: const InputDecoration(labelText: 'Full name'),
-                  enabled: !submitting,
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Enter your full name'
-                      : null,
-                ),
-              if (_isSignUpTab) const SizedBox(height: AppSpacing.sm),
-              if (!_usePhone)
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                  keyboardType: TextInputType.emailAddress,
-                  enabled: !submitting,
-                  validator: (v) => (v == null || !v.contains('@'))
-                      ? 'Enter a valid email'
-                      : null,
-                )
-              else
-                TextFormField(
-                  controller: _phoneController,
-                  decoration: const InputDecoration(labelText: 'Phone number'),
-                  keyboardType: TextInputType.phone,
-                  enabled: !submitting && !_otpRequested,
-                  validator: (v) => (v == null || v.trim().length < 8)
-                      ? 'Enter a valid phone number'
-                      : null,
-                ),
-              const SizedBox(height: AppSpacing.sm),
-              if (!_usePhone)
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(labelText: 'Password'),
-                  obscureText: true,
-                  enabled: !submitting,
-                  validator: (v) => (v == null || v.length < 8)
-                      ? 'Password must be at least 8 characters'
-                      : null,
-                ),
-              if (_usePhone && _otpRequested)
-                TextFormField(
-                  controller: _otpController,
-                  decoration:
-                      const InputDecoration(labelText: 'Verification code'),
-                  keyboardType: TextInputType.number,
-                  enabled: !submitting,
-                  validator: (v) => (v == null || v.trim().length < 4)
-                      ? 'Enter the code you received'
-                      : null,
-                ),
-              const SizedBox(height: AppSpacing.md),
-              ElevatedButton(
-                onPressed: submitting ? null : _handlePrimaryAction,
-                child: submitting
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+              // screens.md Screen 1 Modernization Notes: switching between
+              // Sign Up / Log In crossfades the shared identifier/password
+              // fields at `duration-normal` rather than a hard cut.
+              AnimatedSwitcher(
+                duration: AppDurations.normal,
+                switchInCurve: AppCurves.easeOutSmooth,
+                child: Column(
+                  key: ValueKey('${_isSignUpTab}_$_usePhone$_otpRequested'),
+                  children: [
+                    if (_isSignUpTab)
+                      TextFormField(
+                        controller: _fullNameController,
+                        decoration:
+                            const InputDecoration(labelText: 'Full name'),
+                        enabled: !submitting,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Enter your full name'
+                            : null,
+                      ),
+                    if (_isSignUpTab) const SizedBox(height: AppSpacing.sm),
+                    if (!_usePhone)
+                      TextFormField(
+                        controller: _emailController,
+                        decoration: const InputDecoration(labelText: 'Email'),
+                        keyboardType: TextInputType.emailAddress,
+                        enabled: !submitting,
+                        validator: (v) => (v == null || !v.contains('@'))
+                            ? 'Enter a valid email'
+                            : null,
                       )
-                    : Text(_primaryButtonLabel()),
+                    else
+                      TextFormField(
+                        controller: _phoneController,
+                        decoration:
+                            const InputDecoration(labelText: 'Phone number'),
+                        keyboardType: TextInputType.phone,
+                        enabled: !submitting && !_otpRequested,
+                        validator: (v) => (v == null || v.trim().length < 8)
+                            ? 'Enter a valid phone number'
+                            : null,
+                      ),
+                    const SizedBox(height: AppSpacing.sm),
+                    if (!_usePhone)
+                      TextFormField(
+                        controller: _passwordController,
+                        decoration:
+                            const InputDecoration(labelText: 'Password'),
+                        obscureText: true,
+                        enabled: !submitting,
+                        validator: (v) => (v == null || v.length < 8)
+                            ? 'Password must be at least 8 characters'
+                            : null,
+                      ),
+                    if (_usePhone && _otpRequested)
+                      TextFormField(
+                        controller: _otpController,
+                        decoration: const InputDecoration(
+                            labelText: 'Verification code'),
+                        keyboardType: TextInputType.number,
+                        enabled: !submitting,
+                        validator: (v) => (v == null || v.trim().length < 4)
+                            ? 'Enter the code you received'
+                            : null,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              // Continue is the primary CTA -- `tap-scale-emphasis`.
+              TapScale(
+                emphasis: true,
+                onTap: submitting ? null : _handlePrimaryAction,
+                child: ElevatedButton(
+                  onPressed: submitting ? null : _handlePrimaryAction,
+                  child: submitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(_primaryButtonLabel()),
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              TextButton(
-                onPressed: submitting ? null : _togglePhone,
-                child: Text(_usePhone
-                    ? 'Use email instead'
-                    : 'Use phone number instead'),
+              TapScale(
+                onTap: submitting ? null : _togglePhone,
+                child: TextButton(
+                  onPressed: submitting ? null : _togglePhone,
+                  child: Text(_usePhone
+                      ? 'Use email instead'
+                      : 'Use phone number instead'),
+                ),
               ),
               if (!_isSignUpTab)
                 TextButton(

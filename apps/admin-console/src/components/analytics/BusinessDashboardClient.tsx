@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { CardGridSkeleton } from "@/components/ui/Skeleton";
+
 import { CardSection, MetricCard } from "./MetricCard";
-import type { BusinessDashboard } from "./types";
+import type { BusinessDashboard, ConversionFunnel } from "./types";
 
 const API_BASE_URL = "/api/backend/v1";
 
@@ -92,7 +94,9 @@ export function BusinessDashboardClient() {
       </div>
 
       {state === "loading" && (
-        <p className="mt-md text-text-secondary">Loading business metrics...</p>
+        <div className="mt-md">
+          <CardGridSkeleton count={7} />
+        </div>
       )}
 
       {state === "error" && (
@@ -115,8 +119,12 @@ export function BusinessDashboardClient() {
       )}
 
       {state === "loaded" && data && (
-        <>
-          <CardSection title="Growth">
+        // Keyed on rangeDays so the whole grid remounts on date-range
+        // change, re-triggering the `animate-stagger-in` cascade (per
+        // branding.md's "Dashboard-specific" note: cards re-stagger on
+        // first load AND on date-range change).
+        <div key={rangeDays}>
+          <CardSection title="Growth" startIndex={0}>
             <MetricCard label="New sign-ups" value={sumValues(data.signups_by_role)} sublabel={formatRecord(data.signups_by_role)} />
             <MetricCard
               label="New host verification submissions"
@@ -126,7 +134,7 @@ export function BusinessDashboardClient() {
             />
           </CardSection>
 
-          <CardSection title="Marketplace Liquidity">
+          <CardSection title="Marketplace Liquidity" startIndex={2}>
             <MetricCard
               label="Active listings"
               value={data.active_listings.by_status.active ?? 0}
@@ -143,7 +151,9 @@ export function BusinessDashboardClient() {
             />
           </CardSection>
 
-          <CardSection title="Revenue">
+          <FunnelChart funnel={data.conversion_funnel} />
+
+          <CardSection title="Revenue" startIndex={4}>
             <MetricCard
               label="Gross Transaction Value"
               value={money(data.revenue.total_gross_transaction_value)}
@@ -161,15 +171,55 @@ export function BusinessDashboardClient() {
             />
           </CardSection>
 
-          <CardSection title="Agency Tier">
+          <CardSection title="Agency Tier" startIndex={7}>
             <MetricCard
               label="Free-to-Agency conversion / churn"
               value="Not yet available"
               sublabel="Agency Tier subscription ships in Phase 3"
             />
           </CardSection>
-        </>
+        </div>
       )}
     </>
+  );
+}
+
+/** Search → View → Inquiry → Booking funnel as a bar list -- each bar
+ * grows into place with `animate-grow-in` (branding.md's "Dashboard-
+ * specific" note) rather than snapping to its final width. */
+function FunnelChart({ funnel }: { funnel: ConversionFunnel }) {
+  const stages: Array<{ label: string; value: number | null }> = [
+    { label: "Search", value: funnel.search },
+    { label: "View", value: funnel.view },
+    { label: "Inquiry", value: funnel.inquiry },
+    { label: "Booking", value: funnel.booking },
+  ];
+  const known = stages.filter((s): s is { label: string; value: number } => s.value !== null);
+  const max = Math.max(1, ...known.map((s) => s.value));
+
+  return (
+    <section className="mt-lg">
+      <h2 className="font-heading text-sm font-semibold uppercase tracking-wide text-text-secondary">
+        Conversion Funnel
+      </h2>
+      <ul className="mt-sm space-y-sm">
+        {stages.map((stage) =>
+          stage.value === null ? null : (
+            <li key={stage.label} className="text-sm">
+              <div className="flex justify-between">
+                <span>{stage.label}</span>
+                <span className="font-medium">{stage.value}</span>
+              </div>
+              <div className="mt-1 h-1.5 w-full origin-left rounded-full bg-surface-secondary dark:bg-surface-secondary-dark">
+                <div
+                  className="animate-grow-in h-1.5 origin-left rounded-full bg-primary"
+                  style={{ width: `${(stage.value / max) * 100}%` }}
+                />
+              </div>
+            </li>
+          ),
+        )}
+      </ul>
+    </section>
   );
 }

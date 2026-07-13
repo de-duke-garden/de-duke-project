@@ -12,7 +12,11 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/routing/route_names.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/skeleton_loader.dart';
 import '../data/checkout_repository.dart';
 import '../data/transaction_models.dart';
 
@@ -220,17 +224,31 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                 preferredSize: const Size.fromHeight(24),
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                  child: Text(
-                    'Hold expires in ${_timeRemaining.inMinutes}m ${(_timeRemaining.inSeconds % 60).toString().padLeft(2, '0')}s',
-                    style: Theme.of(context).textTheme.bodySmall,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.timer_outlined,
+                          size: 14,
+                          color: _timeRemaining.inMinutes < 2
+                              ? AppColors.warning
+                              : AppColors.textSecondary),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        'Hold expires in ${_timeRemaining.inMinutes}m ${(_timeRemaining.inSeconds % 60).toString().padLeft(2, '0')}s',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: _timeRemaining.inMinutes < 2
+                              ? AppColors.warning
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               )
             : null,
       ),
       body: switch (_state) {
-        _ScreenState.loading =>
-          const Center(child: CircularProgressIndicator()),
+        _ScreenState.loading => const _SkeletonSummary(),
         _ScreenState.error => _MessageView(
             message: _errorMessage ?? 'Something went wrong.', onRetry: _load),
         _ScreenState.offline => _MessageView(
@@ -267,17 +285,37 @@ class _CheckoutScreenState extends State<CheckoutScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (paymentError != null)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: AppSpacing.md),
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(paymentError),
-            ),
+          // Payment Error banner slides in at `duration-fast` (200ms) so
+          // it's noticed immediately without feeling alarming (branding.md
+          // Modernization Notes) -- always icon+text, never color alone.
+          AnimatedSize(
+            duration: AppDurations.fast,
+            curve: AppCurves.easeOutSmooth,
+            child: paymentError == null
+                ? const SizedBox.shrink()
+                : Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      border: Border.all(color: AppColors.error),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline,
+                            color: AppColors.error, size: 20),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Text(paymentError,
+                              style: AppTypography.body
+                                  .copyWith(color: AppColors.error)),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -288,7 +326,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                       style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: AppSpacing.sm),
                   _row(context, 'Amount',
-                      '₦${txn.grossAmount.toStringAsFixed(2)}'),
+                      '₦${txn.grossAmount.toStringAsFixed(2)}',
+                      isStat: true),
                   _row(context, 'Commission (platform fee)',
                       '₦${txn.commissionAmount.toStringAsFixed(2)}'),
                   _row(context, 'Net to host',
@@ -298,6 +337,9 @@ class _CheckoutScreenState extends State<CheckoutScreen>
             ),
           ),
           const Spacer(),
+          // Submitting keeps the standard button-spinner pattern -- no
+          // `tap-scale-emphasis` overshoot here, deliberately non-springy
+          // (branding.md Modernization Notes: "highest-stakes screen").
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -307,8 +349,16 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text('Pay ₦${txn.grossAmount.toStringAsFixed(0)} Now'),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Pay ₦${txn.grossAmount.toStringAsFixed(0)} Now',
+                        style: AppTypography.statDisplay
+                            .copyWith(color: Colors.white, fontSize: 20),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -326,14 +376,58 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     );
   }
 
-  Widget _row(BuildContext context, String label, String value) {
+  Widget _row(BuildContext context, String label, String value,
+      {bool isStat = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-          Text(value),
+          Text(label, style: AppTypography.bodySmall
+              .copyWith(color: AppColors.textSecondary)),
+          Text(value,
+              style: isStat
+                  ? AppTypography.statSmall
+                  : AppTypography.body),
+        ],
+      ),
+    );
+  }
+}
+
+/// Skeleton summary card for the transaction-detail fetch -- no hero-card,
+/// no list-stagger on this screen per branding.md Modernization Notes,
+/// just a calm shape-matching placeholder.
+class _SkeletonSummary extends StatelessWidget {
+  const _SkeletonSummary();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadii.md),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonBox(width: 160, height: 18),
+                SizedBox(height: AppSpacing.md),
+                SkeletonBox(width: 220, height: 14),
+                SizedBox(height: AppSpacing.sm),
+                SkeletonBox(width: 220, height: 14),
+                SizedBox(height: AppSpacing.sm),
+                SkeletonBox(width: 220, height: 14),
+              ],
+            ),
+          ),
         ],
       ),
     );

@@ -7,7 +7,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/list_stagger.dart';
+import '../../../core/widgets/tap_scale.dart';
 import '../../auth/data/auth_repository.dart';
 
 enum _ScreenState { defaultState, selecting, error, offline }
@@ -132,17 +137,20 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 children: [
-                  for (final option in _roleOptions)
+                  for (final (index, option) in _roleOptions.indexed)
                     Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _RoleCard(
-                        option: option,
-                        isSelected: _selectedRole == option.value,
-                        isSaving:
-                            _state == _ScreenState.selecting && _selectedRole == option.value,
-                        onTap: _state == _ScreenState.selecting
-                            ? null
-                            : () => _selectRole(option.value),
+                      child: ListStaggerItem(
+                        index: index,
+                        child: _RoleCard(
+                          option: option,
+                          isSelected: _selectedRole == option.value,
+                          isSaving: _state == _ScreenState.selecting &&
+                              _selectedRole == option.value,
+                          onTap: _state == _ScreenState.selecting
+                              ? null
+                              : () => _selectRole(option.value),
+                        ),
                       ),
                     ),
                 ],
@@ -177,32 +185,51 @@ class _RoleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Row(
-            children: [
-              Icon(option.icon, size: 32),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(option.label, style: Theme.of(context).textTheme.titleMedium),
-                    Text(option.description, style: Theme.of(context).textTheme.bodySmall),
-                  ],
+    // screens.md Screen 2 Modernization Notes: Listing Card container spec
+    // (`radius-lg`, `shadow-sm`, 1px hairline border at 60% opacity), plus
+    // `tap-scale` on press and a brief `primary-light` fill wash + emphasis
+    // scale while the PATCH is in flight.
+    return TapScale(
+      emphasis: isSaving,
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadii.lg),
+      child: AnimatedContainer(
+        duration: AppDurations.normal,
+        curve: AppCurves.easeOutSmooth,
+        decoration: BoxDecoration(
+          color: isSaving ? AppColors.primaryLight : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+          border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+          boxShadow: AppShadows.sm,
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              children: [
+                Icon(option.icon, size: 32),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(option.label,
+                          style: Theme.of(context).textTheme.titleMedium),
+                      Text(option.description,
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
                 ),
-              ),
-              if (isSaving)
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-            ],
+                if (isSaving)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

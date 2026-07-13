@@ -48,6 +48,11 @@ abstract final class RouteNames {
   // -- Screen 19: Transaction History.
   static const transactions = 'transactions';
 
+  // -- Transaction Detail / Receipt (child of transactions; Hero
+  // destination from Transaction History's row, modeled on Screen 11
+  // Payment Confirmation).
+  static const transactionDetail = 'transactionDetail';
+
   // -- FEAT-029: General In-App Support / Help.
   static const support = 'support';
 

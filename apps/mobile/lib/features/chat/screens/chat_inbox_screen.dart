@@ -11,7 +11,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/badge_pop.dart';
+import '../../../core/widgets/branded_refresh_indicator.dart';
+import '../../../core/widgets/de_duke_logo.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/list_stagger.dart';
+import '../../../core/widgets/skeleton_loader.dart';
+import '../../../core/widgets/tap_scale.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
@@ -40,6 +48,12 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
   List<ChatConversation> _asClient = [];
   List<ChatConversation> _asPropertyManagement = [];
 
+  // list-stagger applies to first load (and, since this is a bottom-nav
+  // tab kept alive by IndexedStack, is re-armed whenever the screen is
+  // rebuilt from a fresh `_init()` call) -- not to live in-place updates
+  // from the real-time stream, which should update silently/with badge-pop.
+  bool _isFirstPaint = true;
+
   StreamSubscription<List<ChatConversation>>? _clientSub;
   StreamSubscription<List<ChatConversation>>? _pmSub;
 
@@ -60,6 +74,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
     setState(() {
       _state = _ScreenState.loading;
       _errorMessage = null;
+      _isFirstPaint = true;
     });
     try {
       await widget.chatRepository.ensureSignedIn();
@@ -123,6 +138,13 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
       _state = sorted.isEmpty ? _ScreenState.empty : _ScreenState.loaded;
       _sortedConversations = sorted;
     });
+    // Let the stagger play once on this paint, then subsequent live stream
+    // updates (new messages, unread changes) render in place.
+    if (_isFirstPaint) {
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) setState(() => _isFirstPaint = false);
+      });
+    }
   }
 
   List<ChatConversation> _sortedConversations = [];
@@ -131,10 +153,12 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Messages'),
+        // Consistent tab-root AppBar treatment (mark + label) across Home,
+        // Chat, Dashboard, Profile -- see TabAppBarTitle.
+        title: const TabAppBarTitle('Messages'),
         automaticallyImplyLeading: false, // tab root (core/routing/app_shell.dart)
       ),
-      body: RefreshIndicator(
+      body: BrandedRefreshIndicator(
         onRefresh: _init,
         child: switch (_state) {
           _ScreenState.loading => const _SkeletonList(),
@@ -165,7 +189,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
             itemBuilder: (context, index) {
               final conversation = _sortedConversations[index];
               final isClient = conversation.clientId == _currentUserId;
-              return _ConversationTile(
+              final tile = _ConversationTile(
                 conversation: conversation,
                 roleLabel: isClient
                     ? 'You are the seeker'
@@ -177,6 +201,11 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                   pathParameters: {'id': conversation.id},
                 ),
               );
+              // list-stagger only on first load / return-to-tab, not on
+              // pull-to-refresh rebuilds (branding.md).
+              return _isFirstPaint
+                  ? ListStaggerItem(index: index, child: tile)
+                  : tile;
             },
           ),
         ),
@@ -209,47 +238,59 @@ class _ConversationTile extends StatelessWidget {
         final isUnread = lastMessage != null &&
             lastMessage.senderId != currentUserId &&
             lastMessage.deliveryStatus != ChatDeliveryStatus.read;
+        // badge-pop key: re-triggers the pop whenever the preview text or
+        // unread state actually changes, not on every rebuild.
+        final badgeTriggerKey = '${lastMessage?.id}-$isUnread';
 
-        return Card(
-          margin: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-          child: ListTile(
-            onTap: onTap,
-            leading: CircleAvatar(
-                child: Icon(isUnread
-                    ? Icons.mark_chat_unread
-                    : Icons.chat_bubble_outline)),
-            title: Text('Listing ${conversation.listingId}'),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(roleLabel, style: Theme.of(context).textTheme.bodySmall),
-                Text(
-                  lastMessage?.body ?? 'No messages yet',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: isUnread
-                      ? const TextStyle(fontWeight: FontWeight.bold)
-                      : null,
-                ),
-              ],
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(_formatTimestamp(conversation.lastMessageAt),
-                    style: Theme.of(context).textTheme.bodySmall),
-                if (isUnread)
-                  Container(
-                    margin: const EdgeInsets.only(top: AppSpacing.xs),
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        shape: BoxShape.circle),
+        return TapScale(
+          onTap: onTap,
+          child: Card(
+            margin: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+            child: ListTile(
+              onTap: onTap,
+              leading: CircleAvatar(
+                  child: Icon(isUnread
+                      ? Icons.mark_chat_unread
+                      : Icons.chat_bubble_outline)),
+              title: Text('Listing ${conversation.listingId}'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(roleLabel,
+                      style: Theme.of(context).textTheme.bodySmall),
+                  BadgePop(
+                    triggerKey: badgeTriggerKey,
+                    child: Text(
+                      lastMessage?.body ?? 'No messages yet',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: isUnread
+                          ? const TextStyle(fontWeight: FontWeight.bold)
+                          : null,
+                    ),
                   ),
-              ],
+                ],
+              ),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(_formatTimestamp(conversation.lastMessageAt),
+                      style: Theme.of(context).textTheme.bodySmall),
+                  if (isUnread)
+                    BadgePop(
+                      triggerKey: badgeTriggerKey,
+                      child: Container(
+                        margin: const EdgeInsets.only(top: AppSpacing.xs),
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                            color: AppColors.accent, shape: BoxShape.circle),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         );
@@ -271,19 +312,11 @@ class _SkeletonList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      itemCount: 6,
-      itemBuilder: (context, index) => Container(
-        height: 72,
-        margin: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-    );
+    return const SkeletonList(count: 6, builder: _buildSkeletonRow);
   }
+
+  static Widget _buildSkeletonRow(BuildContext context, int index) =>
+      const SkeletonRow(height: 56);
 }
 
 class _EmptyView extends StatelessWidget {
@@ -291,23 +324,11 @@ class _EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.forum_outlined, size: 48),
-            const SizedBox(height: AppSpacing.md),
-            const Text('No messages yet'),
-            const SizedBox(height: AppSpacing.sm),
-            const Text(
-              'Start a conversation from a listing you are interested in.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    return EmptyStateView(
+      title: 'No messages yet',
+      message: 'Start a conversation from a listing you are interested in.',
+      actionLabel: 'Browse listings',
+      onAction: () => context.goNamed(RouteNames.home),
     );
   }
 }

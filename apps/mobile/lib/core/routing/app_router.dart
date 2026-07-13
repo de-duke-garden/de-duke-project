@@ -49,6 +49,7 @@ import '../../features/search/data/search_repository.dart';
 import '../../features/search/screens/search_results_screen.dart';
 import '../../features/transactions/data/dispute_repository.dart';
 import '../../features/transactions/data/transactions_repository.dart';
+import '../../features/transactions/screens/transaction_detail_screen.dart';
 import '../../features/transactions/screens/transaction_history_screen.dart';
 import '../../features/role_selection/screens/role_selection_screen.dart';
 import '../../features/home_feed/screens/home_feed_screen.dart';
@@ -59,6 +60,7 @@ import '../../features/push_notifications/data/push_notification_service.dart';
 import '../api/api_client.dart';
 import '../auth/session_store.dart';
 import '../config/env.dart';
+import '../theme/app_motion.dart';
 import 'app_shell.dart';
 import 'route_names.dart';
 
@@ -296,6 +298,29 @@ final GoRouter appRouter = GoRouter(
         checkoutRepository: _checkoutRepository,
         disputeRepository: _disputeRepository,
       ),
+      routes: [
+        // Hero destination for the row's `transaction-amount-<id>` tag
+        // (screens.md Screen 19 Modernization Notes: shared-element
+        // transition into receipt detail). `CustomTransitionPage` pins the
+        // route -- and therefore the Hero flight -- to the
+        // `sharedElementTransition` duration token instead of go_router's
+        // default page-transition duration.
+        GoRoute(
+          path: ':id',
+          name: RouteNames.transactionDetail,
+          pageBuilder: (context, state) => CustomTransitionPage(
+            key: state.pageKey,
+            transitionDuration: AppDurations.sharedElementTransition,
+            reverseTransitionDuration: AppDurations.sharedElementTransition,
+            child: TransactionDetailScreen(
+              transactionId: state.pathParameters['id']!,
+              repository: _checkoutRepository,
+            ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+                FadeTransition(opacity: animation, child: child),
+          ),
+        ),
+      ],
     ),
 
     // -- FEAT-029: General In-App Support / Help. Not a screens.md-numbered

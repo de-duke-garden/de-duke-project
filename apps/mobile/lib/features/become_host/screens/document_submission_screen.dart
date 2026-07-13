@@ -8,7 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/badge_pop.dart';
 import '../../../core/widgets/image_source_picker.dart';
 import '../data/host_account_models.dart';
 import '../data/host_account_repository.dart';
@@ -237,19 +240,47 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
-            if (_state == _ScreenState.offline)
-              _Banner(
-                  message: _errorMessage ??
-                      "You're offline. Try again once connected."),
-            if (_state == _ScreenState.error && _errorMessage != null)
-              _Banner(message: _errorMessage!),
-            TextFormField(
-              controller: _bioController,
-              decoration: const InputDecoration(labelText: 'Bio'),
-              maxLines: 3,
-              enabled: !submitting,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Enter a short bio' : null,
+            // screens.md Screen 3b Modernization Notes: `duration-fast`
+            // crossfades between form sections rather than hard cuts.
+            AnimatedSwitcher(
+              duration: AppDurations.fast,
+              child: _state == _ScreenState.offline
+                  ? _Banner(
+                      key: const ValueKey('offline'),
+                      message: _errorMessage ??
+                          "You're offline. Try again once connected.")
+                  : _state == _ScreenState.error && _errorMessage != null
+                      ? _Banner(
+                          key: const ValueKey('error'),
+                          message: _errorMessage!)
+                      : const SizedBox.shrink(key: ValueKey('none')),
+            ),
+            AnimatedBuilder(
+              animation: _bioController,
+              builder: (context, child) {
+                final complete = _bioController.text.trim().isNotEmpty;
+                return TextFormField(
+                  controller: _bioController,
+                  decoration: InputDecoration(
+                    labelText: 'Bio',
+                    // `badge-pop` marks the field complete the instant it's
+                    // validly filled -- a small checkmark settling into
+                    // place, no showy motion.
+                    suffixIcon: complete
+                        ? BadgePop(
+                            triggerKey: complete,
+                            child: const Icon(Icons.check_circle,
+                                color: AppColors.success),
+                          )
+                        : null,
+                  ),
+                  maxLines: 3,
+                  enabled: !submitting,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Enter a short bio'
+                      : null,
+                );
+              },
             ),
             const SizedBox(height: AppSpacing.md),
             _PhotoPickerTile(
@@ -317,11 +348,25 @@ class _PhotoPickerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // `badge-pop` marks the document group complete instantly on valid
+    // fill; the icon/subtitle crossfade at `duration-fast`.
     return Card(
       child: ListTile(
-        leading: Icon(picked ? Icons.check_circle : Icons.upload_file),
+        leading: picked
+            ? BadgePop(
+                triggerKey: picked,
+                child: const Icon(Icons.check_circle,
+                    color: AppColors.success),
+              )
+            : const Icon(Icons.upload_file),
         title: Text(label),
-        subtitle: Text(picked ? 'Selected' : 'Tap to select'),
+        subtitle: AnimatedSwitcher(
+          duration: AppDurations.fast,
+          child: Text(
+            picked ? 'Selected' : 'Tap to select',
+            key: ValueKey(picked),
+          ),
+        ),
         onTap: onTap,
       ),
     );
@@ -345,20 +390,36 @@ class _RegistrationField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: TextFormField(
-        controller: controller,
-        decoration: InputDecoration(labelText: label),
-        enabled: enabled,
-        keyboardType: keyboardType,
-        validator: (v) =>
-            (v == null || v.trim().isEmpty) ? 'This field is required' : null,
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (context, child) {
+          final complete = controller.text.trim().isNotEmpty;
+          return TextFormField(
+            controller: controller,
+            decoration: InputDecoration(
+              labelText: label,
+              suffixIcon: complete
+                  ? BadgePop(
+                      triggerKey: complete,
+                      child: const Icon(Icons.check_circle,
+                          color: AppColors.success),
+                    )
+                  : null,
+            ),
+            enabled: enabled,
+            keyboardType: keyboardType,
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'This field is required'
+                : null,
+          );
+        },
       ),
     );
   }
 }
 
 class _Banner extends StatelessWidget {
-  const _Banner({required this.message});
+  const _Banner({super.key, required this.message});
   final String message;
 
   @override

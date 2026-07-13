@@ -34,6 +34,50 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   mocktail: ^1.0.4
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
+
+# flutter_launcher_icons config -- generates Android mipmap-*/ic_launcher.png
+# and iOS AppIcon.appiconset from the shipped brand mark
+# (assets/images/de-duke.png). branding.md's Logo & Iconography row: "mark
+# alone as the app icon". The source PNG has a transparent background, so
+# it's composited on `surface` (#FFFFFF, app_colors.dart's AppColors.surface)
+# -- the plain white background branding.md explicitly allows for the app
+# icon slot, keeping the green mark maximally legible against any OS icon
+# tray/wallpaper rather than blending into a tinted background.
+# `ios: false` -- no ios/ platform directory exists in this project yet
+# (Android + Web only, per `ls apps/mobile`). Flip to `true` and rerun
+# `dart run flutter_launcher_icons` once `flutter create --platforms=ios .`
+# scaffolds the iOS runner; until then this key would only crash the
+# generator looking for a non-existent Assets.xcassets path.
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/de-duke.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/de-duke.png"
+  min_sdk_android: 21
+
+# flutter_native_splash config -- native splash screen per branding.md's
+# Logo Usage row ("Full lockup ... on splash screen"). The wordmark half of
+# the lockup can't be natively composited by this package (it only places a
+# single image), so the native splash shows the mark alone on `surface`;
+# the in-app Sign-Up/Login screen (screens.md Screen 1) immediately after
+# is where the full mark + Manrope wordmark lockup actually renders -- see
+# AGENTS.md follow-up note for a possible pre-rendered composite image if a
+# closer native-splash match to the full lockup is wanted later.
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/images/de-duke.png
+  color_dark: "#101613"
+  image_dark: assets/images/de-duke.png
+  android_12:
+    color: "#FFFFFF"
+    image: assets/images/de-duke.png
+    color_dark: "#101613"
+    image_dark: assets/images/de-duke.png

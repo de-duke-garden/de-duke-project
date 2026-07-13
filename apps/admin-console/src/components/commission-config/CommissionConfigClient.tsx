@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { CardGridSkeleton } from "@/components/ui/Skeleton";
 import { EditRateModal } from "./EditRateModal";
 import {
   CommissionRateHistoryResponse,
@@ -73,13 +74,7 @@ export function CommissionConfigClient({ isAdmin }: { isAdmin: boolean }) {
   }
 
   if (state === "loading") {
-    return (
-      <div className="space-y-sm">
-        {TRANSACTION_TYPES.map((t) => (
-          <div key={t} className="h-20 animate-pulse rounded-md bg-surface-secondary dark:bg-surface-secondary-dark" />
-        ))}
-      </div>
-    );
+    return <CardGridSkeleton count={TRANSACTION_TYPES.length} />;
   }
 
   if (state === "error") {
@@ -112,9 +107,7 @@ export function CommissionConfigClient({ isAdmin }: { isAdmin: boolean }) {
                 <h3 className="font-heading text-base font-semibold">
                   {TRANSACTION_TYPE_LABELS[type] ?? type}
                 </h3>
-                <p className="mt-xs text-2xl font-semibold text-primary">
-                  {current ? current.rate_percentage + "%" : "Not set"}
-                </p>
+                <RateFigure value={current ? current.rate_percentage + "%" : "Not set"} />
               </div>
               {isAdmin && (
                 <button
@@ -137,26 +130,37 @@ export function CommissionConfigClient({ isAdmin }: { isAdmin: boolean }) {
               {isExpanded ? "Hide history" : "Show history (" + history.length + ")"}
             </button>
 
-            {isExpanded && (
-              <table className="mt-sm w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-text-secondary">
-                    <th className="py-xs pr-md">Rate</th>
-                    <th className="py-xs pr-md">Effective from</th>
-                    <th className="py-xs">Set by</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((entry) => (
-                    <tr key={entry.id} className="border-b border-border">
-                      <td className="py-xs pr-md">{entry.rate_percentage}%</td>
-                      <td className="py-xs pr-md">{new Date(entry.effective_from).toLocaleString()}</td>
-                      <td className="py-xs">{entry.set_by_id}</td>
+            {/* branding.md Screen 25 Modernization Notes: the history
+                Accordion expands with a smooth height transition
+                (`duration-normal`) instead of appearing instantly -- a
+                grid-template-rows 0fr/1fr transition on an always-mounted
+                row achieves that without measuring pixel heights. */}
+            <div
+              className={`grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out-smooth ${
+                isExpanded ? "grid-rows-[1fr] mt-sm" : "grid-rows-[0fr]"
+              }`}
+            >
+              <div className="min-h-0">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-text-secondary">
+                      <th className="py-xs pr-md">Rate</th>
+                      <th className="py-xs pr-md">Effective from</th>
+                      <th className="py-xs">Set by</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  </thead>
+                  <tbody>
+                    {history.map((entry) => (
+                      <tr key={entry.id} className="border-b border-border">
+                        <td className="py-xs pr-md">{entry.rate_percentage}%</td>
+                        <td className="py-xs pr-md">{new Date(entry.effective_from).toLocaleString()}</td>
+                        <td className="py-xs">{entry.set_by_id}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         );
       })}
@@ -170,5 +174,30 @@ export function CommissionConfigClient({ isAdmin }: { isAdmin: boolean }) {
         />
       )}
     </div>
+  );
+}
+
+/** branding.md Screen 25 Modernization Notes: a successful rate update
+ * animates the new value in with `status-badge-pop` on the rate figure
+ * itself. Reuses the `animate-badge-pop` keyframe registered in
+ * tailwind.config.ts (same one StatusBadge uses) rather than inventing a
+ * new one. */
+function RateFigure({ value }: { value: string }) {
+  const previousValue = useRef(value);
+  const [popping, setPopping] = useState(false);
+
+  useEffect(() => {
+    if (previousValue.current !== value) {
+      previousValue.current = value;
+      setPopping(true);
+      const timeout = setTimeout(() => setPopping(false), 260);
+      return () => clearTimeout(timeout);
+    }
+  }, [value]);
+
+  return (
+    <p className={`mt-xs text-2xl font-semibold text-primary ${popping ? "animate-badge-pop" : ""}`}>
+      {value}
+    </p>
   );
 }

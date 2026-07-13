@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { TableSkeleton } from "@/components/ui/Skeleton";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DisputeDetailPanel } from "./DisputeDetailPanel";
 import { REASON_LABELS } from "./types";
 import type { DisputeListItem, DisputeStatus } from "./types";
@@ -9,6 +11,16 @@ import type { DisputeListItem, DisputeStatus } from "./types";
 const API_BASE_URL = "/api/backend/v1";
 
 type LoadState = "loading" | "loaded" | "empty" | "error";
+
+/** branding.md `status-badge-pop`: tone per dispute status so the pill
+ * reads at a glance and pops when it changes. */
+const STATUS_TONE: Record<DisputeStatus, "info" | "warning" | "success" | "neutral"> = {
+  open: "info",
+  under_review: "warning",
+  resolved_refunded: "success",
+  resolved_no_refund: "neutral",
+  closed: "neutral",
+};
 
 const STATUS_FILTERS: { value: DisputeStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -74,7 +86,7 @@ export function DisputesClient() {
       </div>
 
       <div className="mt-md">
-        {state === "loading" && <p className="text-text-secondary">Loading disputes...</p>}
+        {state === "loading" && <TableSkeleton rows={6} columns={6} />}
 
         {state === "error" && (
           <div className="rounded-md border border-error p-md">
@@ -109,13 +121,19 @@ export function DisputesClient() {
               {items.map((item) => (
                 <tr
                   key={item.id}
-                  className="cursor-pointer border-b border-border hover:bg-surface-secondary dark:hover:bg-surface-dark"
+                  className="cursor-pointer border-b border-border transition-colors duration-[120ms] ease-out-smooth hover:bg-surface-secondary dark:hover:bg-surface-secondary-dark"
                   onClick={() => setOpenDisputeId(item.id)}
                 >
                   <td className="py-sm pr-md font-medium">{item.transaction_id}</td>
                   <td className="py-sm pr-md">{item.raised_by_name}</td>
                   <td className="py-sm pr-md">{REASON_LABELS[item.reason]}</td>
-                  <td className="py-sm pr-md capitalize">{item.status.replace(/_/g, " ")}</td>
+                  <td className="py-sm pr-md">
+                    <StatusBadge
+                      value={item.status}
+                      label={item.status.replace(/_/g, " ")}
+                      tone={STATUS_TONE[item.status]}
+                    />
+                  </td>
                   <td className="py-sm pr-md">{item.assigned_staff_name ?? "Unassigned"}</td>
                   <td className="py-sm">{new Date(item.created_at).toLocaleString()}</td>
                 </tr>

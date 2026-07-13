@@ -1,12 +1,29 @@
 /// screens.md Screen 12: Host Dashboard (FEAT-017). Fetches listings and
 /// verification status in parallel per that screen's Data Flow step 1.
+///
+/// Modernization Notes (screens.md Screen 12): Listing status cards adopt
+/// Listing Card container/press styling with `tap-scale` and enter with
+/// `list-stagger` on first load; status and stale-activity flags use
+/// semantic-color badges (icon+text, never color alone) that animate in
+/// with `badge-pop` when a status changes; view/inquiry counts use the
+/// `stat-small` type token; initial load uses skeleton cards, not a
+/// spinner; the empty state uses the illustrated system.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/badge_pop.dart';
+import '../../../core/widgets/de_duke_logo.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/list_stagger.dart';
+import '../../../core/widgets/skeleton_loader.dart';
+import '../../../core/widgets/tap_scale.dart';
 import '../../become_host/data/host_account_models.dart';
 import '../../become_host/data/host_account_repository.dart';
 import '../data/host_dashboard_models.dart';
@@ -72,16 +89,21 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Listings'),
+        // Consistent tab-root AppBar treatment (mark + label) across Home,
+        // Chat, Dashboard, Profile -- see TabAppBarTitle.
+        title: const TabAppBarTitle('My Listings'),
         automaticallyImplyLeading: false, // tab root (core/routing/app_shell.dart)
         actions: [
           if (_verification != null)
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.md),
               child: Center(
-                child: TextButton(
-                  onPressed: () => context.pushNamed(RouteNames.verification),
-                  child: Text(_verification!.status == 'verified' ? 'Verified Host' : 'Verify'),
+                child: BadgePop(
+                  triggerKey: _verification!.status,
+                  child: TextButton(
+                    onPressed: () => context.pushNamed(RouteNames.verification),
+                    child: Text(_verification!.status == 'verified' ? 'Verified Host' : 'Verify'),
+                  ),
                 ),
               ),
             ),
@@ -102,29 +124,22 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
     switch (_state) {
       case _ScreenState.loading:
         return ListView.builder(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
           itemCount: 4,
-          itemBuilder: (_, __) => Container(
-            height: 88,
-            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(AppRadii.md),
-            ),
-          ),
+          itemBuilder: (_, __) => const SkeletonListingCard(),
         );
       case _ScreenState.unverified:
         return Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
-          child: Card(
+          child: _DashboardCard(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Verify your identity to start listing',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: AppTypography.h3,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   ElevatedButton(
@@ -137,32 +152,17 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
           ),
         );
       case _ScreenState.empty:
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.home_work_outlined, size: 48),
-              const SizedBox(height: AppSpacing.sm),
-              const Text("You haven't listed anything yet"),
-              const SizedBox(height: AppSpacing.sm),
-              ElevatedButton(
-                onPressed: () => context.pushNamed(RouteNames.listingNew),
-                child: const Text('Create your first listing'),
-              ),
-            ],
-          ),
+        return EmptyStateView(
+          title: "You haven't listed anything yet",
+          actionLabel: 'Create your first listing',
+          onAction: () => context.pushNamed(RouteNames.listingNew),
         );
       case _ScreenState.error:
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 48),
-              const SizedBox(height: AppSpacing.sm),
-              const Text('Something went wrong'),
-              TextButton(onPressed: _load, child: const Text('Retry')),
-            ],
-          ),
+        return EmptyStateView(
+          title: 'Something went wrong',
+          isError: true,
+          actionLabel: 'Retry',
+          onAction: _load,
         );
       case _ScreenState.offline:
         return Column(
@@ -181,13 +181,85 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
 
   Widget _buildListingList(BuildContext context) {
     return ListView.builder(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       itemCount: _listings.length,
-      itemBuilder: (context, index) => _ListingStatusCard(
-        listing: _listings[index],
-        onTap: () => context.pushNamed(
-          RouteNames.listingDetail,
-          pathParameters: {'id': _listings[index].id},
+      itemBuilder: (context, index) => ListStaggerItem(
+        index: index,
+        child: _ListingStatusCard(
+          listing: _listings[index],
+          onTap: () => context.pushNamed(
+            RouteNames.listingDetail,
+            pathParameters: {'id': _listings[index].id},
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Lightweight Listing Card container spec (radius-lg / shadow-sm /
+/// hairline border) for non-photo metric/status cards -- branding.md
+/// Listing Card component tokens, reused here per host_dashboard_screen
+/// modernization scope since [ListingCard] itself is photo-specific.
+class _DashboardCard extends StatelessWidget {
+  const _DashboardCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.sm,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: child,
+    );
+  }
+}
+
+/// Semantic-color status badge -- icon + text, never color alone
+/// (branding.md Accessibility rule).
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.status});
+
+  final String status;
+
+  ({Color color, IconData icon, String label}) _spec() {
+    return switch (status) {
+      'active' => (color: AppColors.success, icon: Icons.check_circle, label: 'Active'),
+      'banned' => (color: AppColors.error, icon: Icons.block, label: 'Banned'),
+      'under_review' => (color: AppColors.warning, icon: Icons.hourglass_top, label: 'Under Review'),
+      'unpublished' => (color: AppColors.warning, icon: Icons.visibility_off, label: 'Unpublished'),
+      'closed' => (color: AppColors.warning, icon: Icons.lock_outline, label: 'Closed'),
+      _ => (color: AppColors.warning, icon: Icons.info_outline, label: status),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final spec = _spec();
+    return BadgePop(
+      triggerKey: status,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+        decoration: BoxDecoration(
+          color: spec.color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppRadii.full),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(spec.icon, size: 14, color: spec.color),
+            const SizedBox(width: 4),
+            Text(
+              spec.label,
+              style: AppTypography.caption.copyWith(color: spec.color),
+            ),
+          ],
         ),
       ),
     );
@@ -200,82 +272,75 @@ class _ListingStatusCard extends StatelessWidget {
   final HostDashboardListingItem listing;
   final VoidCallback onTap;
 
-  Color _statusColor(BuildContext context) {
-    return switch (listing.status) {
-      'active' => Colors.green,
-      'banned' => Theme.of(context).colorScheme.error,
-      _ => Colors.orange, // under_review | unpublished | closed
-    };
-  }
-
-  String _statusLabel() {
-    return switch (listing.status) {
-      'active' => 'Active',
-      'under_review' => 'Under Review',
-      'banned' => 'Banned',
-      'unpublished' => 'Unpublished',
-      'closed' => 'Closed',
-      _ => listing.status,
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: InkWell(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      child: TapScale(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(listing.title, style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.xs),
-                    Row(
-                      children: [
-                        Chip(
-                          label: Text(_statusLabel()),
-                          backgroundColor: _statusColor(context).withValues(alpha: 0.15),
-                          labelStyle: TextStyle(color: _statusColor(context)),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Text('${listing.viewCount} views · ${listing.inquiryCount} inquiries'),
-                      ],
-                    ),
-                    if (listing.status == 'banned' && listing.statusReason != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: AppSpacing.xs),
-                        child: Text(
-                          listing.statusReason!,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: Theme.of(context).colorScheme.error),
-                        ),
+        child: _DashboardCard(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(listing.title, style: AppTypography.h3),
+                      const SizedBox(height: AppSpacing.xs),
+                      Row(
+                        children: [
+                          _StatusBadge(status: listing.status),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text(
+                            '${listing.viewCount} views · ${listing.inquiryCount} inquiries',
+                            style: AppTypography.statSmall.copyWith(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
-                    if (listing.isStale)
-                      const Padding(
-                        padding: EdgeInsets.only(top: AppSpacing.xs),
-                        child: Text(
-                          'No activity yet — consider updating photos or price',
-                          style: TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
+                      if (listing.status == 'banned' && listing.statusReason != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.xs),
+                          child: Text(
+                            listing.statusReason!,
+                            style: AppTypography.bodySmall.copyWith(color: AppColors.error),
+                          ),
                         ),
-                      ),
-                  ],
+                      if (listing.isStale)
+                        Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.xs),
+                          child: BadgePop(
+                            triggerKey: 'stale-${listing.id}',
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.warning),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    'No activity yet — consider updating photos or price',
+                                    style: AppTypography.bodySmall.copyWith(color: AppColors.warning),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.chat_bubble_outline),
-                tooltip: 'Chat threads',
-                onPressed: () => context.pushNamed(RouteNames.chat),
-              ),
-            ],
+                IconButton(
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  tooltip: 'Chat threads',
+                  onPressed: () => context.pushNamed(RouteNames.chat),
+                ),
+              ],
+            ),
           ),
         ),
       ),

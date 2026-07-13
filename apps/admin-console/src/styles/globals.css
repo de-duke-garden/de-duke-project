@@ -5,10 +5,49 @@
 /* De-Duke Admin Console -- base tokens applied at the root; per-page
    overrides should never hardcode colors outside tailwind.config.ts. */
 :root {
-  --focus-ring: 2px solid #0F6E5C;
+  /* branding.md Accessibility: 2px `primary` outline, 2px offset, on every
+     interactive element for keyboard/assistive navigation. */
+  --focus-ring: 2px solid #0d6b2d;
 }
 
 *:focus-visible {
   outline: var(--focus-ring);
   outline-offset: 2px;
+}
+
+/* `table-skeleton` (branding.md Admin Web Console motion table): a
+   1400ms shimmer loop standing in for the bare spinner on every Table/Grid
+   initial load. Composed with Tailwind's `animate-shimmer` utility. */
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(18, 32, 28, 0.06) 25%,
+    rgba(18, 32, 28, 0.12) 37%,
+    rgba(18, 32, 28, 0.06) 63%
+  );
+  background-size: 800px 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  .skeleton-shimmer {
+    background-image: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.06) 25%,
+      rgba(255, 255, 255, 0.14) 37%,
+      rgba(255, 255, 255, 0.06) 63%
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer,
+  .animate-modal-enter,
+  .animate-backdrop-enter,
+  .animate-row-resolve,
+  .animate-badge-pop,
+  .animate-toast-enter,
+  .animate-stagger-in,
+  .animate-grow-in {
+    animation: none !important;
+  }
 }

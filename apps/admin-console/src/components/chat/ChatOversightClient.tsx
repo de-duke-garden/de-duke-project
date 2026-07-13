@@ -13,6 +13,8 @@ import {
 } from "firebase/firestore";
 
 import { ChatUnavailableError, signInToChat } from "@/lib/firebaseChat";
+import { TableSkeleton } from "@/components/ui/Skeleton";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { ChatConversation, ChatMessage } from "./types";
 
 type LoadState = "loading" | "loaded" | "unavailable" | "error";
@@ -137,6 +139,17 @@ export function ChatOversightClient({ currentUserId }: { currentUserId: string }
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
+  // `duration-normal` slide-in for the conversation detail panel (branding.md
+  // Admin Web Console motion system / screens.md Screen 22 Modernization
+  // Notes) instead of a hard swap when a new conversation is selected.
+  const [panelEntered, setPanelEntered] = useState(false);
+  useEffect(() => {
+    if (!selectedId) return;
+    setPanelEntered(false);
+    const frame = requestAnimationFrame(() => setPanelEntered(true));
+    return () => cancelAnimationFrame(frame);
+  }, [selectedId]);
+
   const sendMessage = useCallback(async () => {
     if (!db || !selectedId || draft.trim().length === 0) return;
     setSending(true);
@@ -156,7 +169,7 @@ export function ChatOversightClient({ currentUserId }: { currentUserId: string }
   }, [db, selectedId, draft, currentUserId]);
 
   if (state === "loading") {
-    return <p className="text-text-secondary">Connecting to chat...</p>;
+    return <TableSkeleton rows={6} columns={3} />;
   }
 
   if (state === "unavailable") {
@@ -204,7 +217,7 @@ export function ChatOversightClient({ currentUserId }: { currentUserId: string }
             type="button"
             onClick={() => setSelectedId(conversation.id)}
             className={
-              "mb-xs block w-full rounded-md p-sm text-left text-sm " +
+              "mb-xs block w-full rounded-md p-sm text-left text-sm transition-colors duration-[120ms] ease-out-smooth " +
               (conversation.id === selectedId
                 ? "bg-primary-light dark:bg-primary-light-dark"
                 : "hover:bg-surface-secondary dark:hover:bg-surface-secondary-dark")
@@ -214,9 +227,13 @@ export function ChatOversightClient({ currentUserId }: { currentUserId: string }
             <p className="text-text-secondary">
               Client {conversation.clientId} / PM {conversation.propertyManagementId}
             </p>
-            {conversation.assignedStaffId && (
-              <p className="text-xs text-primary">Assigned: {conversation.assignedStaffId}</p>
-            )}
+            <div className="mt-xs">
+              <StatusBadge
+                value={conversation.assignedStaffId ?? "unassigned"}
+                label={conversation.assignedStaffId ? `Assigned: ${conversation.assignedStaffId}` : "Unassigned"}
+                tone={conversation.assignedStaffId ? "primary" : "neutral"}
+              />
+            </div>
           </button>
         ))}
       </div>
@@ -227,7 +244,13 @@ export function ChatOversightClient({ currentUserId }: { currentUserId: string }
         )}
 
         {selected && (
-          <>
+          <div
+            key={selected.id}
+            className={
+              "flex flex-1 flex-col transition-all duration-[200ms] ease-out-smooth " +
+              (panelEntered ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0")
+            }
+          >
             <div ref={scrollRef} className="flex-1 overflow-y-auto pr-sm">
               {messages.map((message) => (
                 <div
@@ -266,7 +289,7 @@ export function ChatOversightClient({ currentUserId }: { currentUserId: string }
                 Send
               </button>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

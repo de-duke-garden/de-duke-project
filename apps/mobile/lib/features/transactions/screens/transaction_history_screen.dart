@@ -2,9 +2,14 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/list_stagger.dart';
+import '../../../core/widgets/skeleton_loader.dart';
 import '../../checkout/data/checkout_repository.dart';
 import '../../checkout/data/transaction_models.dart';
 import '../data/dispute_repository.dart';
@@ -36,6 +41,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   String? _errorMessage;
   List<TransactionSummary> _items = [];
   String? _nextCursor;
+  // Tracks how many rows belonged to the first-load page, so list-stagger
+  // (branding.md) only plays on initial paint, not on pagination appends.
+  int _initialItemCount = 0;
 
   @override
   void initState() {
@@ -54,6 +62,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       setState(() {
         _items = page.items;
         _nextCursor = page.nextCursor;
+        _initialItemCount = page.items.length;
         _state = _items.isEmpty ? _ScreenState.empty : _ScreenState.loaded;
       });
     } catch (e) {
@@ -81,22 +90,17 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     });
   }
 
-  Future<void> _openReceipt(String transactionId) async {
-    final detail =
-        await widget.checkoutRepository.getTransaction(transactionId);
-    if (!mounted) return;
-    if (detail.receiptUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content:
-                Text('Receipt is not ready yet. Please check back shortly.')),
-      );
-      return;
-    }
-    final uri = Uri.tryParse(detail.receiptUrl!);
-    if (uri != null) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  /// Navigates into the in-app Transaction Detail / Receipt screen -- the
+  /// `Hero` on the row below (tag `transaction-amount-<id>`) carries its
+  /// amount/status chip visually into that screen's matching `Hero`.
+  /// Downloading the external PDF receipt (`url_launcher`) lives on that
+  /// screen now as a secondary action, rather than being the only way to
+  /// view a receipt.
+  void _openReceipt(String transactionId) {
+    context.pushNamed(
+      RouteNames.transactionDetail,
+      pathParameters: {'id': transactionId},
+    );
   }
 
   /// FEAT-026: the mobile entry point for raising a dispute -- there is no
@@ -131,11 +135,16 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: switch (_state) {
-          _ScreenState.loading => const _SkeletonList(),
+          _ScreenState.loading => const SkeletonList(count: 6),
           _ScreenState.error => _ErrorView(
               message: _errorMessage ?? 'Something went wrong.',
               onRetry: _load),
-          _ScreenState.empty => const _EmptyView(),
+          _ScreenState.empty => EmptyStateView(
+              title: 'No transactions yet',
+              message: 'Browse listings to make your first booking.',
+              actionLabel: 'Browse listings',
+              onAction: () => Navigator.of(context).maybePop(),
+            ),
           _ScreenState.offline || _ScreenState.loaded => _buildList(context),
         },
       ),
@@ -166,7 +175,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
               itemCount: _items.length,
               itemBuilder: (context, index) {
                 final txn = _items[index];
-                return Card(
+                final row = Card(
                   margin: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                   child: ListTile(
@@ -176,7 +185,19 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('₦${txn.grossAmount.toStringAsFixed(0)}'),
+                        // shared-element-transition (branding.md): this
+                        // amount/status chip carries visually into the
+                        // receipt detail view via a matching Hero tag.
+                        Hero(
+                          tag: 'transaction-amount-${txn.id}',
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: Text(
+                              '₦${txn.grossAmount.toStringAsFixed(0)}',
+                              style: AppTypography.statSmall,
+                            ),
+                          ),
+                        ),
                         PopupMenuButton<_TransactionAction>(
                           icon: const Icon(Icons.more_vert),
                           onSelected: (action) => switch (action) {
@@ -201,6 +222,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     onTap: () => _openReceipt(txn.id),
                   ),
                 );
+                // list-stagger only applies to the first-load cascade, not
+                // pagination appends -- gate on the initial page.
+                if (_state == _ScreenState.loaded &&
+                    index < _initialItemCount) {
+                  return ListStaggerItem(index: index, child: row);
+                }
+                return row;
               },
             ),
           ),
@@ -221,50 +249,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
   String _formatDate(DateTime dt) =>
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-}
-
-class _SkeletonList extends StatelessWidget {
-  const _SkeletonList();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      itemCount: 6,
-      itemBuilder: (context, index) => Container(
-        height: 72,
-        margin: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyView extends StatelessWidget {
-  const _EmptyView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.receipt_long_outlined, size: 48),
-            const SizedBox(height: AppSpacing.md),
-            const Text('No transactions yet'),
-            const SizedBox(height: AppSpacing.sm),
-            const Text('Browse listings to make your first booking.',
-                textAlign: TextAlign.center),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _ErrorView extends StatelessWidget {

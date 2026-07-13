@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { Modal } from "@/components/ui/Modal";
+import { ResolvingRow } from "@/components/ui/ResolvingRow";
+import { TableSkeleton } from "@/components/ui/Skeleton";
 import { ReviewDecisionDialog } from "./ReviewDecisionDialog";
 import { SubmissionDetailPanel } from "./SubmissionDetailPanel";
 import type { HostAccountDetail, HostAccountQueueItem, ReviewDecision } from "./types";
@@ -59,6 +62,9 @@ export function HostVerificationQueueClient() {
   const [detail, setDetail] = useState<HostAccountDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [pendingDecision, setPendingDecision] = useState<ReviewDecision | null>(null);
+  // branding.md `row-resolve`: the acted-on row stays mounted (wrapped in
+  // ResolvingRow) and animates out before it's actually removed from state.
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -96,10 +102,17 @@ export function HostVerificationQueueClient() {
 
   async function handleConfirmDecision(reason: string | undefined) {
     if (!selectedId || !pendingDecision) return;
-    await submitDecision(selectedId, pendingDecision, reason);
+    const decidedId = selectedId;
+    await submitDecision(decidedId, pendingDecision, reason);
     setPendingDecision(null);
     closeDetail();
-    await load();
+    setResolvingId(decidedId);
+  }
+
+  function handleRowResolved(id: string) {
+    setResolvingId(null);
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    void load();
   }
 
   return (
@@ -123,7 +136,7 @@ export function HostVerificationQueueClient() {
         </select>
       </div>
 
-      {state === "loading" && <p className="text-text-secondary">Loading verification queue...</p>}
+      {state === "loading" && <TableSkeleton rows={6} columns={4} />}
 
       {state === "error" && (
         <div className="rounded-md border border-error p-md">
@@ -152,56 +165,73 @@ export function HostVerificationQueueClient() {
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr
+              <ResolvingRow
                 key={item.id}
-                className="cursor-pointer border-b border-border hover:bg-surface-secondary dark:hover:bg-surface-secondary-dark"
-                onClick={() => void openDetail(item.id)}
+                resolving={resolvingId === item.id}
+                onResolved={() => handleRowResolved(item.id)}
+                className="cursor-pointer border-b border-border transition-colors duration-[120ms] ease-out-smooth hover:bg-surface-secondary dark:hover:bg-surface-secondary-dark"
               >
-                <td className="py-sm pr-md font-medium">{item.user_id}</td>
-                <td className="py-sm pr-md capitalize">{item.host_type}</td>
-                <td className="py-sm pr-md">{new Date(item.created_at).toLocaleString()}</td>
-                <td className="py-sm">{ageLabel(item.created_at)}</td>
-              </tr>
+                <td
+                  className="py-sm pr-md font-medium"
+                  onClick={() => void openDetail(item.id)}
+                >
+                  {item.user_id}
+                </td>
+                <td className="py-sm pr-md capitalize" onClick={() => void openDetail(item.id)}>
+                  {item.host_type}
+                </td>
+                <td className="py-sm pr-md" onClick={() => void openDetail(item.id)}>
+                  {new Date(item.created_at).toLocaleString()}
+                </td>
+                <td className="py-sm" onClick={() => void openDetail(item.id)}>
+                  {ageLabel(item.created_at)}
+                </td>
+              </ResolvingRow>
             ))}
           </tbody>
         </table>
       )}
 
       {selectedId && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-md">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-surface p-lg shadow-xl dark:bg-surface-secondary-dark">
-            <div className="mb-md flex items-center justify-between">
-              <h2 className="font-heading text-lg font-semibold">Submission detail</h2>
-              <button type="button" onClick={closeDetail} className="text-text-secondary">
-                Close
-              </button>
-            </div>
-
-            {detailError && <p className="text-error">{detailError}</p>}
-            {!detailError && !detail && <p className="text-text-secondary">Loading...</p>}
-            {detail && (
-              <>
-                <SubmissionDetailPanel detail={detail} />
-                <div className="mt-lg flex justify-end gap-sm">
-                  <button
-                    type="button"
-                    className="rounded-md bg-error px-md py-sm text-sm font-medium text-white"
-                    onClick={() => setPendingDecision("rejected")}
-                  >
-                    Reject
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md bg-primary px-md py-sm text-sm font-medium text-white hover:bg-primary-hover"
-                    onClick={() => setPendingDecision("verified")}
-                  >
-                    Verify
-                  </button>
-                </div>
-              </>
-            )}
+        <Modal
+          size="lg"
+          labelledBy="submission-detail-heading"
+          className="max-h-[90vh] overflow-y-auto"
+          onClose={closeDetail}
+        >
+          <div className="mb-md flex items-center justify-between">
+            <h2 id="submission-detail-heading" className="font-heading text-lg font-semibold">
+              Submission detail
+            </h2>
+            <button type="button" onClick={closeDetail} className="text-text-secondary">
+              Close
+            </button>
           </div>
-        </div>
+
+          {detailError && <p className="text-error">{detailError}</p>}
+          {!detailError && !detail && <p className="text-text-secondary">Loading...</p>}
+          {detail && (
+            <>
+              <SubmissionDetailPanel detail={detail} />
+              <div className="mt-lg flex justify-end gap-sm">
+                <button
+                  type="button"
+                  className="rounded-md bg-error px-md py-sm text-sm font-medium text-white"
+                  onClick={() => setPendingDecision("rejected")}
+                >
+                  Reject
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md bg-primary px-md py-sm text-sm font-medium text-white hover:bg-primary-hover"
+                  onClick={() => setPendingDecision("verified")}
+                >
+                  Verify
+                </button>
+              </div>
+            </>
+          )}
+        </Modal>
       )}
 
       {pendingDecision && detail && (

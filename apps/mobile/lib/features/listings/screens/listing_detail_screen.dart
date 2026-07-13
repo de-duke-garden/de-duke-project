@@ -19,9 +19,18 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/listing_card.dart';
+import '../../../core/widgets/skeleton_loader.dart';
 import '../../chat/data/chat_repository.dart';
-import '../data/listing_models.dart';
+// `ListingImage` collides with the widget of the same name from
+// listing_card.dart -- this import is only used for `Listing`,
+// `CommercialListingDetails`, `ShortletListingDetails`, so hide it here
+// rather than prefixing every reference in the file.
+import '../data/listing_models.dart' hide ListingImage;
 import '../data/listing_repository.dart';
 
 enum _LoadState { loading, loaded, empty, error, offline }
@@ -32,11 +41,20 @@ class ListingDetailScreen extends StatefulWidget {
     required this.listingId,
     required this.repository,
     required this.chatRepository,
+    this.heroTag,
   });
 
   final String listingId;
   final ListingRepository repository;
   final ChatRepository chatRepository;
+
+  /// Shared-element `heroTag` passed by the originating Listing Card
+  /// (e.g. `'listing-image-<id>'`) so the hero carousel's first image
+  /// resolves the `page-transition` shared-element transition from the
+  /// card that was tapped. Falls back to a per-listing default so the
+  /// screen still renders correctly (just without a matching flight) when
+  /// reached via deep link/route restoration rather than a card tap.
+  final String? heroTag;
 
   @override
   State<ListingDetailScreen> createState() => _ListingDetailScreenState();
@@ -47,6 +65,14 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
   Listing? _listing;
   String? _errorMessage;
   bool _startingConversation = false;
+
+  /// Same `'listing-image-<id>'` pattern used by ListingCard/
+  /// FeaturedListingCard on Home Feed and Search Results (branding.md
+  /// Mobile Motion & Micro-interactions `shared-element-transition`) --
+  /// defaulted here rather than requiring every navigation call site to
+  /// pass it explicitly, since the pattern is fully determined by the
+  /// listing id.
+  String get _heroTag => widget.heroTag ?? 'listing-image-${widget.listingId}';
 
   @override
   void initState() {
@@ -113,23 +139,32 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Listing')),
       body: switch (_state) {
-        _LoadState.loading => const Center(child: CircularProgressIndicator()),
-        _LoadState.offline => _MessageState(
-            icon: Icons.wifi_off,
-            message: "You're offline. Check your connection and try again.",
-            onRetry: _load,
+        // branding.md Loading States: skeleton photo block + text lines
+        // matching the real hero image/price header shape, not a spinner.
+        _LoadState.loading => const _DetailSkeleton(),
+        _LoadState.offline => EmptyStateView(
+            isError: true,
+            title: "You're offline",
+            message: 'Check your connection and try again.',
+            actionLabel: 'Retry',
+            onAction: _load,
           ),
-        _LoadState.error => _MessageState(
-            icon: Icons.error_outline,
-            message:
-                _errorMessage ?? 'Something went wrong loading this listing.',
-            onRetry: _load,
+        _LoadState.error => EmptyStateView(
+            isError: true,
+            title: 'Something went wrong',
+            message: _errorMessage ?? 'Could not load this listing.',
+            actionLabel: 'Retry',
+            onAction: _load,
           ),
-        _LoadState.empty => const _MessageState(
-            icon: Icons.search_off,
-            message: 'This listing is no longer available.',
+        _LoadState.empty => EmptyStateView(
+            title: 'This listing is no longer available',
+            actionLabel: 'Back to Search',
+            onAction: () => context.canPop()
+                ? context.pop()
+                : context.pushNamed(RouteNames.search),
           ),
-        _LoadState.loaded => _ListingBody(listing: _listing!),
+        _LoadState.loaded =>
+          _ListingBody(listing: _listing!, heroTag: _heroTag),
       },
       bottomNavigationBar: _state == _LoadState.loaded
           ? SafeArea(
@@ -165,43 +200,64 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
   }
 }
 
-class _MessageState extends StatelessWidget {
-  const _MessageState(
-      {required this.icon, required this.message, this.onRetry});
-
-  final IconData icon;
-  final String message;
-  final VoidCallback? onRetry;
+/// branding.md Loading States: skeleton photo block + placeholder text
+/// lines matching the shape/radius of the real hero image and price header.
+class _DetailSkeleton extends StatelessWidget {
+  const _DetailSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: AppSizing.iconLg, color: AppColors.textSecondary),
-            const SizedBox(height: AppSpacing.md),
-            Text(message, textAlign: TextAlign.center),
-            if (onRetry != null) ...[
-              const SizedBox(height: AppSpacing.md),
-              ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
-            ],
-          ],
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      children: [
+        const AspectRatio(
+          aspectRatio: 16 / 9,
+          child: SkeletonBox(borderRadius: AppRadii.md, height: double.infinity),
         ),
-      ),
+        const SizedBox(height: AppSpacing.md),
+        const SkeletonBox(width: 220, height: 22),
+        const SizedBox(height: AppSpacing.sm),
+        const SkeletonBox(width: 160, height: 14),
+        const SizedBox(height: AppSpacing.md),
+        const SkeletonBox(width: 140, height: 28),
+        const SizedBox(height: AppSpacing.lg),
+        const SkeletonBox(height: 14),
+        const SizedBox(height: AppSpacing.sm),
+        const SkeletonBox(height: 14),
+        const SizedBox(height: AppSpacing.sm),
+        SkeletonBox(width: MediaQuery.of(context).size.width * 0.6, height: 14),
+      ],
     );
   }
 }
 
-class _ListingBody extends StatelessWidget {
-  const _ListingBody({required this.listing});
+class _ListingBody extends StatefulWidget {
+  const _ListingBody({required this.listing, required this.heroTag});
 
   final Listing listing;
+  final String heroTag;
+
+  @override
+  State<_ListingBody> createState() => _ListingBodyState();
+}
+
+class _ListingBodyState extends State<_ListingBody> {
+  // Screen 6 Modernization Notes: "the sticky bottom action bar and body
+  // content fade/slide in just after the hero image settles, in a brief
+  // two-step sequence rather than everything appearing simultaneously."
+  bool _bodyVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(AppDurations.sharedElementTransition, () {
+      if (mounted) setState(() => _bodyVisible = true);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final listing = widget.listing;
     final commercial = listing.commercial;
     final shortlet = listing.shortlet;
     final priceLabel = commercial != null
@@ -209,22 +265,45 @@ class _ListingBody extends StatelessWidget {
         : shortlet != null
             ? '₦${shortlet.nightlyPrice.toStringAsFixed(0)} / night'
             : '';
+    final primaryImageUrl =
+        listing.images.isNotEmpty ? listing.images.first.imageUrl : null;
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        if (listing.images.isNotEmpty)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Container(
-                color: AppColors.surfaceSecondary,
-                child: const Center(child: Icon(Icons.image, size: 40)),
-              ),
-            ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            // Same `'listing-image-<id>'` heroTag as the originating
+            // Listing/Featured card -- the shared-element transition
+            // (branding.md `shared-element-transition`) flies the tapped
+            // card's image into this carousel's first frame.
+            child: ListingImage(imageUrl: primaryImageUrl, heroTag: widget.heroTag),
           ),
+        ),
         const SizedBox(height: AppSpacing.md),
+        AnimatedOpacity(
+          opacity: _bodyVisible ? 1 : 0,
+          duration: AppDurations.normal,
+          curve: AppCurves.easeOutSmooth,
+          child: AnimatedSlide(
+            offset: _bodyVisible ? Offset.zero : const Offset(0, 0.03),
+            duration: AppDurations.normal,
+            curve: AppCurves.easeOutSmooth,
+            child: _buildDetails(context, priceLabel, commercial, shortlet),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetails(BuildContext context, String priceLabel,
+      CommercialListingDetails? commercial, ShortletListingDetails? shortlet) {
+    final listing = widget.listing;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Row(
           children: [
             Expanded(
@@ -240,14 +319,10 @@ class _ListingBody extends StatelessWidget {
           style: const TextStyle(color: AppColors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.md),
-        // Fixed price -- no offer/negotiation controls, by design.
-        Text(
-          priceLabel,
-          style: Theme.of(context)
-              .textTheme
-              .titleLarge
-              ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
-        ),
+        // Fixed price -- `stat-display` type token, no offer/negotiation
+        // controls, by design (AGENTS.md fixed-price rule).
+        Text(priceLabel,
+            style: AppTypography.statDisplay.copyWith(color: AppColors.primary)),
         const SizedBox(height: AppSpacing.md),
         Text(listing.description),
         const SizedBox(height: AppSpacing.lg),

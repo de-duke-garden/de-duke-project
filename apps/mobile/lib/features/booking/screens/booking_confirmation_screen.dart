@@ -3,6 +3,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/badge_pop.dart';
 import '../data/booking_api.dart';
 import '../logic/booking_controller.dart';
 
@@ -59,18 +62,31 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
   }
 
   Widget _buildBody(BookingController controller) {
-    switch (controller.status) {
-      case BookingScreenStatus.idle:
-        return _buildSummary(controller, submitting: false);
-      case BookingScreenStatus.submitting:
-        return _buildSummary(controller, submitting: true);
-      case BookingScreenStatus.held:
-        return _buildHeld(controller);
-      case BookingScreenStatus.expired:
-        return _buildExpired();
-      case BookingScreenStatus.error:
-        return _buildError(controller);
-    }
+    // Screen 6b Modernization Notes: Default -> Hold Active is a
+    // purposeful `duration-normal` in-place shift (form recedes, countdown
+    // settles in) -- deliberately calm, no list-stagger/celebratory-
+    // sequence on this time-pressured screen.
+    return AnimatedSwitcher(
+      duration: AppDurations.normal,
+      switchInCurve: AppCurves.easeOutSmooth,
+      switchOutCurve: AppCurves.easeOutSmooth,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: SizeTransition(
+            sizeFactor: animation, alignment: Alignment.topCenter, child: child),
+      ),
+      child: KeyedSubtree(
+        key: ValueKey(controller.status),
+        child: switch (controller.status) {
+          BookingScreenStatus.idle => _buildSummary(controller, submitting: false),
+          BookingScreenStatus.submitting =>
+            _buildSummary(controller, submitting: true),
+          BookingScreenStatus.held => _buildHeld(controller),
+          BookingScreenStatus.expired => _buildExpired(),
+          BookingScreenStatus.error => _buildError(controller),
+        },
+      ),
+    );
   }
 
   Widget _buildSummary(BookingController controller,
@@ -81,7 +97,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         Text(widget.listingTitle,
             style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
-        Text(widget.priceSummary, style: Theme.of(context).textTheme.bodyLarge),
+        Text(widget.priceSummary,
+            style: AppTypography.statDisplay.copyWith(color: AppColors.primary)),
         if (widget.checkInDate != null && widget.checkOutDate != null) ...[
           const SizedBox(height: 8),
           Text(
@@ -118,19 +135,28 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
     final remaining = controller.timeRemaining;
     final minutes = remaining.inMinutes;
     final seconds = remaining.inSeconds % 60;
+    // `warning` as the countdown nears expiry (branding.md semantic status
+    // colors, Screen 6b Modernization Notes), always paired with icon+text.
+    final nearingExpiry = remaining.inSeconds <= 120;
+    final statusColor = nearingExpiry ? AppColors.error : AppColors.warning;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.lock_clock, color: AppColors.warning),
-            const SizedBox(width: 8),
-            Text(
-              'Hold active -- ${minutes}m ${seconds.toString().padLeft(2, '0')}s remaining',
-              style: const TextStyle(
-                  color: AppColors.warning, fontWeight: FontWeight.bold),
-            ),
-          ],
+        // `badge-pop` on the countdown timer settling in when a hold is
+        // created (Screen 6b Modernization Notes) -- keyed once per hold
+        // so it pops on arrival, not on every tick.
+        BadgePop(
+          triggerKey: hold.transactionId,
+          child: Row(
+            children: [
+              Icon(Icons.lock_clock, color: statusColor),
+              const SizedBox(width: 8),
+              Text(
+                'Hold active -- ${minutes}m ${seconds.toString().padLeft(2, '0')}s remaining',
+                style: TextStyle(color: statusColor, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
         Text('Amount due: NGN ${hold.grossAmount.toStringAsFixed(2)}'),

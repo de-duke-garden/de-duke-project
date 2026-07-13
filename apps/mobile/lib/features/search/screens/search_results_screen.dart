@@ -9,7 +9,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/badge_pop.dart';
+import '../../../core/widgets/branded_refresh_indicator.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/list_stagger.dart';
+import '../../../core/widgets/skeleton_loader.dart';
 import '../data/search_models.dart';
 import '../logic/search_providers.dart';
 import 'filter_sheet.dart';
@@ -166,8 +172,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     final notifier = ref.read(searchNotifierProvider.notifier);
 
     if (q.listingType != null) {
-      chips.add(_chip(
-          q.listingType!.apiValue,
+      chips.add(_chip(q.listingType!.apiValue,
           () =>
               notifier.updateQuery((s) => s.copyWith(clearListingType: true))));
     }
@@ -197,14 +202,41 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     );
   }
 
+  // `badge-pop` when a filter chip appears (branding.md Modernization
+  // Notes for Screen 5) -- keyed by label so a freshly-added chip pops in.
   Widget _chip(String label, VoidCallback onDeleted) {
-    return Chip(
-        label: Text(label),
-        onDeleted: onDeleted,
-        deleteIconColor: AppColors.textSecondary);
+    return BadgePop(
+      triggerKey: label,
+      child: Chip(
+          label: Text(label),
+          onDeleted: onDeleted,
+          deleteIconColor: AppColors.textSecondary),
+    );
   }
 
   Widget _buildBody(SearchState state, bool isOffline) {
+    // Screen 5 Modernization Notes: map/list toggle crossfades at
+    // `duration-fast` rather than an abrupt switch.
+    return AnimatedSwitcher(
+      duration: AppDurations.fast,
+      switchInCurve: AppCurves.easeOutSmooth,
+      switchOutCurve: AppCurves.easeOutSmooth,
+      child: KeyedSubtree(
+        key: ValueKey(_bodyKeyFor(state)),
+        child: _buildBodyContent(state, isOffline),
+      ),
+    );
+  }
+
+  String _bodyKeyFor(SearchState state) {
+    if (state.status == SearchStatus.loaded ||
+        state.status == SearchStatus.loadingMore) {
+      return 'loaded-${state.viewMode}';
+    }
+    return state.status.name;
+  }
+
+  Widget _buildBodyContent(SearchState state, bool isOffline) {
     switch (state.status) {
       case SearchStatus.initial:
       case SearchStatus.loading:
@@ -243,7 +275,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
 
   Widget _buildResultsList(SearchState state,
       {required bool showOfflineDisabled}) {
-    return RefreshIndicator(
+    return BrandedRefreshIndicator(
       onRefresh: () => ref.read(searchNotifierProvider.notifier).search(),
       child: ListView.builder(
         controller: _scrollController,
@@ -257,14 +289,22 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
             );
           }
           final result = state.results[index];
-          return ListingResultCard(
-            result: result,
-            onTap: showOfflineDisabled
-                ? () {}
-                : () => context.pushNamed(
-                    RouteNames.listingDetail,
-                    pathParameters: {'id': result.id},
-                  ),
+          // `list-stagger` on initial fetch/filter change (branding.md
+          // Modernization Notes) -- ListStaggerItem self-limits its
+          // one-shot entrance animation per mount, so re-using it here on
+          // every build is safe (it doesn't replay on scroll/rebuild,
+          // only on first mount of that list position).
+          return ListStaggerItem(
+            index: index,
+            child: ListingResultCard(
+              result: result,
+              onTap: showOfflineDisabled
+                  ? () {}
+                  : () => context.pushNamed(
+                      RouteNames.listingDetail,
+                      pathParameters: {'id': result.id},
+                    ),
+            ),
           );
         },
       ),
@@ -274,15 +314,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
   Widget _buildSkeletonList() {
     return ListView.builder(
       itemCount: 4,
-      itemBuilder: (context, index) => Container(
-        margin: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-        height: 220,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceSecondary,
-          borderRadius: BorderRadius.circular(AppSpacing.sm),
-        ),
-      ),
+      itemBuilder: (context, index) => const SkeletonListingCard(),
     );
   }
 
@@ -330,22 +362,10 @@ class _EmptyOfflineNoCache extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.wifi_off, size: 48, color: AppColors.textSecondary),
-            SizedBox(height: AppSpacing.md),
-            Text(
-              "You're offline and there are no cached results to show yet.",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ],
-        ),
-      ),
+    return const EmptyStateView(
+      isError: true,
+      title: "You're offline",
+      message: 'There are no cached results to show yet.',
     );
   }
 }
@@ -358,20 +378,12 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
-            const SizedBox(height: AppSpacing.md),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: AppSpacing.md),
-            ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
-          ],
-        ),
-      ),
+    return EmptyStateView(
+      isError: true,
+      title: 'Something went wrong',
+      message: message,
+      actionLabel: 'Retry',
+      onAction: onRetry,
     );
   }
 }
@@ -385,32 +397,13 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.search_off,
-                size: 48, color: AppColors.textSecondary),
-            const SizedBox(height: AppSpacing.md),
-            const Text('No listings match your filters',
-                textAlign: TextAlign.center),
-            if (hasActiveFilters) ...[
-              const SizedBox(height: AppSpacing.sm),
-              const Text(
-                'Tip: try toggling off "Verified Host only" or widening your price range.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextButton(
-                  onPressed: onClearFilters,
-                  child: const Text('Clear filters')),
-            ],
-          ],
-        ),
-      ),
+    return EmptyStateView(
+      title: 'No listings match your filters',
+      message: hasActiveFilters
+          ? 'Tip: try toggling off "Verified Host only" or widening your price range.'
+          : null,
+      actionLabel: hasActiveFilters ? 'Clear filters' : null,
+      onAction: hasActiveFilters ? onClearFilters : null,
     );
   }
 }

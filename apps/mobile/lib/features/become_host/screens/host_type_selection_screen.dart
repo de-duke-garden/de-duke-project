@@ -9,7 +9,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/celebratory_sequence.dart';
+import '../../../core/widgets/illustration.dart';
+import '../../../core/widgets/list_stagger.dart';
+import '../../../core/widgets/skeleton_loader.dart';
+import '../../../core/widgets/tap_scale.dart';
 import '../data/host_account_models.dart';
 import '../data/host_account_repository.dart';
 
@@ -70,29 +77,36 @@ class _HostTypeSelectionScreenState extends State<HostTypeSelectionScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Become a Host')),
       body: switch (_state) {
-        _ScreenState.loading =>
-          const Center(child: CircularProgressIndicator()),
+        // screens.md Screen 3a Modernization Notes: loading uses a skeleton
+        // block sized to the six-card grid rather than a bare spinner.
+        _ScreenState.loading => ListView(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            physics: const NeverScrollableScrollPhysics(),
+            children: const [
+              SkeletonListingCard(),
+              SkeletonListingCard(),
+              SkeletonListingCard(),
+              SkeletonListingCard(),
+              SkeletonListingCard(),
+              SkeletonListingCard(),
+            ],
+          ),
         _ScreenState.error => _ErrorView(onRetry: _load),
         _ScreenState.notStarted => _TypeSelectionGrid(onSelect: _selectType),
+        // In Review / Rejected stay calmer: standard empty-state weight
+        // illustration (single-tone, lower opacity), not the celebratory
+        // treatment -- these are waiting/action-needed states.
         _ScreenState.inReview => _StatusView(
-            icon: Icons.hourglass_top,
             title:
                 "We're reviewing your ${_submission?.hostType ?? ''} application",
             message:
                 'This usually takes a short while. We will notify you once a decision is made.',
           ),
-        _ScreenState.verified => _StatusView(
-            icon: Icons.verified,
-            title: 'Verified Host',
-            message:
-                'Your ${_submission?.hostType ?? ''} application has been approved.',
-            actionLabel: 'Go to Host Dashboard',
-            // screens.md Screen 3a Verified state: "CTA to Host Dashboard"
-            // -- was incorrectly routing to Home Feed instead.
+        _ScreenState.verified => _VerifiedStatusView(
+            hostType: _submission?.hostType ?? '',
             onAction: () => context.goNamed(RouteNames.host),
           ),
         _ScreenState.rejected => _StatusView(
-            icon: Icons.error_outline,
             title: 'Application rejected',
             message: _submission?.statusReason ??
                 'Your application was not approved.',
@@ -119,36 +133,91 @@ class _TypeSelectionGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // screens.md Screen 3a Modernization Notes: same Listing Card
+    // border/shadow treatment as Screen 2 (`radius-lg`, `shadow-sm`,
+    // hairline border), `tap-scale` on press, `list-stagger` on first
+    // paint.
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
-      children: HostType.values
-          .map(
-            (type) => Card(
-              margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: ListTile(
-                minVerticalPadding: AppSpacing.sm,
-                leading: const Icon(Icons.badge_outlined),
-                title: Text(type.label),
-                subtitle: Text(type.description),
+      children: [
+        for (final (index, type) in HostType.values.indexed)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: ListStaggerItem(
+              index: index,
+              child: TapScale(
                 onTap: () => onSelect(type),
+                borderRadius: BorderRadius.circular(AppRadii.lg),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadii.lg),
+                    border: Border.all(
+                        color: AppColors.border.withValues(alpha: 0.6)),
+                    boxShadow: AppShadows.sm,
+                  ),
+                  child: ListTile(
+                    minVerticalPadding: AppSpacing.sm,
+                    leading: const Icon(Icons.badge_outlined),
+                    title: Text(type.label),
+                    subtitle: Text(type.description),
+                    onTap: () => onSelect(type),
+                  ),
+                ),
               ),
             ),
-          )
-          .toList(),
+          ),
+      ],
+    );
+  }
+}
+
+class _VerifiedStatusView extends StatelessWidget {
+  const _VerifiedStatusView({required this.hostType, required this.onAction});
+
+  final String hostType;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    // screens.md Screen 3a Modernization Notes: Verified is a genuine
+    // milestone -- celebratory-tier illustration (accent/success) paired
+    // with the `celebratory-sequence` motion token.
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: CelebratorySequence(
+          icon: Icons.verified,
+          accentColor: AppColors.success,
+          supportingContent: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Verified Host',
+                  style: Theme.of(context).textTheme.titleMedium,
+                  textAlign: TextAlign.center),
+              const SizedBox(height: AppSpacing.sm),
+              Text('Your $hostType application has been approved.',
+                  textAlign: TextAlign.center),
+              const SizedBox(height: AppSpacing.lg),
+              ElevatedButton(
+                  onPressed: onAction,
+                  child: const Text('Go to Host Dashboard')),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
 class _StatusView extends StatelessWidget {
   const _StatusView({
-    required this.icon,
     required this.title,
     required this.message,
     this.actionLabel,
     this.onAction,
   });
 
-  final IconData icon;
   final String title;
   final String message;
   final String? actionLabel;
@@ -156,13 +225,15 @@ class _StatusView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // In Review / Rejected: standard empty-state weight illustration
+    // (single-tone, lower opacity) rather than the celebratory treatment.
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48),
+            const DeDukeIllustration(tier: IllustrationTier.empty),
             const SizedBox(height: AppSpacing.md),
             Text(title,
                 style: Theme.of(context).textTheme.titleMedium,

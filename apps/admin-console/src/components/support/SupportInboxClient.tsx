@@ -15,6 +15,8 @@ import {
 } from "firebase/firestore";
 
 import { ChatUnavailableError, signInToChat } from "@/lib/firebaseChat";
+import { TableSkeleton } from "@/components/ui/Skeleton";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { ChatMessage } from "../chat/types";
 import type { SupportConversation } from "./types";
 
@@ -147,6 +149,16 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
+  // `duration-normal` slide-in for the conversation panel, matching
+  // Conversation Oversight (screens.md Screen 26 Modernization Notes).
+  const [panelEntered, setPanelEntered] = useState(false);
+  useEffect(() => {
+    if (!selectedId) return;
+    setPanelEntered(false);
+    const frame = requestAnimationFrame(() => setPanelEntered(true));
+    return () => cancelAnimationFrame(frame);
+  }, [selectedId]);
+
   const sendMessage = useCallback(async () => {
     if (!db || !selectedId || draft.trim().length === 0) return;
     setSending(true);
@@ -174,7 +186,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
   }, [db, selectedId]);
 
   if (state === "loading") {
-    return <p className="text-text-secondary">Connecting to chat...</p>;
+    return <TableSkeleton rows={6} columns={3} />;
   }
 
   if (state === "unavailable") {
@@ -233,16 +245,22 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
             type="button"
             onClick={() => setSelectedId(conversation.id)}
             className={
-              "mb-xs block w-full rounded-md p-sm text-left text-sm " +
+              "mb-xs block w-full rounded-md p-sm text-left text-sm transition-colors duration-[120ms] ease-out-smooth " +
               (conversation.id === selectedId
                 ? "bg-primary-light dark:bg-primary-light-dark"
                 : "hover:bg-surface-secondary dark:hover:bg-surface-secondary-dark")
             }
           >
             <p className="font-medium">User {conversation.userId}</p>
-            <p className="text-text-secondary capitalize">{conversation.status}</p>
+            <div className="mt-xs">
+              <StatusBadge
+                value={conversation.status}
+                label={conversation.status}
+                tone={conversation.status === "resolved" ? "success" : "primary"}
+              />
+            </div>
             {conversation.assignedStaffId && (
-              <p className="text-xs text-primary">Assigned: {conversation.assignedStaffId}</p>
+              <p className="mt-xs text-xs text-primary">Assigned: {conversation.assignedStaffId}</p>
             )}
           </button>
         ))}
@@ -254,9 +272,22 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
         )}
 
         {selected && (
-          <>
+          <div
+            key={selected.id}
+            className={
+              "flex flex-1 flex-col transition-all duration-[200ms] ease-out-smooth " +
+              (panelEntered ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0")
+            }
+          >
             <div className="mb-sm flex items-center justify-between">
-              <p className="text-sm text-text-secondary capitalize">Status: {selected.status}</p>
+              <div className="flex items-center gap-sm text-sm text-text-secondary">
+                <span>Status:</span>
+                <StatusBadge
+                  value={selected.status}
+                  label={selected.status}
+                  tone={selected.status === "resolved" ? "success" : "primary"}
+                />
+              </div>
               {selected.status !== "resolved" && (
                 <button
                   type="button"
@@ -305,7 +336,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                 Send
               </button>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

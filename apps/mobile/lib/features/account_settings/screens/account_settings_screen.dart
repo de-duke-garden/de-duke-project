@@ -15,7 +15,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/badge_pop.dart';
+import '../../../core/widgets/de_duke_logo.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../push_notifications/data/push_notification_repository.dart';
 import '../data/account_deletion_repository.dart';
@@ -45,6 +49,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   bool _actionInFlight = false;
   Map<String, bool>? _pushPreferences;
   Map<String, bool>? _emailPreferences;
+  // Screen 21 Modernization Notes: the "Saving" state's inline checkmark
+  // confirmation uses a quick duration-fast fade rather than a lingering
+  // spinner for auto-saved fields. Keyed by 'push:<category>' /
+  // 'email:<category>'; briefly holds the just-saved key so the checkmark
+  // can fade in then back out.
+  String? _justSavedKey;
 
   @override
   void initState() {
@@ -103,6 +113,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           await widget.pushNotificationRepository.updatePreferences({category: value});
       if (!mounted) return;
       setState(() => _pushPreferences = updated);
+      _flashSaved('push:$category');
     } catch (_) {
       if (!mounted) return;
       setState(() => _pushPreferences = previous);
@@ -119,6 +130,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       final updated = await widget.authRepository.updateEmailPreferences({category: value});
       if (!mounted) return;
       setState(() => _emailPreferences = updated);
+      _flashSaved('email:$category');
     } catch (_) {
       if (!mounted) return;
       setState(() => _emailPreferences = previous);
@@ -126,6 +138,14 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         const SnackBar(content: Text("Couldn't save that -- try again.")),
       );
     }
+  }
+
+  void _flashSaved(String key) {
+    setState(() => _justSavedKey = key);
+    Future.delayed(AppDurations.slow, () {
+      if (!mounted || _justSavedKey != key) return;
+      setState(() => _justSavedKey = null);
+    });
   }
 
   Future<void> _confirmLogout() async {
@@ -239,7 +259,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        // Consistent tab-root AppBar treatment (mark + label) across Home,
+        // Chat, Dashboard, Profile -- see TabAppBarTitle.
+        title: const TabAppBarTitle('Settings'),
         automaticallyImplyLeading: false, // tab root (core/routing/app_shell.dart)
       ),
       body: switch (_state) {
@@ -319,38 +341,53 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         // DEFAULT_PUSH_NOTIFICATION_PREFERENCES.
         _SectionHeader('Push Notifications'),
         Card(
-          child: _pushPreferences == null
-              ? const ListTile(
-                  leading: Icon(Icons.notifications_outlined),
-                  title: Text('Push preferences'),
-                  subtitle: Text('Not available right now'),
-                  enabled: false,
-                )
-              : Column(
-                  children: [
-                    SwitchListTile(
-                      secondary: const Icon(Icons.home_work_outlined),
-                      title: const Text('Listings'),
-                      subtitle: const Text('Listing status changes'),
-                      value: _pushPreferences!['listings'] ?? true,
-                      onChanged: (v) => _togglePushPreference('listings', v),
-                    ),
-                    SwitchListTile(
-                      secondary: const Icon(Icons.chat_bubble_outline),
-                      title: const Text('Chat'),
-                      subtitle: const Text('New messages'),
-                      value: _pushPreferences!['chat'] ?? true,
-                      onChanged: (v) => _togglePushPreference('chat', v),
-                    ),
-                    SwitchListTile(
-                      secondary: const Icon(Icons.payments_outlined),
-                      title: const Text('Payments'),
-                      subtitle: const Text('Bookings and payment confirmations'),
-                      value: _pushPreferences!['payments'] ?? true,
-                      onChanged: (v) => _togglePushPreference('payments', v),
-                    ),
-                  ],
-                ),
+          // Screen 21 Modernization Notes: grouped settings sections use
+          // subtle duration-fast expand transitions where sub-options
+          // reveal -- here, the per-category channels appearing once
+          // preferences load.
+          child: AnimatedSize(
+            duration: AppDurations.fast,
+            curve: AppCurves.easeOutSmooth,
+            child: _pushPreferences == null
+                ? const ListTile(
+                    key: ValueKey('push-unavailable'),
+                    leading: Icon(Icons.notifications_outlined),
+                    title: Text('Push preferences'),
+                    subtitle: Text('Not available right now'),
+                    enabled: false,
+                  )
+                : Column(
+                    key: const ValueKey('push-loaded'),
+                    children: [
+                      _PreferenceSwitchRow(
+                        icon: Icons.home_work_outlined,
+                        title: 'Listings',
+                        subtitle: 'Listing status changes',
+                        value: _pushPreferences!['listings'] ?? true,
+                        justSaved: _justSavedKey == 'push:listings',
+                        onChanged: (v) =>
+                            _togglePushPreference('listings', v),
+                      ),
+                      _PreferenceSwitchRow(
+                        icon: Icons.chat_bubble_outline,
+                        title: 'Chat',
+                        subtitle: 'New messages',
+                        value: _pushPreferences!['chat'] ?? true,
+                        justSaved: _justSavedKey == 'push:chat',
+                        onChanged: (v) => _togglePushPreference('chat', v),
+                      ),
+                      _PreferenceSwitchRow(
+                        icon: Icons.payments_outlined,
+                        title: 'Payments',
+                        subtitle: 'Bookings and payment confirmations',
+                        value: _pushPreferences!['payments'] ?? true,
+                        justSaved: _justSavedKey == 'push:payments',
+                        onChanged: (v) =>
+                            _togglePushPreference('payments', v),
+                      ),
+                    ],
+                  ),
+          ),
         ),
         const SizedBox(height: AppSpacing.lg),
         // FEAT-024 AC: "User can manage email notification preferences per
@@ -360,38 +397,52 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         // app/models/user.py's DEFAULT_EMAIL_NOTIFICATION_PREFERENCES.
         _SectionHeader('Email Notifications'),
         Card(
-          child: _emailPreferences == null
-              ? const ListTile(
-                  leading: Icon(Icons.email_outlined),
-                  title: Text('Email preferences'),
-                  subtitle: Text('Not available right now'),
-                  enabled: false,
-                )
-              : Column(
-                  children: [
-                    SwitchListTile(
-                      secondary: const Icon(Icons.person_outline),
-                      title: const Text('Account'),
-                      subtitle: const Text('Welcome, password reset, deletion confirmation'),
-                      value: _emailPreferences!['account'] ?? true,
-                      onChanged: (v) => _toggleEmailPreference('account', v),
-                    ),
-                    SwitchListTile(
-                      secondary: const Icon(Icons.verified_outlined),
-                      title: const Text('Verification'),
-                      subtitle: const Text('Host verification approved/rejected'),
-                      value: _emailPreferences!['verification'] ?? true,
-                      onChanged: (v) => _toggleEmailPreference('verification', v),
-                    ),
-                    SwitchListTile(
-                      secondary: const Icon(Icons.payments_outlined),
-                      title: const Text('Payments'),
-                      subtitle: const Text('Booking, payment, and payout confirmations'),
-                      value: _emailPreferences!['payments'] ?? true,
-                      onChanged: (v) => _toggleEmailPreference('payments', v),
-                    ),
-                  ],
-                ),
+          child: AnimatedSize(
+            duration: AppDurations.fast,
+            curve: AppCurves.easeOutSmooth,
+            child: _emailPreferences == null
+                ? const ListTile(
+                    key: ValueKey('email-unavailable'),
+                    leading: Icon(Icons.email_outlined),
+                    title: Text('Email preferences'),
+                    subtitle: Text('Not available right now'),
+                    enabled: false,
+                  )
+                : Column(
+                    key: const ValueKey('email-loaded'),
+                    children: [
+                      _PreferenceSwitchRow(
+                        icon: Icons.person_outline,
+                        title: 'Account',
+                        subtitle:
+                            'Welcome, password reset, deletion confirmation',
+                        value: _emailPreferences!['account'] ?? true,
+                        justSaved: _justSavedKey == 'email:account',
+                        onChanged: (v) =>
+                            _toggleEmailPreference('account', v),
+                      ),
+                      _PreferenceSwitchRow(
+                        icon: Icons.verified_outlined,
+                        title: 'Verification',
+                        subtitle: 'Host verification approved/rejected',
+                        value: _emailPreferences!['verification'] ?? true,
+                        justSaved: _justSavedKey == 'email:verification',
+                        onChanged: (v) =>
+                            _toggleEmailPreference('verification', v),
+                      ),
+                      _PreferenceSwitchRow(
+                        icon: Icons.payments_outlined,
+                        title: 'Payments',
+                        subtitle:
+                            'Booking, payment, and payout confirmations',
+                        value: _emailPreferences!['payments'] ?? true,
+                        justSaved: _justSavedKey == 'email:payments',
+                        onChanged: (v) =>
+                            _toggleEmailPreference('payments', v),
+                      ),
+                    ],
+                  ),
+          ),
         ),
         const SizedBox(height: AppSpacing.lg),
         // screens.md Screen 19 (Transaction History) Entry Points includes
@@ -472,6 +523,53 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         'deduke_admin' => 'De-Duke Admin',
         _ => role,
       };
+}
+
+/// A notification-preference toggle row. Wraps the `Switch` in [BadgePop]
+/// (keyed to its value) for a badge-pop-style settle on flip, and shows a
+/// brief duration-fast fading checkmark in place of a lingering spinner
+/// once the auto-save completes (screens.md Screen 21 Modernization Notes).
+class _PreferenceSwitchRow extends StatelessWidget {
+  const _PreferenceSwitchRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+    required this.justSaved,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool justSaved;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedOpacity(
+            opacity: justSaved ? 1 : 0,
+            duration: AppDurations.fast,
+            child: Icon(Icons.check_circle,
+                size: 18, color: AppColors.primary),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          BadgePop(
+            triggerKey: value,
+            child: Switch(value: value, onChanged: onChanged),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SectionHeader extends StatelessWidget {

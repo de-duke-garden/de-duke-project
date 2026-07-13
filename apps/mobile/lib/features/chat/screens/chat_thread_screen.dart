@@ -10,7 +10,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/badge_pop.dart';
+import '../../../core/widgets/skeleton_loader.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
@@ -41,6 +46,13 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   CurrentUser? _currentUser;
   List<ChatMessage> _messages = [];
   bool _isOffline = false;
+
+  // Tracks which message ids have already been rendered once, so the
+  // slide-up+fade entrance (branding.md `duration-fast`) only plays for
+  // genuinely new incoming bubbles, not for the initial history load.
+  final Set<String> _seenMessageIds = {};
+  Set<String> _newlyArrivedIds = {};
+  bool _firstMessagesSnapshot = true;
 
   final _draftController = TextEditingController();
   final _scrollController = ScrollController();
@@ -97,6 +109,14 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
           .listen((messages) {
         if (!mounted) return;
         setState(() {
+          final incomingIds = messages.map((m) => m.id).toSet();
+          if (_firstMessagesSnapshot) {
+            _newlyArrivedIds = {};
+            _firstMessagesSnapshot = false;
+          } else {
+            _newlyArrivedIds = incomingIds.difference(_seenMessageIds);
+          }
+          _seenMessageIds.addAll(incomingIds);
           _messages = messages;
           _state = _ScreenState.loaded;
         });
@@ -147,6 +167,21 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     }
   }
 
+  /// Tap-to-retry affordance on a Send Failed bubble (screens.md Screen 9
+  /// States) -- resends the same content rather than leaving the user with
+  /// no recourse. This screen has no card grid so `tap-scale`/`list-stagger`
+  /// don't apply here; this retry tap is the screen's equivalent tactile
+  /// feedback point (branding.md Modernization Notes).
+  Future<void> _retrySend(ChatMessage message) async {
+    if (_currentUser == null) return;
+    await widget.chatRepository.sendMessage(
+      conversationId: widget.conversationId,
+      senderId: message.senderId ?? _currentUser!.userId,
+      senderRole: message.senderRole ?? _roleForSend(),
+      body: message.body,
+    );
+  }
+
   String _roleForSend() {
     final user = _currentUser!;
     final conversation = _conversation!;
@@ -183,8 +218,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
               ),
       ),
       body: switch (_state) {
-        _ScreenState.loading =>
-          const Center(child: CircularProgressIndicator()),
+        _ScreenState.loading => const _SkeletonThread(),
         _ScreenState.error => _ErrorView(
             message: _errorMessage ?? 'Something went wrong.', onRetry: _init),
         _ScreenState.loaded => _buildThread(context),
@@ -213,18 +247,46 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             itemBuilder: (context, index) {
               final message = _messages[index];
               if (message.isSystemMessage) {
+                final isStaffJoined = message.body.toLowerCase().contains('staff');
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   child: Center(
-                    child: Text(
-                      message.body,
-                      style: Theme.of(context).textTheme.bodySmall,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isStaffJoined)
+                          Padding(
+                            padding:
+                                const EdgeInsets.only(right: AppSpacing.xs),
+                            child: BadgePop(
+                              triggerKey: message.id,
+                              child: const Icon(Icons.support_agent,
+                                  size: 16, color: AppColors.primary),
+                            ),
+                          ),
+                        Text(
+                          message.body,
+                          style: AppTypography.bodySmall
+                              .copyWith(color: AppColors.textSecondary),
+                        ),
+                      ],
                     ),
                   ),
                 );
               }
               final isMine = message.senderId == _currentUser?.userId;
-              return _MessageBubble(message: message, isMine: isMine);
+              final bubble = _MessageBubble(
+                message: message,
+                isMine: isMine,
+                onRetry: message.deliveryStatus == ChatDeliveryStatus.failed
+                    ? () => _retrySend(message)
+                    : null,
+              );
+              // Quick slide-up + fade (duration-fast) for genuinely new
+              // incoming bubbles only -- history loads in place.
+              return _newlyArrivedIds.contains(message.id)
+                  ? _BubbleEntrance(key: ValueKey(message.id), child: bubble)
+                  : bubble;
             },
           ),
         ),
@@ -256,61 +318,149 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   }
 }
 
+/// branding.md `duration-fast` (200ms) slide-up + fade entrance for a
+/// genuinely new incoming bubble.
+class _BubbleEntrance extends StatefulWidget {
+  const _BubbleEntrance({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<_BubbleEntrance> createState() => _BubbleEntranceState();
+}
+
+class _BubbleEntranceState extends State<_BubbleEntrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: AppDurations.fast,
+  )..forward();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final curved =
+        CurvedAnimation(parent: _controller, curve: AppCurves.easeOutSmooth);
+    return AnimatedBuilder(
+      animation: curved,
+      builder: (context, child) => Opacity(
+        opacity: curved.value.clamp(0.0, 1.0),
+        child: Transform.translate(
+          offset: Offset(0, 10 * (1 - curved.value)),
+          child: child,
+        ),
+      ),
+      child: widget.child,
+    );
+  }
+}
+
+/// Skeleton bubbles replacing the bare spinner while message history loads
+/// (branding.md Loading States / screens.md Screen 9 Loading state) --
+/// matches bubble shape/radius and alternates alignment like real messages.
+class _SkeletonThread extends StatelessWidget {
+  const _SkeletonThread();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      itemCount: 8,
+      itemBuilder: (context, index) =>
+          SkeletonChatBubble(outgoing: index.isOdd),
+    );
+  }
+}
+
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, required this.isMine});
+  const _MessageBubble({
+    required this.message,
+    required this.isMine,
+    this.onRetry,
+  });
 
   final ChatMessage message;
   final bool isMine;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     final isStaff = message.senderRole == 'deduke_staff';
-    final colorScheme = Theme.of(context).colorScheme;
+    // Chat Bubble component tokens (branding.md): outgoing uses `primary`
+    // background/white text with a squared tail corner; incoming uses
+    // `surface-secondary`. De-Duke Staff messages get a distinct tint so
+    // all three participant roles stay visually distinguishable (Layout).
     final bubbleColor = isStaff
-        ? colorScheme.tertiaryContainer
-        : (isMine ? colorScheme.primary : colorScheme.surfaceContainerHighest);
-    final textColor = isMine && !isStaff ? Colors.white : colorScheme.onSurface;
+        ? AppColors.accentLight
+        : (isMine ? AppColors.primary : AppColors.surfaceSecondary);
+    final textColor =
+        isMine && !isStaff ? Colors.white : AppColors.textPrimary;
+    final isFailed = message.deliveryStatus == ChatDeliveryStatus.failed;
+
+    // `radius-md` on 3 corners, sharp (squared) tail corner -- bottom-right
+    // for outgoing (right-aligned), bottom-left for incoming.
+    final radius = BorderRadius.only(
+      topLeft: const Radius.circular(AppRadii.md),
+      topRight: const Radius.circular(AppRadii.md),
+      bottomLeft: Radius.circular(isMine ? AppRadii.md : 0),
+      bottomRight: Radius.circular(isMine ? 0 : AppRadii.md),
+    );
+
+    final bubble = Container(
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      constraints:
+          BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+      decoration: BoxDecoration(
+        color: bubbleColor,
+        borderRadius: radius,
+        border: isFailed ? Border.all(color: AppColors.error) : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _roleLabel(message.senderRole),
+            style: AppTypography.caption
+                .copyWith(color: textColor.withValues(alpha: 0.8)),
+          ),
+          Text(message.body, style: TextStyle(color: textColor)),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _formatTime(message.sentAt),
+                style: AppTypography.bodySmall
+                    .copyWith(color: textColor.withValues(alpha: 0.7)),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Icon(_statusIcon(),
+                  size: 12,
+                  color: isFailed ? AppColors.error : textColor.withValues(alpha: 0.7)),
+              if (isFailed) ...[
+                const SizedBox(width: AppSpacing.xs),
+                Text('Tap to retry',
+                    style: AppTypography.bodySmall
+                        .copyWith(color: AppColors.error)),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        constraints:
-            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        decoration: BoxDecoration(
-            color: bubbleColor, borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _roleLabel(message.senderRole),
-              style: Theme.of(context)
-                  .textTheme
-                  .labelSmall
-                  ?.copyWith(color: textColor.withValues(alpha: 0.8)),
-            ),
-            Text(message.body, style: TextStyle(color: textColor)),
-            const SizedBox(height: AppSpacing.xs),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _formatTime(message.sentAt),
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: textColor.withValues(alpha: 0.7)),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Icon(_statusIcon(),
-                    size: 12, color: textColor.withValues(alpha: 0.7)),
-              ],
-            ),
-          ],
-        ),
-      ),
+      child: isFailed && onRetry != null
+          ? GestureDetector(onTap: onRetry, child: bubble)
+          : bubble,
     );
   }
 

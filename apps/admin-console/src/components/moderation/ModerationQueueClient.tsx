@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ModerationDecisionDialog } from "./ModerationDecisionDialog";
+import { TableSkeleton } from "@/components/ui/Skeleton";
+import { ResolvingRow } from "@/components/ui/ResolvingRow";
 import type { ModerationAction, ModerationQueueItem } from "./types";
 
 // Proxied through a same-origin Route Handler that attaches the session
@@ -41,6 +43,7 @@ export function ModerationQueueClient() {
     item: ModerationQueueItem;
     action: ModerationAction;
   } | null>(null);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -60,13 +63,28 @@ export function ModerationQueueClient() {
 
   async function handleConfirm(reason: string) {
     if (!pendingDecision) return;
-    await submitDecision(pendingDecision.item.listing_id, pendingDecision.action, reason);
+    const listingId = pendingDecision.item.listing_id;
+    await submitDecision(listingId, pendingDecision.action, reason);
     setPendingDecision(null);
-    await load();
+    // `row-resolve` (branding.md Admin Web Console motion system /
+    // screens.md Screen 23 Modernization Notes): let the row fade + collapse
+    // out of the queue instead of an immediate full-table refresh flash.
+    // The item is only removed from `items` once ResolvingRow's
+    // `onResolved` fires, below.
+    setResolvingId(listingId);
+  }
+
+  function handleRowResolved(listingId: string) {
+    setItems((prev) => {
+      const next = prev.filter((i) => i.listing_id !== listingId);
+      if (next.length === 0) setState("empty");
+      return next;
+    });
+    setResolvingId(null);
   }
 
   if (state === "loading") {
-    return <p className="text-text-secondary">Loading moderation queue...</p>;
+    return <TableSkeleton rows={6} columns={6} />;
   }
 
   if (state === "error") {
@@ -103,7 +121,12 @@ export function ModerationQueueClient() {
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={item.listing_id} className="border-b border-border">
+            <ResolvingRow
+              key={item.listing_id}
+              resolving={item.listing_id === resolvingId}
+              onResolved={() => handleRowResolved(item.listing_id)}
+              className="border-b border-border transition-colors duration-[120ms] ease-out-smooth hover:bg-surface-secondary dark:border-border-dark dark:hover:bg-surface-secondary-dark"
+            >
               <td className="py-sm pr-md font-medium">{item.title}</td>
               <td className="py-sm pr-md capitalize">{item.listing_type}</td>
               <td className="py-sm pr-md capitalize">{item.host_type}</td>
@@ -113,21 +136,23 @@ export function ModerationQueueClient() {
                 <div className="flex gap-sm">
                   <button
                     type="button"
-                    className="rounded-md bg-primary px-sm py-1 text-white hover:bg-primary-hover"
+                    className="rounded-md bg-primary px-sm py-1 text-white hover:bg-primary-hover disabled:opacity-60"
+                    disabled={item.listing_id === resolvingId}
                     onClick={() => setPendingDecision({ item, action: "approve" })}
                   >
                     Approve
                   </button>
                   <button
                     type="button"
-                    className="rounded-md bg-error px-sm py-1 text-white"
+                    className="rounded-md bg-error px-sm py-1 text-white disabled:opacity-60"
+                    disabled={item.listing_id === resolvingId}
                     onClick={() => setPendingDecision({ item, action: "ban" })}
                   >
                     Ban
                   </button>
                 </div>
               </td>
-            </tr>
+            </ResolvingRow>
           ))}
         </tbody>
       </table>

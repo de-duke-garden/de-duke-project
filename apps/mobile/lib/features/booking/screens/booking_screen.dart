@@ -11,7 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../listings/data/listing_models.dart';
 import '../../listings/data/listing_repository.dart';
 import '../data/booking_api.dart';
@@ -145,7 +147,8 @@ class _BookingScreenState extends State<BookingScreen> {
               Text(_listing!.title,
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.sm),
-              Text(_priceSummary, style: Theme.of(context).textTheme.bodyLarge),
+              Text(_priceSummary,
+                  style: AppTypography.statDisplay.copyWith(color: AppColors.primary)),
               const SizedBox(height: AppSpacing.lg),
               OutlinedButton.icon(
                 onPressed: _pickDates,

@@ -7,9 +7,12 @@ class AppColors {
   AppColors._();
 
   // -- Primary --
-  static const primary = Color(0xFF0F6E5C);
-  static const primaryHover = Color(0xFF0B5647);
-  static const primaryLight = Color(0xFFE1F2EE);
+  // Corrected per branding.md logo cross-check: the shipped logo asset
+  // renders as a purer forest green (#0D6B2D), not the originally
+  // documented teal-leaning #0F6E5C. Every screen re-themed accordingly.
+  static const primary = Color(0xFF0D6B2D);
+  static const primaryHover = Color(0xFF0A5423);
+  static const primaryLight = Color(0xFFE2F0E4);
 
   // -- Secondary / Accent --
   static const accent = Color(0xFFD98E04);
@@ -35,6 +38,6 @@ class AppColors {
   static const textPrimaryDark = Color(0xFFF2F5F3);
   static const textSecondaryDark = Color(0xFF9CAAA3);
   static const borderDark = Color(0xFF2B332E);
-  static const primaryDark = Color(0xFF2C9C82);
-  static const primaryLightDark = Color(0xFF193831);
+  static const primaryDark = Color(0xFF33A652);
+  static const primaryLightDark = Color(0xFF153A20);
 }

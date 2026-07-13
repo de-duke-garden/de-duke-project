@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { Modal } from "@/components/ui/Modal";
+
 interface InviteStaffModalProps {
   busy: boolean;
   onSubmit: (fullName: string, email: string) => Promise<void>;
@@ -10,7 +12,8 @@ interface InviteStaffModalProps {
 
 /** "Invite Staff" Modal (screens.md Screen 28) -- name + email, posts to
  * POST /v1/staff-accounts/invite. Validation errors are shown inline
- * (validation-error state), never silently dropped. */
+ * (validation-error state), never silently dropped. Renders through the
+ * shared `Modal` shell so it picks up `modal-enter`. */
 export function InviteStaffModal({ busy, onSubmit, onClose }: InviteStaffModalProps) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -31,16 +34,8 @@ export function InviteStaffModal({ busy, onSubmit, onClose }: InviteStaffModalPr
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="invite-staff-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-md"
-    >
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg bg-surface p-lg shadow-lg"
-      >
+    <Modal onClose={onClose} labelledBy="invite-staff-title" size="sm">
+      <form onSubmit={handleSubmit}>
         <h2 id="invite-staff-title" className="text-lg font-semibold">
           Invite Staff
         </h2>
@@ -70,7 +65,7 @@ export function InviteStaffModal({ busy, onSubmit, onClose }: InviteStaffModalPr
         />
 
         {validationError ? (
-          <p role="alert" className="mt-sm text-sm text-red-600">
+          <p role="alert" className="mt-sm text-sm text-error">
             {validationError}
           </p>
         ) : null}
@@ -87,12 +82,12 @@ export function InviteStaffModal({ busy, onSubmit, onClose }: InviteStaffModalPr
           <button
             type="submit"
             disabled={busy}
-            className="min-h-[48px] min-w-[48px] rounded-md bg-blue-600 px-md py-sm text-white disabled:opacity-60"
+            className="min-h-[48px] min-w-[48px] rounded-md bg-primary px-md py-sm text-white disabled:opacity-60"
           >
             {busy ? "Sending..." : "Send invite"}
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

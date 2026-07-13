@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { TableSkeleton } from "@/components/ui/Skeleton";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 import { ConfirmModal } from "./ConfirmModal";
 import { InviteStaffModal } from "./InviteStaffModal";
@@ -25,12 +28,55 @@ const ACTION_COPY: Record<
   demote: { title: "Demote to Staff?", confirmLabel: "Demote", endpoint: "demote" },
 };
 
+/** Minimal, screen-scoped toast for "Invitation sent to [email]"
+ * (screens.md Screen 28's "Invitation Sent" state; branding.md's
+ * `toast-enter` token: 200ms ease-out-smooth, slides in from top-right,
+ * auto-dismisses after 4s unless hovered). No global toast provider
+ * exists yet in this app, so this is local component state rather than
+ * a shared system -- see AGENTS.md scope note if a second screen needs
+ * this later. */
+function InviteToast({ email, onDismiss }: { email: string; onDismiss: () => void }) {
+  const hovering = useRef(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleDismiss = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      if (!hovering.current) onDismiss();
+      else scheduleDismiss();
+    }, 4000);
+  }, [onDismiss]);
+
+  useEffect(() => {
+    scheduleDismiss();
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [scheduleDismiss]);
+
+  return (
+    <div
+      role="status"
+      className="animate-toast-enter fixed right-md top-md z-50 max-w-sm rounded-md border border-border bg-surface p-md shadow-lg dark:border-border-dark dark:bg-surface-secondary-dark"
+      onMouseEnter={() => {
+        hovering.current = true;
+      }}
+      onMouseLeave={() => {
+        hovering.current = false;
+      }}
+    >
+      <p className="text-sm font-medium">Invitation sent to {email}</p>
+    </div>
+  );
+}
+
 export function StaffAccountsClient() {
   const [accounts, setAccounts] = useState<StaffAccount[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [toastEmail, setToastEmail] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
 
@@ -76,6 +122,7 @@ export function StaffAccountsClient() {
       setInviteLink(body.invite_link);
       setShowInvite(false);
       setInviteBusy(false);
+      setToastEmail(email);
       await loadAccounts();
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
@@ -106,11 +153,19 @@ export function StaffAccountsClient() {
   }
 
   if (accounts === null) {
-    return <p className="mt-lg text-text-secondary">Loading staff accounts...</p>;
+    return (
+      <div className="mt-lg">
+        <TableSkeleton rows={6} columns={5} />
+      </div>
+    );
   }
 
   return (
     <div className="mt-lg">
+      {toastEmail && (
+        <InviteToast email={toastEmail} onDismiss={() => setToastEmail(null)} />
+      )}
+
       {error && (
         <div role="alert" className="mb-md rounded-md border border-error bg-error/10 p-sm text-sm text-error">
           {error}
@@ -148,11 +203,26 @@ export function StaffAccountsClient() {
           </thead>
           <tbody>
             {accounts.map((account) => (
-              <tr key={account.id} className="border-b border-border dark:border-border-dark">
+              <tr
+                key={account.id}
+                className="border-b border-border transition-colors duration-[120ms] ease-out-smooth hover:bg-surface-secondary dark:border-border-dark dark:hover:bg-surface-secondary-dark"
+              >
                 <td className="p-sm">{account.full_name}</td>
                 <td className="p-sm">{account.email ?? "--"}</td>
-                <td className="p-sm capitalize">{account.role.replace("deduke_", "")}</td>
-                <td className="p-sm">{account.is_active ? "Active" : "Deactivated"}</td>
+                <td className="p-sm">
+                  <StatusBadge
+                    value={account.role}
+                    label={account.role.replace("deduke_", "")}
+                    tone={account.role === "deduke_admin" ? "primary" : "neutral"}
+                  />
+                </td>
+                <td className="p-sm">
+                  <StatusBadge
+                    value={account.is_active ? "active" : "deactivated"}
+                    label={account.is_active ? "Active" : "Deactivated"}
+                    tone={account.is_active ? "success" : "error"}
+                  />
+                </td>
                 <td className="p-sm">
                   <div className="flex flex-wrap gap-xs">
                     {account.is_active ? (

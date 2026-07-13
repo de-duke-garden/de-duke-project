@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Modal } from "@/components/ui/Modal";
 import type { ReviewDecision } from "./types";
 
 interface Props {
@@ -36,52 +37,50 @@ export function ReviewDecisionDialog({ decision, submissionLabel, onCancel, onCo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-md">
-      <div className="w-full max-w-md rounded-lg bg-surface p-lg shadow-xl dark:bg-surface-secondary-dark">
-        <h2 className="font-heading text-lg font-semibold">
-          {isReject ? "Reject submission" : "Verify submission"}
-        </h2>
-        <p className="mt-xs text-sm text-text-secondary">{submissionLabel}</p>
+    <Modal size="md" labelledBy="review-decision-heading" onClose={() => !submitting && onCancel()}>
+      <h2 id="review-decision-heading" className="font-heading text-lg font-semibold">
+        {isReject ? "Reject submission" : "Verify submission"}
+      </h2>
+      <p className="mt-xs text-sm text-text-secondary">{submissionLabel}</p>
 
-        {isReject && (
-          <>
-            <label className="mt-md block text-sm font-medium" htmlFor="review-reason">
-              Reason (shown to the applicant)
-            </label>
-            <textarea
-              id="review-reason"
-              className="mt-xs w-full rounded-md border border-border bg-transparent p-sm text-sm"
-              rows={4}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              disabled={submitting}
-              placeholder="e.g. Practicing certificate image is unclear, please resubmit"
-            />
-          </>
-        )}
-        {error && <p className="mt-xs text-sm text-error">{error}</p>}
+      {isReject && (
+        <>
+          <label className="mt-md block text-sm font-medium" htmlFor="review-reason">
+            Reason (shown to the applicant)
+          </label>
+          <textarea
+            id="review-reason"
+            className="mt-xs w-full rounded-md border border-border bg-transparent p-sm text-sm"
+            rows={4}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            disabled={submitting}
+            placeholder="e.g. Practicing certificate image is unclear, please resubmit"
+          />
+        </>
+      )}
+      {error && <p className="mt-xs text-sm text-error">{error}</p>}
 
-        <div className="mt-lg flex justify-end gap-sm">
-          <button
-            type="button"
-            className="rounded-md border border-border px-md py-sm text-sm"
-            onClick={onCancel}
-            disabled={submitting}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className={`rounded-md px-md py-sm text-sm font-medium text-white ${
-              isReject ? "bg-error" : "bg-primary hover:bg-primary-hover"
-            }`}
-            onClick={handleConfirm}
-            disabled={submitting}
-          >
-            {submitting ? "Submitting..." : isReject ? "Reject" : "Verify"}
-          </button>
-        </div>
+      <div className="mt-lg flex justify-end gap-sm">
+        <button
+          type="button"
+          className="rounded-md border border-border px-md py-sm text-sm"
+          onClick={onCancel}
+          disabled={submitting}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className={`rounded-md px-md py-sm text-sm font-medium text-white ${
+            isReject ? "bg-error" : "bg-primary hover:bg-primary-hover"
+          }`}
+          onClick={handleConfirm}
+          disabled={submitting}
+        >
+          {submitting ? "Submitting..." : isReject ? "Reject" : "Verify"}
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 }

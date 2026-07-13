@@ -28,10 +28,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/branded_refresh_indicator.dart';
+import '../../../core/widgets/de_duke_logo.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/list_stagger.dart';
+import '../../../core/widgets/listing_card.dart';
+import '../../../core/widgets/skeleton_loader.dart';
 import '../../push_notifications/data/push_notification_service.dart';
 import '../../search/data/search_models.dart';
 import '../../search/data/search_repository.dart';
-import '../../search/screens/listing_result_card.dart';
 
 enum _ScreenState { loading, loaded, empty, error, offline }
 
@@ -125,7 +130,9 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('De-Duke'),
+        // Consistent tab-root AppBar treatment (mark + label) across Home,
+        // Chat, Dashboard, Profile -- see TabAppBarTitle.
+        title: const TabAppBarTitle('Home'),
         automaticallyImplyLeading: false, // tab root -- never a back arrow
         actions: [
           // Components table: "Location indicator -- Shows/change current
@@ -169,29 +176,23 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
   Widget _buildBody(BuildContext context) {
     switch (_state) {
       case _ScreenState.loading:
-        return ListView.builder(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          itemCount: 5,
-          itemBuilder: (_, __) => Container(
-            height: 96,
-            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(AppRadii.md),
-            ),
-          ),
+        // branding.md Loading States: skeleton cards matching real card
+        // shape/radius (Featured/Hero slot + standard cards), not a spinner.
+        return ListView(
+          padding: const EdgeInsets.only(top: AppSpacing.sm),
+          children: const [
+            SkeletonListingCard(featured: true),
+            SkeletonListingCard(),
+            SkeletonListingCard(),
+            SkeletonListingCard(),
+          ],
         );
       case _ScreenState.error:
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 48),
-              const SizedBox(height: AppSpacing.sm),
-              const Text('Something went wrong'),
-              TextButton(onPressed: _load, child: const Text('Retry')),
-            ],
-          ),
+        return EmptyStateView(
+          isError: true,
+          title: 'Something went wrong',
+          actionLabel: 'Retry',
+          onAction: _load,
         );
       case _ScreenState.offline:
         return Column(
@@ -207,27 +208,31 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
           ],
         );
       case _ScreenState.empty:
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.location_off_outlined, size: 48),
-              const SizedBox(height: AppSpacing.sm),
-              const Text('No listings near you yet'),
-              const SizedBox(height: AppSpacing.sm),
-              OutlinedButton(
-                onPressed: () => context.pushNamed(RouteNames.search),
-                child: const Text('Widen search'),
-              ),
-            ],
-          ),
+        return EmptyStateView(
+          title: 'No listings near you yet',
+          message: 'Try widening your search radius.',
+          actionLabel: 'Widen search',
+          onAction: () => context.pushNamed(RouteNames.search),
         );
       case _ScreenState.loaded:
-        return RefreshIndicator(onRefresh: _load, child: _buildSections(context));
+        return BrandedRefreshIndicator(
+            onRefresh: _load, child: _buildSections(context));
     }
   }
 
   Widget _buildSections(BuildContext context) {
+    var index = 0;
+    // A listing can appear in both "Near You" and "Recently Added" (they're
+    // separate queries) -- Hero requires unique tags per route, so only the
+    // first occurrence of a given listing id gets the shared-element tag.
+    final heroTagsUsed = <String>{};
+    String? heroTagFor(String id) {
+      final tag = 'listing-image-$id';
+      if (heroTagsUsed.contains(tag)) return null;
+      heroTagsUsed.add(tag);
+      return tag;
+    }
+
     return ListView(
       children: [
         // No separate "Search listings" button here -- the persistent
@@ -241,13 +246,36 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
             padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
             child: Text('Near You', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
+          // First card in the feed's top slot renders as the Featured/Hero
+          // Card per screens.md Screen 4 Layout ("day's top listing").
           for (final result in _nearYou)
-            ListingResultCard(
-              result: result,
-              onTap: () => context.pushNamed(
-                RouteNames.listingDetail,
-                pathParameters: {'id': result.id},
-              ),
+            ListStaggerItem(
+              index: index++,
+              child: _nearYou.first.id == result.id
+                  ? FeaturedListingCard(
+                      imageUrl: result.primaryImageUrl,
+                      title: result.title,
+                      subtitle: '${result.locationCity}, ${result.locationState}',
+                      priceLabel: _priceLabel(result),
+                      isVerified: result.isVerifiedHost,
+                      heroTag: heroTagFor(result.id),
+                      onTap: () => context.pushNamed(
+                        RouteNames.listingDetail,
+                        pathParameters: {'id': result.id},
+                      ),
+                    )
+                  : ListingCard(
+                      imageUrl: result.primaryImageUrl,
+                      title: result.title,
+                      subtitle: '${result.locationCity}, ${result.locationState}',
+                      priceLabel: _priceLabel(result),
+                      isVerified: result.isVerifiedHost,
+                      heroTag: heroTagFor(result.id),
+                      onTap: () => context.pushNamed(
+                        RouteNames.listingDetail,
+                        pathParameters: {'id': result.id},
+                      ),
+                    ),
             ),
         ],
         if (_recentlyAdded.isNotEmpty) ...[
@@ -256,16 +284,30 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
             child: Text('Recently Added', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           for (final result in _recentlyAdded)
-            ListingResultCard(
-              result: result,
-              onTap: () => context.pushNamed(
-                RouteNames.listingDetail,
-                pathParameters: {'id': result.id},
+            ListStaggerItem(
+              index: index++,
+              child: ListingCard(
+                imageUrl: result.primaryImageUrl,
+                title: result.title,
+                subtitle: '${result.locationCity}, ${result.locationState}',
+                priceLabel: _priceLabel(result),
+                isVerified: result.isVerifiedHost,
+                heroTag: heroTagFor(result.id),
+                onTap: () => context.pushNamed(
+                  RouteNames.listingDetail,
+                  pathParameters: {'id': result.id},
+                ),
               ),
             ),
         ],
       ],
     );
+  }
+
+  String _priceLabel(ListingSearchResult result) {
+    if (result.displayPrice == null) return 'Price unavailable';
+    final formatted = result.displayPrice!.toStringAsFixed(0);
+    return result.nightlyPrice != null ? '₦$formatted/night' : '₦$formatted';
   }
 }
 

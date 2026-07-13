@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Modal } from "@/components/ui/Modal";
 import type { ModerationAction } from "./types";
 
 interface Props {
@@ -36,9 +37,12 @@ export function ModerationDecisionDialog({ action, listingTitle, onCancel, onCon
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-md">
-      <div className="w-full max-w-md rounded-lg bg-surface p-lg shadow-xl dark:bg-surface-secondary-dark">
-        <h2 className="font-heading text-lg font-semibold">
+    <Modal
+      labelledBy="moderation-dialog-title"
+      size="md"
+      onClose={submitting ? undefined : onCancel}
+    >
+        <h2 id="moderation-dialog-title" className="font-heading text-lg font-semibold">
           {isBan ? "Ban listing" : "Approve listing"}
         </h2>
         <p className="mt-xs text-sm text-text-secondary">{listingTitle}</p>
@@ -81,7 +85,6 @@ export function ModerationDecisionDialog({ action, listingTitle, onCancel, onCon
             {submitting ? "Submitting..." : isBan ? "Ban listing" : "Approve listing"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

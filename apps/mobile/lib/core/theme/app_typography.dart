@@ -61,4 +61,25 @@ class AppTypography {
   );
   static const mono =
       TextStyle(fontFamily: _monoFont, fontSize: 13, height: 1.5);
+
+  /// Listing price on Property Detail / Featured-Hero cards, wallet
+  /// balance -- tabular figures, tight tracking, its own visual register
+  /// distinct from headings (branding.md Type Scale).
+  static const statDisplay = TextStyle(
+    fontFamily: _headingFont,
+    fontSize: 28,
+    fontWeight: FontWeight.w800,
+    height: 1.15,
+    letterSpacing: -0.28,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Price on standard Listing Cards, secondary stat call-outs.
+  static const statSmall = TextStyle(
+    fontFamily: _headingFont,
+    fontSize: 18,
+    fontWeight: FontWeight.w700,
+    height: 1.2,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
 }
