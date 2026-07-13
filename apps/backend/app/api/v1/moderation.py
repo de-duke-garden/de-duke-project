@@ -20,10 +20,15 @@ from app.schemas.moderation import (
     ModerationQueueItemOut,
     validate_action,
 )
+from app.services import report_service
 from app.services.moderation_service import (
+    QUEUE_ITEM_TYPE_CONVERSATION_REPORT,
+    QUEUE_ITEM_TYPE_LISTING_REPORT,
+    QUEUE_ITEM_TYPE_NEW_LISTING_REVIEW,
     apply_moderation_decision,
     get_listing_or_none,
     list_moderation_queue,
+    list_open_reports_for_queue,
 )
 
 router = APIRouter()
@@ -54,6 +59,7 @@ async def get_moderation_queue(
         ).scalar_one_or_none()
         items.append(
             ModerationQueueItemOut(
+                queue_item_type=QUEUE_ITEM_TYPE_NEW_LISTING_REVIEW,
                 listing_id=listing.id,
                 listing_type=listing.listing_type,
                 title=listing.title,
@@ -65,6 +71,57 @@ async def get_moderation_queue(
                 primary_image_url=primary_image.image_url if primary_image else None,
             )
         )
+
+    # FEAT-025 AC (post-FEAT-009): merge in open/reviewing reports,
+    # distinguished via queue_item_type, additive to the original
+    # new-Owner-listing review queue above.
+    reports = await list_open_reports_for_queue(session)
+    for report in reports:
+        reporter_name = await report_service.get_user_name_or_unknown(
+            session, report.reporter_user_id
+        )
+        if report.target_type == "listing":
+            reported_listing = await get_listing_or_none(session, report.target_id)
+            items.append(
+                ModerationQueueItemOut(
+                    queue_item_type=QUEUE_ITEM_TYPE_LISTING_REPORT,
+                    listing_id=reported_listing.id if reported_listing else report.target_id,
+                    listing_type=reported_listing.listing_type if reported_listing else None,
+                    title=reported_listing.title if reported_listing else None,
+                    status=reported_listing.status if reported_listing else None,
+                    status_reason=reported_listing.status_reason if reported_listing else None,
+                    host_account_id=(
+                        reported_listing.host_account_id if reported_listing else None
+                    ),
+                    host_type=None,
+                    created_at=report.created_at.isoformat(),
+                    report_id=report.id,
+                    report_reason=report.reason,
+                    report_detail=report.detail,
+                    reporter_user_id=report.reporter_user_id,
+                    reporter_name=reporter_name,
+                )
+            )
+        else:
+            items.append(
+                ModerationQueueItemOut(
+                    queue_item_type=QUEUE_ITEM_TYPE_CONVERSATION_REPORT,
+                    listing_id=None,
+                    listing_type=None,
+                    title=None,
+                    status=None,
+                    status_reason=None,
+                    host_account_id=None,
+                    host_type=None,
+                    created_at=report.created_at.isoformat(),
+                    report_id=report.id,
+                    report_reason=report.reason,
+                    report_detail=report.detail,
+                    reporter_user_id=report.reporter_user_id,
+                    reporter_name=reporter_name,
+                )
+            )
+
     return items
 
 

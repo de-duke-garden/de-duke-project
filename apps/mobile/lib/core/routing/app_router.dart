@@ -20,6 +20,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/agency/data/agency_repository.dart';
+import '../../features/agency/screens/agency_dashboard_screen.dart';
+import '../../features/agency/screens/lead_analytics_screen.dart';
+import '../../features/agency/screens/portfolio_list_screen.dart';
+import '../../features/agency/screens/team_management_screen.dart';
+import '../../features/agency/screens/unassigned_leads_inbox_screen.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/screens/auth_screen.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
@@ -45,7 +51,10 @@ import '../../features/checkout/screens/payment_confirmation_screen.dart';
 import '../../features/listings/data/listing_repository.dart';
 import '../../features/listings/screens/create_listing_screen.dart';
 import '../../features/listings/screens/listing_detail_screen.dart';
+import '../../features/reporting/data/report_repository.dart';
 import '../../features/search/data/search_repository.dart';
+import '../../features/share_summary/data/share_repository.dart';
+import '../../features/search/screens/saved_searches_screen.dart';
 import '../../features/search/screens/search_results_screen.dart';
 import '../../features/transactions/data/dispute_repository.dart';
 import '../../features/transactions/data/transactions_repository.dart';
@@ -75,6 +84,11 @@ final ApiClient _listingsApiClient = ApiClient(
 );
 final ListingRepository _listingRepository =
     ListingRepository(_listingsApiClient);
+final ShareRepository _shareRepository = ShareRepository(_listingsApiClient);
+// FEAT-009 -- shares the same ApiClient as listings/chat, no new base
+// config needed since /listings/:id/report and /conversations/:id/report
+// are just more /v1 endpoints.
+final ReportRepository _reportRepository = ReportRepository(_listingsApiClient);
 
 final ApiClient _authApiClient = ApiClient(
   baseUrl: AppConfig.apiBaseUrl,
@@ -158,6 +172,12 @@ final ApiClient _hostDashboardApiClient = ApiClient(
 final HostDashboardRepository _hostDashboardRepository =
     HostDashboardRepository(_hostDashboardApiClient);
 
+final ApiClient _agencyApiClient = ApiClient(
+  baseUrl: AppConfig.apiBaseUrl,
+  sessionStore: SessionStore(),
+);
+final AgencyRepository _agencyRepository = AgencyRepository(_agencyApiClient);
+
 final GoRouter appRouter = GoRouter(
   // screens.md Screen 1 (Sign-Up / Login) documents its own entry point as
   // "App launch (unauthenticated)" -- there is no separate Splash/Onboarding
@@ -192,12 +212,14 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: 'role',
           name: RouteNames.authRole,
-          builder: (context, state) => RoleSelectionScreen(repository: _authRepository),
+          builder: (context, state) =>
+              RoleSelectionScreen(repository: _authRepository),
         ),
         GoRoute(
           path: 'forgot-password',
           name: RouteNames.authForgotPassword,
-          builder: (context, state) => ForgotPasswordScreen(repository: _authRepository),
+          builder: (context, state) =>
+              ForgotPasswordScreen(repository: _authRepository),
         ),
       ],
     ),
@@ -206,7 +228,8 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/verification',
       name: RouteNames.verification,
-      builder: (context, state) => HostTypeSelectionScreen(repository: _hostAccountRepository),
+      builder: (context, state) =>
+          HostTypeSelectionScreen(repository: _hostAccountRepository),
       routes: [
         GoRoute(
           path: ':hostType',
@@ -226,7 +249,8 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/listing/new',
       name: RouteNames.listingNew,
-      builder: (context, state) => CreateListingScreen(repository: _listingRepository),
+      builder: (context, state) =>
+          CreateListingScreen(repository: _listingRepository),
     ),
     // -- Screen 6/6b: Listing Detail + Confirm Booking Details.
     GoRoute(
@@ -236,6 +260,8 @@ final GoRouter appRouter = GoRouter(
         listingId: state.pathParameters['id']!,
         repository: _listingRepository,
         chatRepository: _chatRepository,
+        shareRepository: _shareRepository,
+        reportRepository: _reportRepository,
       ),
       routes: [
         GoRoute(
@@ -263,6 +289,7 @@ final GoRouter appRouter = GoRouter(
         conversationId: state.pathParameters['id']!,
         chatRepository: _chatRepository,
         authRepository: _authRepository,
+        reportRepository: _reportRepository,
       ),
     ),
 
@@ -316,8 +343,9 @@ final GoRouter appRouter = GoRouter(
               transactionId: state.pathParameters['id']!,
               repository: _checkoutRepository,
             ),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-                FadeTransition(opacity: animation, child: child),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) =>
+                    FadeTransition(opacity: animation, child: child),
           ),
         ),
       ],
@@ -347,14 +375,58 @@ final GoRouter appRouter = GoRouter(
           SearchResultsScreen(initialQuery: state.uri.queryParameters['q']),
     ),
 
+    // -- Screen 20: Saved Searches (FEAT-023). Entry points: Home Feed,
+    // Search Results ("Save this search"); pushed full-screen, same
+    // non-tab treatment as Search Results above.
+    GoRoute(
+      path: '/search/saved',
+      name: RouteNames.savedSearches,
+      builder: (context, state) => const SavedSearchesScreen(),
+    ),
+
+    // -- Screen 14: Portfolio List View (agency).
+    GoRoute(
+      path: '/agency/listings',
+      name: RouteNames.agencyPortfolio,
+      builder: (context, state) =>
+          PortfolioListScreen(repository: _agencyRepository),
+      routes: [
+        // -- Screen 16: Lead Analytics View.
+        GoRoute(
+          path: ':id/analytics',
+          name: RouteNames.agencyListingAnalytics,
+          builder: (context, state) => LeadAnalyticsScreen(
+            listingId: state.pathParameters['id']!,
+            repository: _agencyRepository,
+          ),
+        ),
+      ],
+    ),
+
+    // -- Screen 15: Unassigned Leads Inbox (agency).
+    GoRoute(
+      path: '/agency/leads',
+      name: RouteNames.agencyLeads,
+      builder: (context, state) =>
+          UnassignedLeadsInboxScreen(repository: _agencyRepository),
+    ),
+
+    // -- FEAT-012: Team management (invite/list team members).
+    GoRoute(
+      path: '/agency/team',
+      name: RouteNames.agencyTeam,
+      builder: (context, state) =>
+          TeamManagementScreen(repository: _agencyRepository),
+    ),
+
     // -- Screens 4/8/12/21: the 4 bottom-nav tab roots, per screens.md
     // Screen 4's "BottomNavigationBar with tabs: Home, Chat, Dashboard
     // (Host/Agency, shown per role), Profile". Branch order here MUST
     // match app_shell.dart's _visibleBranches index mapping (0=Home,
     // 1=Chat, 2=Dashboard, 3=Profile).
     StatefulShellRoute.indexedStack(
-      builder: (context, state, navigationShell) =>
-          AppShell(navigationShell: navigationShell, authRepository: _authRepository),
+      builder: (context, state, navigationShell) => AppShell(
+          navigationShell: navigationShell, authRepository: _authRepository),
       branches: [
         StatefulShellBranch(
           routes: [
@@ -389,6 +461,21 @@ final GoRouter appRouter = GoRouter(
                 dashboardRepository: _hostDashboardRepository,
                 hostAccountRepository: _hostAccountRepository,
               ),
+            ),
+          ],
+        ),
+        // -- Screen 13: Agency Dashboard. Separate branch from `/host` above
+        // (rather than reusing it) since an agency account's Dashboard tab
+        // shows agency-portfolio metrics, not the individual-host listing
+        // list -- app_shell.dart's `_showsAgencyTab`/`_visibleBranches`
+        // picks exactly one of the two per role, never both.
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/agency',
+              name: RouteNames.agency,
+              builder: (context, state) =>
+                  AgencyDashboardScreen(repository: _agencyRepository),
             ),
           ],
         ),

@@ -69,19 +69,26 @@ class _AppShellState extends State<AppShell> {
   /// personas open it many times per session; nesting it under Account
   /// Settings would add friction to a high-frequency action for exactly
   /// the users who rely on it most, per screens.md Screen 4's Edge Cases
-  /// note). Agency Dashboard (screens.md Screen 13, FEAT-018) is out of
-  /// scope -- only individual_host gets a Dashboard tab today; agency
-  /// accounts see Home/Chat/Profile only until Screen 13 is built, rather
-  /// than linking to a dashboard that doesn't exist for them.
-  bool get _showsDashboardTab => _role == 'individual_host';
+  /// note).
+  bool get _showsHostDashboardTab => _role == 'individual_host';
+
+  /// Screen 13 (Agency Dashboard, FEAT-012/FEAT-019) -- an `agency` account
+  /// (root or invited team member; both share `User.role == 'agency'` per
+  /// agency_service.py's own documented reasoning) gets the Agency
+  /// Dashboard tab instead of the Host Dashboard tab.
+  bool get _showsAgencyDashboardTab => _role == 'agency';
 
   /// Branch index -> visible NavigationBar index mapping. Branch order is
-  /// fixed by app_router.dart's StatefulShellRoute.indexedStack
-  /// declaration (0=Home, 1=Chat, 2=Dashboard, 3=Profile) -- Dashboard
-  /// (branch 2) is conditionally hidden from the nav bar, so the two index
-  /// spaces (branch vs. visible-destination) diverge whenever it's hidden
-  /// and must be mapped explicitly both ways.
-  List<int> get _visibleBranches => _showsDashboardTab ? const [0, 1, 2, 3] : const [0, 1, 3];
+  /// fixed by app_router.dart's StatefulShellRoute.indexedStack declaration
+  /// (0=Home, 1=Chat, 2=Host Dashboard, 3=Agency Dashboard, 4=Profile) --
+  /// at most one of Host/Agency Dashboard is ever visible for a given role,
+  /// so the branch-index vs. visible-destination-index spaces diverge and
+  /// must be mapped explicitly both ways.
+  List<int> get _visibleBranches {
+    if (_showsHostDashboardTab) return const [0, 1, 2, 4];
+    if (_showsAgencyDashboardTab) return const [0, 1, 3, 4];
+    return const [0, 1, 4];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,11 +118,18 @@ class _AppShellState extends State<AppShell> {
           );
         },
         destinations: [
-          const NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
-          const NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
-          if (_showsDashboardTab)
-            const NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
-          const NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
+          const NavigationDestination(
+              icon: Icon(Icons.home_outlined), label: 'Home'),
+          const NavigationDestination(
+              icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
+          if (_showsHostDashboardTab)
+            const NavigationDestination(
+                icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
+          if (_showsAgencyDashboardTab)
+            const NavigationDestination(
+                icon: Icon(Icons.apartment_outlined), label: 'Agency'),
+          const NavigationDestination(
+              icon: Icon(Icons.person_outline), label: 'Profile'),
         ],
       ),
     );

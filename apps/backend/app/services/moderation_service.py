@@ -16,15 +16,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.host_account import HostAccount
 from app.models.listing import Listing
+from app.models.report import Report
 from app.services import push_service
 
 MODERATABLE_STATUSES = ("under_review", "flagged")
+
+# FEAT-025 AC (post-FEAT-009): "reported/flagged listings appear in the
+# same queue, distinguished from 'new Owner listing' review reasons."
+# `queue_item_type` is that discriminator -- see list_moderation_queue.
+QUEUE_ITEM_TYPE_NEW_LISTING_REVIEW = "new_listing_review"
+QUEUE_ITEM_TYPE_LISTING_REPORT = "listing_report"
+QUEUE_ITEM_TYPE_CONVERSATION_REPORT = "conversation_report"
 
 
 async def list_moderation_queue(session: AsyncSession) -> list[Listing]:
     """Returns listings awaiting staff action, most recently created first
     (a simple recency-based priority; screens.md Screen 23 leaves detailed
-    prioritization logic -- e.g. SLA age -- as a later refinement)."""
+    prioritization logic -- e.g. SLA age -- as a later refinement).
+
+    This is the original FEAT-025 launch query (new Owner-type listings
+    awaiting initial review) and is left untouched -- callers that also
+    want FEAT-009 report items merged in should use
+    list_moderation_queue_with_reports below, which additively combines
+    this with report_service.list_open_reports_for_queue.
+    """
     stmt = (
         select(Listing)
         .where(Listing.status.in_(MODERATABLE_STATUSES))
@@ -32,6 +47,19 @@ async def list_moderation_queue(session: AsyncSession) -> list[Listing]:
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+async def list_open_reports_for_queue(session: AsyncSession) -> list[Report]:
+    """Thin re-export of report_service's query, kept here so
+    app/api/v1/moderation.py has a single import surface for "everything
+    that belongs in the queue" without needing to know report_service
+    exists. Import is local to avoid a module-level circular import
+    (report_service doesn't import moderation_service, so this is safe,
+    but mirrors chat_service's own local-import convention for
+    analytics_service/push_service)."""
+    from app.services import report_service
+
+    return await report_service.list_open_reports_for_queue(session)
 
 
 async def get_listing_or_none(session: AsyncSession, listing_id: str) -> Listing | None:

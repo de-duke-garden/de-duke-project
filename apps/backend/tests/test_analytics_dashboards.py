@@ -151,7 +151,9 @@ async def _make_listing(session: AsyncSession, *, host_account: HostAccount, **o
     return defaults["id"]
 
 
-async def _make_transaction(session: AsyncSession, *, payer: User, payee: User, **overrides) -> Transaction:
+async def _make_transaction(
+    session: AsyncSession, *, payer: User, payee: User, **overrides
+) -> Transaction:
     defaults: dict = {
         "listing_id": f"listing-{uuid.uuid4()}",
         "payer_id": payer.id,
@@ -312,11 +314,17 @@ async def test_active_listings_breakdown(session: AsyncSession) -> None:
     host_user = await _make_user(session, role="individual_host")
     host_account = await _make_host_account(session, user=host_user, host_type="owner")
     await _make_listing(
-        session, host_account=host_account, status="active", listing_type="shortlet",
+        session,
+        host_account=host_account,
+        status="active",
+        listing_type="shortlet",
         location_city="Lagos",
     )
     await _make_listing(
-        session, host_account=host_account, status="under_review", listing_type="commercial",
+        session,
+        host_account=host_account,
+        status="under_review",
+        listing_type="commercial",
         location_city="Abuja",
     )
 
@@ -333,8 +341,12 @@ async def test_revenue_breakdown_only_counts_succeeded_transactions(
     seeker = await _make_user(session, role="seeker")
     host = await _make_user(session, role="individual_host")
     await _make_transaction(
-        session, payer=seeker, payee=host, status="succeeded",
-        gross_amount=100_000.0, commission_amount=10_000.0,
+        session,
+        payer=seeker,
+        payee=host,
+        status="succeeded",
+        gross_amount=100_000.0,
+        commission_amount=10_000.0,
     )
     await _make_transaction(session, payer=seeker, payee=host, status="held", gross_amount=50_000.0)
 
@@ -345,14 +357,52 @@ async def test_revenue_breakdown_only_counts_succeeded_transactions(
     assert revenue["overall_take_rate"] == 0.1
 
 
-async def test_business_dashboard_leakage_and_agency_tier_are_explicitly_none(
+async def test_business_dashboard_leakage_is_none_with_no_inquiries(
     session: AsyncSession,
 ) -> None:
-    """FEAT-035: leakage rate (FEAT-016) and Agency Tier (Phase 3) don't
-    exist yet -- must be None, never fabricated."""
+    """FEAT-035: with zero inquiries recorded, leakage rate has nothing to
+    measure against and must be None, not a fabricated 0.0/1.0."""
     dashboard = await business_analytics_service.get_business_dashboard(session)
     assert dashboard["leakage_rate"] is None
-    assert dashboard["agency_tier"] is None
+    assert "agency_tier" not in dashboard
+
+
+async def test_leakage_rate_computed_from_inquiries_and_transactions(
+    session: AsyncSession,
+) -> None:
+    """FEAT-016: leakage rate = 1 - (transactions / inquiries), using
+    Listing.inquiry_count as the queryable proxy for "chats started" and
+    every Transaction row as "converted to an in-app payment"."""
+    host_user = await _make_user(session, role="individual_host")
+    host_account = await _make_host_account(session, user=host_user, host_type="owner")
+
+    # 10 inquiries recorded across two listings, 3 transactions actually
+    # completed in-app -- 70% never converted (leakage rate 0.7).
+    await _make_listing(session, host_account=host_account, status="active", inquiry_count=6)
+    await _make_listing(session, host_account=host_account, status="active", inquiry_count=4)
+
+    for _ in range(3):
+        await _make_transaction(session, payer=host_user, payee=host_user)
+
+    rate = await business_analytics_service.leakage_rate(session)
+    assert rate == 0.7
+
+
+async def test_leakage_rate_clamps_at_zero_when_more_transactions_than_inquiries(
+    session: AsyncSession,
+) -> None:
+    """A listing can receive more Transaction attempts than inquiries
+    (retries after an expired hold, FEAT-013 AC) -- must clamp at 0.0
+    leakage, never go negative."""
+    host_user = await _make_user(session, role="individual_host")
+    host_account = await _make_host_account(session, user=host_user, host_type="owner")
+
+    await _make_listing(session, host_account=host_account, status="active", inquiry_count=1)
+    for _ in range(3):
+        await _make_transaction(session, payer=host_user, payee=host_user)
+
+    rate = await business_analytics_service.leakage_rate(session)
+    assert rate == 0.0
 
 
 # -- API-layer role gate -------------------------------------------------------

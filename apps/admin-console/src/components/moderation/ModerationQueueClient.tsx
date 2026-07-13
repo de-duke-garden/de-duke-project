@@ -64,6 +64,7 @@ export function ModerationQueueClient() {
   async function handleConfirm(reason: string) {
     if (!pendingDecision) return;
     const listingId = pendingDecision.item.listing_id;
+    if (!listingId) return; // canDecide gate already prevents this
     await submitDecision(listingId, pendingDecision.action, reason);
     setPendingDecision(null);
     // `row-resolve` (branding.md Admin Web Console motion system /
@@ -71,12 +72,12 @@ export function ModerationQueueClient() {
     // out of the queue instead of an immediate full-table refresh flash.
     // The item is only removed from `items` once ResolvingRow's
     // `onResolved` fires, below.
-    setResolvingId(listingId);
+    setResolvingId(pendingDecision.item.report_id ?? listingId);
   }
 
-  function handleRowResolved(listingId: string) {
+  function handleRowResolved(rowKey: string) {
     setItems((prev) => {
-      const next = prev.filter((i) => i.listing_id !== listingId);
+      const next = prev.filter((i) => (i.report_id ?? i.listing_id ?? i.created_at) !== rowKey);
       if (next.length === 0) setState("empty");
       return next;
     });
@@ -111,7 +112,7 @@ export function ModerationQueueClient() {
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-border text-left text-text-secondary">
-            <th className="py-sm pr-md">Listing</th>
+            <th className="py-sm pr-md">Item</th>
             <th className="py-sm pr-md">Type</th>
             <th className="py-sm pr-md">Host type</th>
             <th className="py-sm pr-md">Status</th>
@@ -120,47 +121,86 @@ export function ModerationQueueClient() {
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
-            <ResolvingRow
-              key={item.listing_id}
-              resolving={item.listing_id === resolvingId}
-              onResolved={() => handleRowResolved(item.listing_id)}
-              className="border-b border-border transition-colors duration-[120ms] ease-out-smooth hover:bg-surface-secondary dark:border-border-dark dark:hover:bg-surface-secondary-dark"
-            >
-              <td className="py-sm pr-md font-medium">{item.title}</td>
-              <td className="py-sm pr-md capitalize">{item.listing_type}</td>
-              <td className="py-sm pr-md capitalize">{item.host_type}</td>
-              <td className="py-sm pr-md capitalize">{item.status}</td>
-              <td className="py-sm pr-md">{new Date(item.created_at).toLocaleString()}</td>
-              <td className="py-sm">
-                <div className="flex gap-sm">
-                  <button
-                    type="button"
-                    className="rounded-md bg-primary px-sm py-1 text-white hover:bg-primary-hover disabled:opacity-60"
-                    disabled={item.listing_id === resolvingId}
-                    onClick={() => setPendingDecision({ item, action: "approve" })}
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md bg-error px-sm py-1 text-white disabled:opacity-60"
-                    disabled={item.listing_id === resolvingId}
-                    onClick={() => setPendingDecision({ item, action: "ban" })}
-                  >
-                    Ban
-                  </button>
-                </div>
-              </td>
-            </ResolvingRow>
-          ))}
+          {items.map((item) => {
+            const rowKey = item.report_id ?? item.listing_id ?? item.created_at;
+            const isReport = item.queue_item_type !== "new_listing_review";
+            const canDecide = item.listing_id !== null;
+            return (
+              <ResolvingRow
+                key={rowKey}
+                resolving={rowKey === resolvingId}
+                onResolved={() => handleRowResolved(rowKey)}
+                className="border-b border-border transition-colors duration-[120ms] ease-out-smooth hover:bg-surface-secondary dark:border-border-dark dark:hover:bg-surface-secondary-dark"
+              >
+                <td className="py-sm pr-md font-medium">
+                  <div className="flex items-center gap-sm">
+                    {/* FEAT-025 AC (post-FEAT-009): icon+text badge --
+                        never color alone -- distinguishing a reported item
+                        from a new Owner listing review. */}
+                    {isReport ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-error/10 px-sm py-0.5 text-xs font-medium text-error">
+                        {"\u{1F6A9}"}{" "}
+                        {item.queue_item_type === "listing_report"
+                          ? "Reported listing"
+                          : "Reported conversation"}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-sm py-0.5 text-xs font-medium text-primary">
+                        {"\u{1F195}"} New listing review
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1">
+                    {item.title ?? (item.listing_id ? item.listing_id : "Chat conversation")}
+                  </div>
+                  {isReport && (
+                    <div className="mt-1 text-xs text-text-secondary">
+                      <span className="capitalize">{item.report_reason}</span>
+                      {item.reporter_name && <span> &middot; reported by {item.reporter_name}</span>}
+                      {item.report_detail && <p className="mt-1">&ldquo;{item.report_detail}&rdquo;</p>}
+                    </div>
+                  )}
+                </td>
+                <td className="py-sm pr-md capitalize">{item.listing_type ?? "-"}</td>
+                <td className="py-sm pr-md capitalize">{item.host_type ?? "-"}</td>
+                <td className="py-sm pr-md capitalize">{item.status ?? "-"}</td>
+                <td className="py-sm pr-md">{new Date(item.created_at).toLocaleString()}</td>
+                <td className="py-sm">
+                  {canDecide ? (
+                    <div className="flex gap-sm">
+                      <button
+                        type="button"
+                        className="rounded-md bg-primary px-sm py-1 text-white hover:bg-primary-hover disabled:opacity-60"
+                        disabled={rowKey === resolvingId}
+                        onClick={() => setPendingDecision({ item, action: "approve" })}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md bg-error px-sm py-1 text-white disabled:opacity-60"
+                        disabled={rowKey === resolvingId}
+                        onClick={() => setPendingDecision({ item, action: "ban" })}
+                      >
+                        Ban
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-text-secondary">
+                      Review via Reports queue
+                    </span>
+                  )}
+                </td>
+              </ResolvingRow>
+            );
+          })}
         </tbody>
       </table>
 
       {pendingDecision && (
         <ModerationDecisionDialog
           action={pendingDecision.action}
-          listingTitle={pendingDecision.item.title}
+          listingTitle={pendingDecision.item.title ?? pendingDecision.item.listing_id ?? ""}
           onCancel={() => setPendingDecision(null)}
           onConfirm={handleConfirm}
         />

@@ -39,6 +39,13 @@ PAYMENT_SUCCEEDED = "payment_succeeded"
 PAYMENT_FAILED = "payment_failed"
 LISTING_STATUS_CHANGED = "listing_status_changed"
 DISPUTE_RESOLVED = "dispute_resolved"
+# FEAT-023 (Saved Searches & Listing Alerts) -- additive template, wired
+# from app/workers/saved_search_alert_job.py. Category "listings" (below)
+# matches LISTING_STATUS_CHANGED's own category for the same reason: this
+# is fundamentally a listing-availability notification, just triggered by a
+# saved search match rather than a status transition on a listing the user
+# owns.
+SAVED_SEARCH_MATCH = "saved_search_match"
 
 # FEAT-022 AC: "User can manage notification preferences per category in
 # settings" -- push's own category set (listings, chat, payments),
@@ -55,6 +62,7 @@ CATEGORY_BY_TEMPLATE: dict[str, str] = {
     # A dispute is always raised against a transaction -- "payments"
     # category, same reasoning as BOOKING_HOLD_*/PAYMENT_* above.
     DISPUTE_RESOLVED: "payments",
+    SAVED_SEARCH_MATCH: "listings",
 }
 
 # Notification copy per template. Deliberately plain string formatting
@@ -77,6 +85,10 @@ _COPY_BY_TEMPLATE: dict[str, tuple[str, str]] = {
     PAYMENT_FAILED: ("Payment failed", "Your payment didn't go through -- please retry in-app."),
     LISTING_STATUS_CHANGED: ("Listing update", "One of your listings has a status update."),
     DISPUTE_RESOLVED: ("Dispute resolved", "Your dispute has been reviewed and resolved."),
+    SAVED_SEARCH_MATCH: (
+        "New match for your saved search",
+        "A new listing matches one of your saved searches.",
+    ),
 }
 
 # Bounded timeout, matching payment_service.py/sms_service.py's own

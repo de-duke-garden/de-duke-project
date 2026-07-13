@@ -73,7 +73,8 @@ class BusinessDashboardOut(BaseModel):
     active_listings: ActiveListingsOut
     conversion_funnel: ConversionFunnelOut
     revenue: RevenueOut
-    # None -- FEAT-016/Agency Tier don't exist yet (Phase 3). See
-    # app/services/business_analytics_service.py's header docstring.
-    leakage_rate: None = None
-    agency_tier: None = None
+    # leakage_rate: FEAT-016 now exists (Phase 3) -- see
+    # business_analytics_service.leakage_rate's docstring for the exact
+    # (approximate) definition; None only when there have been zero
+    # inquiries to measure against.
+    leakage_rate: float | None = None

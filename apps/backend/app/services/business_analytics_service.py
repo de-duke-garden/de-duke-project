@@ -3,19 +3,21 @@ Dashboard, Admin only). Same MVP-live-query-instead-of-a-real-aggregate-
 store caveat as ops_analytics_service.py -- see that module's header
 docstring for the full rationale; not repeated here.
 
-Two metrics from FEAT-035's acceptance criteria are explicitly NOT
-computed here, because the features they depend on don't exist yet in
-this codebase -- never fabricated:
-  - Leakage rate (chat-to-payment conversion, FEAT-016) -- FEAT-016 is a
-    Phase 3 feature (Off-Platform Payment Leakage Mitigation) that
-    doesn't exist yet; there's no signal in the current schema for "a
-    chat led to an off-platform payment instead of an on-platform one."
-  - Agency Tier conversion/churn -- the Agency Tier subscription itself
-    (monetization.md) launches in Phase 3 alongside FEAT-012/FEAT-019;
-    there is no subscription/billing-tier entity in the schema yet.
-Both keys are present in get_business_dashboard's return shape, set to
-None, so the Admin console can render an honest "not yet available" state
-instead of a missing key or a fabricated zero.
+Leakage rate (FEAT-016, now implemented as of Phase 3) is computed below --
+see `leakage_rate`'s own docstring for the exact (necessarily approximate)
+definition used, since the platform cannot literally observe an
+off-platform payment.
+
+Note: an earlier revision of this dashboard also carried an "Agency Tier
+conversion/churn" placeholder (always None). That metric has been removed
+entirely -- monetization.md's roadmap mentions an "Agency Tier
+subscription" product, but no such feature has ever been scoped with its
+own FEAT-ID, acceptance criteria, or schema entity anywhere in
+features.md/schema.md. Per AGENTS.md's "never fabricate requirements"
+rule, a metric with no backing feature doesn't belong in this dashboard's
+return shape at all -- if/when Agency Tier is actually scoped as a real
+feature, this module gains a new function for it then, not a permanent
+None placeholder now.
 """
 
 from __future__ import annotations
@@ -82,7 +84,9 @@ async def conversion_funnel(session: AsyncSession) -> dict[str, Any]:
     )
     total_views, total_inquiries = (await session.execute(totals_stmt)).one()
 
-    total_bookings = (await session.execute(select(func.count()).select_from(Transaction))).scalar_one()
+    total_bookings = (
+        await session.execute(select(func.count()).select_from(Transaction))
+    ).scalar_one()
 
     return {
         "search": None,  # not yet available -- see docstring
@@ -129,6 +133,55 @@ async def revenue_breakdown(session: AsyncSession) -> dict[str, Any]:
     }
 
 
+async def leakage_rate(session: AsyncSession) -> float | None:
+    """monetization.md's definition: "% of chat conversations showing
+    clear booking intent that do not convert to an in-app payment"
+    (FEAT-016 AC: "Analytics capture chat-to-payment conversion rate").
+
+    The platform cannot literally observe an off-platform payment (that's
+    the whole leakage problem) -- so this is necessarily an approximation
+    from the two DB-queryable proxies actually available:
+      - Denominator: `Listing.inquiry_count` summed across every listing.
+        A chat conversation's creation increments this counter
+        (app/services/chat_service.py::create_conversation) -- it is a
+        proxy for "chat conversations", not literally "conversations
+        showing clear booking intent" (that finer-grained signal -- the
+        mobile client's booking-intent keyword heuristic that triggers
+        FEAT-016's "Pay safely in-app" nudge -- exists only client-side
+        and is never persisted anywhere queryable; see
+        chat_thread_screen.dart). Every started chat is at minimum a
+        precondition for booking intent, so this is a reasonable, honest
+        upper-bound proxy for the denominator, not an exact match to the
+        metric's literal wording.
+      - Numerator: every `Transaction` row (an in-app payment reaching at
+        least `held`/`succeeded` status counts as "converted", since a
+        booking hold -- FEAT-032 -- is itself evidence the chat
+        conversation led to an in-app checkout attempt, not an off-
+        platform arrangement).
+
+    Returns None (not a fabricated 0.0) when there have been no inquiries
+    at all yet -- a leakage rate is meaningless with zero conversations to
+    measure it against.
+    """
+    total_inquiries_result = await session.execute(
+        select(func.coalesce(func.sum(Listing.inquiry_count), 0))
+    )
+    total_inquiries = total_inquiries_result.scalar_one()
+    if total_inquiries <= 0:
+        return None
+
+    total_transactions = (
+        await session.execute(select(func.count()).select_from(Transaction))
+    ).scalar_one()
+
+    # A listing can receive more than one Transaction attempt per inquiry
+    # (retries after a failed/expired hold, FEAT-013 AC), so this ratio is
+    # clamped at 1.0 converted (0.0 leakage) rather than going negative --
+    # it is a monitoring signal, not a strict per-conversation join.
+    converted_rate = min(total_transactions / total_inquiries, 1.0)
+    return round(1.0 - converted_rate, 4)
+
+
 async def get_business_dashboard(
     session: AsyncSession, *, since: datetime | None = None
 ) -> dict[str, Any]:
@@ -140,7 +193,5 @@ async def get_business_dashboard(
         "active_listings": await active_listings_breakdown(session),
         "conversion_funnel": await conversion_funnel(session),
         "revenue": await revenue_breakdown(session),
-        # Not yet available -- see module header docstring. Never fabricated.
-        "leakage_rate": None,
-        "agency_tier": None,
+        "leakage_rate": await leakage_rate(session),
     }

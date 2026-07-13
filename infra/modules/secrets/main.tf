@@ -33,6 +33,7 @@ resource "aws_secretsmanager_secret_version" "app" {
     SENTRY_DSN                    = "REPLACE_ME"
     ANALYTICS_WRITE_KEY           = "REPLACE_ME"
     JWT_SIGNING_SECRET            = "REPLACE_ME"
+    GEMINI_API_KEY                = "REPLACE_ME"
   })
 
   lifecycle {

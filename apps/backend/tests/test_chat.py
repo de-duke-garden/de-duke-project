@@ -32,10 +32,20 @@ def test_chat_role_for_maps_all_roles() -> None:
 
 def test_issue_custom_token_raises_when_unconfigured() -> None:
     """firebase_service_account_json/firestore_project_id are REPLACE_ME in
-    every test/dev environment -- the service must fail loudly, not crash on
-    import or silently no-op."""
+    every deployed test/CI environment -- the service must fail loudly, not
+    crash on import or silently no-op. `_is_configured` is force-patched to
+    False (rather than relying on ambient settings) so this test is correct
+    regardless of whether the machine running it happens to have a real,
+    locally-provisioned .env with actual Firebase credentials (e.g. a
+    developer's own dev-project .env) -- otherwise this test is flaky
+    depending on who/where it runs, and can also leave a real
+    firebase_admin "[DEFAULT]" app registered process-wide for the rest of
+    the test session."""
     svc._firebase_app = None
-    with pytest.raises(svc.ChatServiceUnavailableError):
+    with (
+        patch.object(svc, "_is_configured", return_value=False),
+        pytest.raises(svc.ChatServiceUnavailableError),
+    ):
         svc.issue_custom_token(uid="user-1", role=UserRole.SEEKER)
 
 
@@ -164,10 +174,13 @@ def _clear_overrides():
 
 
 def test_issue_chat_token_endpoint_returns_503_when_unconfigured(client: TestClient) -> None:
+    # Same rationale as test_issue_custom_token_raises_when_unconfigured above
+    # -- force-patch _is_configured rather than trust ambient .env state.
     _override_current_user(UserRole.SEEKER)
     svc._firebase_app = None
 
-    response = client.post("/v1/chat/token")
+    with patch.object(svc, "_is_configured", return_value=False):
+        response = client.post("/v1/chat/token")
 
     assert response.status_code == 503
 

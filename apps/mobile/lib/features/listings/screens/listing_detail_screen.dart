@@ -26,10 +26,14 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/listing_card.dart';
 import '../../../core/widgets/skeleton_loader.dart';
 import '../../chat/data/chat_repository.dart';
+import '../../reporting/data/report_repository.dart';
+import '../../reporting/screens/report_sheet.dart';
 // `ListingImage` collides with the widget of the same name from
 // listing_card.dart -- this import is only used for `Listing`,
 // `CommercialListingDetails`, `ShortletListingDetails`, so hide it here
 // rather than prefixing every reference in the file.
+import '../../share_summary/data/share_repository.dart';
+import '../../share_summary/screens/share_summary_sheet.dart';
 import '../data/listing_models.dart' hide ListingImage;
 import '../data/listing_repository.dart';
 
@@ -41,12 +45,21 @@ class ListingDetailScreen extends StatefulWidget {
     required this.listingId,
     required this.repository,
     required this.chatRepository,
+    required this.shareRepository,
+    required this.reportRepository,
     this.heroTag,
   });
 
   final String listingId;
   final ListingRepository repository;
   final ChatRepository chatRepository;
+
+  /// FEAT-020 -- backs the AppBar's Share action (screens.md Screen 17).
+  final ShareRepository shareRepository;
+
+  /// FEAT-009 -- backs the AppBar's Report action (screens.md Screen 6:
+  /// "Report button ... POST /listings/:id/report").
+  final ReportRepository reportRepository;
 
   /// Shared-element `heroTag` passed by the originating Listing Card
   /// (e.g. `'listing-image-<id>'`) so the hero carousel's first image
@@ -134,10 +147,71 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
         pathParameters: {'id': widget.listingId},
       );
 
+  /// "Share" -- screens.md Screen 6 Edge Cases / FEAT-020: opens Screen 17
+  /// as a modal bottom sheet using the already-loaded listing payload, so
+  /// no extra fetch is needed to populate the preview.
+  void _openShareSheet() {
+    final listing = _listing;
+    if (listing == null) return;
+    showShareSummarySheet(
+      context,
+      listing: listing,
+      repository: widget.shareRepository,
+    );
+  }
+
+  /// "Report" -- screens.md Screen 6's Report IconButton, accessible via
+  /// PopupMenuButton in the AppBar, per spec. On success shows the
+  /// "Report Submitted" confirmation toast (Screen 6 States table).
+  Future<void> _openReportSheet() async {
+    final submitted = await showReportSheet(
+      context,
+      repository: widget.reportRepository,
+      kind: ReportTargetKind.listing,
+      targetId: widget.listingId,
+    );
+    if (submitted == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Thanks, we'll review this.")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Listing')),
+      appBar: AppBar(
+        title: const Text('Listing'),
+        actions: [
+          if (_state == _LoadState.loaded)
+            IconButton(
+              onPressed: _openShareSheet,
+              icon: const Icon(Icons.share_outlined),
+              tooltip: 'Share',
+            ),
+          // screens.md Screen 6: "Secondary action IconButtons for Share and
+          // Report, accessible via a PopupMenuButton in the AppBar." Owner
+          // viewing their own listing hides Report (Edge Cases) -- deferred
+          // here since ownership resolution isn't available on this screen
+          // yet (see this file's header docstring's known simplification).
+          if (_state == _LoadState.loaded)
+            PopupMenuButton<void>(
+              tooltip: 'More options',
+              itemBuilder: (context) => [
+                PopupMenuItem<void>(
+                  onTap: _openReportSheet,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.flag_outlined, size: 20),
+                      SizedBox(width: AppSpacing.sm),
+                      Text('Report listing'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
       body: switch (_state) {
         // branding.md Loading States: skeleton photo block + text lines
         // matching the real hero image/price header shape, not a spinner.

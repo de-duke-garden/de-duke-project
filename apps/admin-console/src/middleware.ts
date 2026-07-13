@@ -12,7 +12,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { SESSION_COOKIE_NAME } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/api/session"];
+// "/s" is FEAT-020's public Shareable Summary view (screens.md Screen 18,
+// route `/s/:token`) -- explicitly "Web (external, unauthenticated)"; a
+// non-app-user approver must be able to load it with no session cookie at
+// all, so it's allowlisted here alongside the login page itself.
+const PUBLIC_PATHS = ["/login", "/api/session", "/s"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

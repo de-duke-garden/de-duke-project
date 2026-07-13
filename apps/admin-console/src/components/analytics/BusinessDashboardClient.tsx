@@ -166,16 +166,12 @@ export function BusinessDashboardClient() {
             />
             <MetricCard
               label="Leakage rate"
-              value="Not yet available"
-              sublabel="Requires FEAT-016 (Phase 3)"
-            />
-          </CardSection>
-
-          <CardSection title="Agency Tier" startIndex={7}>
-            <MetricCard
-              label="Free-to-Agency conversion / churn"
-              value="Not yet available"
-              sublabel="Agency Tier subscription ships in Phase 3"
+              value={data.leakage_rate === null ? "Not yet available" : pct(data.leakage_rate)}
+              sublabel={
+                data.leakage_rate === null
+                  ? "No chat inquiries recorded yet"
+                  : "Chat conversations not yet converted to an in-app payment -- target <15% (monetization.md)"
+              }
             />
           </CardSection>
         </div>

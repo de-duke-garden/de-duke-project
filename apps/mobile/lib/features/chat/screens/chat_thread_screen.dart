@@ -17,10 +17,39 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/badge_pop.dart';
 import '../../../core/widgets/skeleton_loader.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../reporting/data/report_repository.dart';
+import '../../reporting/screens/report_sheet.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
 
 enum _ScreenState { loading, loaded, error }
+
+/// FEAT-016 (Off-Platform Payment Leakage Mitigation) AC: "Chat surfaces a
+/// 'Pay safely in-app' prompt once a client shows booking intent (e.g.,
+/// asks about availability/next steps)." Client-side keyword heuristic --
+/// no backend ML needed (task brief) -- checked against every incoming/
+/// outgoing message body. Deliberately broad (covers both "shows booking
+/// intent" language and the classic off-platform-leakage phrases like
+/// "cash"/"transfer"/"whatsapp") so the nudge fires whenever either signal
+/// appears, per the task brief's example word list.
+const List<String> kBookingIntentKeywords = [
+  'available',
+  'availability',
+  'price',
+  'book',
+  'booking',
+  'deposit',
+  'cash',
+  'transfer',
+  'whatsapp',
+  'call me',
+  'next steps',
+];
+
+bool messageShowsBookingIntent(String body) {
+  final lower = body.toLowerCase();
+  return kBookingIntentKeywords.any(lower.contains);
+}
 
 class ChatThreadScreen extends StatefulWidget {
   const ChatThreadScreen({
@@ -28,11 +57,15 @@ class ChatThreadScreen extends StatefulWidget {
     required this.conversationId,
     required this.chatRepository,
     required this.authRepository,
+    required this.reportRepository,
   });
 
   final String conversationId;
   final ChatRepository chatRepository;
   final AuthRepository authRepository;
+
+  /// FEAT-009 -- backs the overflow menu's "Report conversation" action.
+  final ReportRepository reportRepository;
 
   @override
   State<ChatThreadScreen> createState() => _ChatThreadScreenState();
@@ -53,6 +86,12 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   final Set<String> _seenMessageIds = {};
   Set<String> _newlyArrivedIds = {};
   bool _firstMessagesSnapshot = true;
+
+  // FEAT-016 -- "Pay safely in-app" nudge, once shown for this thread,
+  // stays dismissible but never re-triggers automatically (avoids
+  // re-showing on every subsequent booking-intent-shaped message).
+  bool _showPaySafelyNudge = false;
+  bool _paySafelyNudgeDismissed = false;
 
   final _draftController = TextEditingController();
   final _scrollController = ScrollController();
@@ -119,6 +158,14 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
           _seenMessageIds.addAll(incomingIds);
           _messages = messages;
           _state = _ScreenState.loaded;
+          // FEAT-016 AC: nudge appears "once a client shows booking
+          // intent" -- checked across the whole visible history (not just
+          // new arrivals) so it also surfaces on a thread reopened after
+          // the intent-showing message was sent in a prior session.
+          if (!_paySafelyNudgeDismissed &&
+              messages.any((m) => messageShowsBookingIntent(m.body))) {
+            _showPaySafelyNudge = true;
+          }
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_scrollController.hasClients) {
@@ -193,6 +240,22 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
         : 'property_management';
   }
 
+  /// "Report conversation" -- overflow-menu action wired to the
+  /// report-a-conversation flow (FEAT-009).
+  Future<void> _openReportSheet() async {
+    final submitted = await showReportSheet(
+      context,
+      repository: widget.reportRepository,
+      kind: ReportTargetKind.conversation,
+      targetId: widget.conversationId,
+    );
+    if (submitted == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Thanks, we'll review this.")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -216,6 +279,24 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                   ],
                 ),
               ),
+        actions: [
+          if (_state == _ScreenState.loaded)
+            PopupMenuButton<void>(
+              tooltip: 'More options',
+              itemBuilder: (context) => [
+                PopupMenuItem<void>(
+                  onTap: _openReportSheet,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.flag_outlined, size: 20),
+                      SizedBox(width: AppSpacing.sm),
+                      Text('Report conversation'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
       body: switch (_state) {
         _ScreenState.loading => const _SkeletonThread(),
@@ -229,6 +310,16 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   Widget _buildThread(BuildContext context) {
     return Column(
       children: [
+        if (_showPaySafelyNudge && !_paySafelyNudgeDismissed)
+          _PaySafelyNudgeBanner(
+            onDismiss: () => setState(() => _paySafelyNudgeDismissed = true),
+            onGoToListing: _conversation == null
+                ? null
+                : () => context.pushNamed(
+                      RouteNames.listingDetail,
+                      pathParameters: {'id': _conversation!.listingId},
+                    ),
+          ),
         if (_isOffline)
           Container(
             width: double.infinity,
@@ -487,6 +578,73 @@ class _MessageBubble extends StatelessWidget {
 
   String _formatTime(DateTime dt) =>
       '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+}
+
+/// FEAT-016 AC: "Pay safely in-app" prompt once booking intent is
+/// detected, plus the "buyer protection/guarantee not available
+/// off-platform" messaging (also an AC). Icon+text (never color alone,
+/// AGENTS.md accessibility) and a dismiss control at least
+/// AppSizing.minTouchTarget so it's tappable without being intrusive.
+class _PaySafelyNudgeBanner extends StatelessWidget {
+  const _PaySafelyNudgeBanner({required this.onDismiss, this.onGoToListing});
+
+  final VoidCallback onDismiss;
+  final VoidCallback? onGoToListing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.primaryLight,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.shield_outlined, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Pay safely in-app',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Payments made in the app are protected by De-Duke\'s '
+                  'buyer guarantee -- off-platform payments are not.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (onGoToListing != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  SizedBox(
+                    height: 48,
+                    child: TextButton(
+                      onPressed: onGoToListing,
+                      child: const Text('Book Now'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: IconButton(
+              onPressed: onDismiss,
+              icon: const Icon(Icons.close, size: 20),
+              tooltip: 'Dismiss',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ErrorView extends StatelessWidget {

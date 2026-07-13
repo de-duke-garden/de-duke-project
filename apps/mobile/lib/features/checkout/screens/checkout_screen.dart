@@ -336,6 +336,31 @@ class _CheckoutScreenState extends State<CheckoutScreen>
               ),
             ),
           ),
+          const SizedBox(height: AppSpacing.sm),
+          // FEAT-016 AC: "In-app payment includes a stated buyer
+          // protection/guarantee not available off-platform." Icon+text,
+          // never color alone (AGENTS.md accessibility).
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(AppRadii.md),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.shield_outlined, color: AppColors.primary, size: 20),
+                SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    "Paying in-app is covered by De-Duke's buyer "
+                    'protection guarantee -- paying off-platform is not.',
+                    style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const Spacer(),
           // Submitting keeps the standard button-spinner pattern -- no
           // `tap-scale-emphasis` overshoot here, deliberately non-springy

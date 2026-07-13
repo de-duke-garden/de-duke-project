@@ -13,11 +13,12 @@ follow-up for whoever owns app/core/db.py, since Subagent 3 cannot edit that
 shared file.
 
 Caching: architecture.md calls for caching hot search results in Redis.
-Not wired here because app/core has no shared Redis client dependency yet
-(only `redis_url` in config.py) -- adding a cache-aside layer around
-`search_listings()` is a straightforward follow-up once a shared
-`get_redis()` dependency exists; the query-building logic below is written to
-be cache-key-friendly (deterministic filter dict -> stable cache key).
+Wired below (see `_build_cache_key`/`_serialize_page`/`_deserialize_page`)
+using the existing thin app/core/cache.py primitives (peek/set_with_ttl) --
+only the first page (`cursor is None`) of a free-text (`filters.query`)
+search is cached, since that is the "repeated/common search phrase" case
+FEAT-031's AC targets; deep-paginated continuations of the same query are
+comparatively rare and always re-run against the DB.
 
 RESOLVED SCHEMA GAPS (were flagged during Phase B review, now fixed):
 - `bathrooms: int` (indexed) added to both CommercialListing and
@@ -29,16 +30,25 @@ RESOLVED SCHEMA GAPS (were flagged during Phase B review, now fixed):
   ShortletListing.nightly_price, and an explicit GiST index on
   Listing.location_point.
 
-REMAINING GAP: Embedding column for FEAT-031 -- schema.md's prose references
-vector embeddings for semantic search, but no embedding column/table is
-defined in schema.md's JSON Schema for Listing. Per FEAT-031's own
-acceptance criteria ("degrades gracefully to keyword/filter-only search...
-within a strict timeout"), this module implements ONLY the keyword/filter-only
-fallback path -- there is no ranking service to time out against yet, so
-`semantic_ranking_applied` is always False. Adding real semantic ranking
-needs a `pgvector` `Vector` column (e.g. `Listing.description_embedding`)
-plus an HNSW/IVFFlat index and a background (re)embedding worker -- deferred
-pending product sign-off, not implemented here.
+RESOLVED (FEAT-031 embedding column): `Listing.description_embedding` (a
+pgvector `Vector` column, HNSW cosine index) now exists -- see
+app/models/listing.py and the `c3d4e5f6a7b8` migration --
+populated asynchronously by app/workers/listing_embedding_worker.py. Semantic
+ranking is implemented below as a *blend*, never a replacement, of the
+existing filter/geo/sort-ordered candidate set: `_semantic_rerank` combines
+each candidate's original rank position (already reflects geo distance,
+price, or recency per `filters.sort_by`) with its cosine similarity to the
+query's embedding, 50/50. The query embedding itself is computed with a
+bounded timeout + circuit breaker (`embed_text`, embedding_service.py) --
+on timeout/unavailability this degrades to the plain keyword/filter-only
+ordering already implemented below, and `SemanticSearchDegradedInfo.
+semantic_ranking_applied` reports False so callers can tell. Semantic
+blending (and its cache) only ever applies to the first page of a free-text
+query (`cursor is None`) -- blending changes row order, which would break
+keyset pagination's total-order guarantee across pages; subsequent pages of
+the same query intentionally fall back to plain ordering. This trade-off is
+acceptable for a P2/effort-M feature and is documented rather than silently
+made.
 - amenities / legal_documents (JSON array columns) -- containment filtering
   (`amenities @> ['parking']`) on a JSON column is not index-friendly at
   Postgres scale; ACTION NEEDED: consider a GIN index if these columns are
@@ -50,6 +60,7 @@ pending product sign-off, not implemented here.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -59,6 +70,8 @@ from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.core import cache
+from app.core.config import get_settings
 from app.models.host_account import HostAccount
 from app.models.listing import CommercialListing, Listing, ShortletListing
 from app.schemas.search import (
@@ -68,9 +81,15 @@ from app.schemas.search import (
     SemanticSearchDegradedInfo,
     SortField,
 )
+from app.services.embedding_service import embed_text
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 50
+# Upper bound on how many candidates are pulled from the DB before semantic
+# reranking narrows back down to the requested page_size -- large enough to
+# give the blend meaningful headroom, capped so a popular query never forces
+# an unbounded fetch.
+MAX_SEMANTIC_CANDIDATES = MAX_PAGE_SIZE * 3
 
 
 def _encode_cursor(sort_value: str, listing_id: str) -> str:
@@ -92,6 +111,83 @@ class SearchPage:
     next_cursor: str | None
     has_more: bool
     degraded_info: SemanticSearchDegradedInfo
+
+
+def _build_semantic_cache_key(filters: SearchFilters, page_size: int) -> str:
+    """Deterministic cache key for a free-text search's first page --
+    hashes the full filter set (not just `query`) so two identical phrases
+    with different filters/location never collide on the same cached
+    result."""
+    payload = filters.model_dump(mode="json")
+    payload["page_size"] = page_size
+    canonical = json.dumps(payload, sort_keys=True)
+    digest = hashlib.sha256(canonical.encode()).hexdigest()
+    return f"search:semantic:{digest}"
+
+
+def _serialize_page(page: SearchPage) -> str:
+    return json.dumps(
+        {
+            "results": [r.model_dump(mode="json") for r in page.results],
+            "next_cursor": page.next_cursor,
+            "has_more": page.has_more,
+            "degraded_info": page.degraded_info.model_dump(mode="json"),
+        }
+    )
+
+
+def _deserialize_page(raw: str) -> SearchPage:
+    data = json.loads(raw)
+    return SearchPage(
+        results=[ListingSearchResult.model_validate(r) for r in data["results"]],
+        next_cursor=data["next_cursor"],
+        has_more=data["has_more"],
+        degraded_info=SemanticSearchDegradedInfo.model_validate(data["degraded_info"]),
+    )
+
+
+def _blend_semantic_rank(rows: list[tuple], distance_by_id: dict[str, float]) -> list[tuple]:
+    """Combines each candidate row's original rank position (already
+    reflects filters.sort_by -- geo distance, price, or recency) with its
+    cosine similarity to the query embedding, 50/50, and returns rows
+    reordered by the combined score (descending). Rows with no embedding
+    yet (not in `distance_by_id` -- e.g. a very recently published listing
+    the embedding worker hasn't reached yet) get similarity 0.0 rather than
+    being dropped, so they still surface via their original rank alone.
+
+    Pure/synchronous and unit-testable in isolation from the DB fetch that
+    produces `distance_by_id` (see `_semantic_rerank` below).
+    """
+    total = len(rows)
+    scored: list[tuple[float, int, tuple]] = []
+    for index, row in enumerate(rows):
+        listing = row[0]
+        # 1.0 for the top-ranked candidate, 0.0 for the last, evenly spaced.
+        rank_score = 1.0 if total <= 1 else 1.0 - (index / (total - 1))
+        distance = distance_by_id.get(listing.id)
+        similarity = (1.0 - distance) if distance is not None else 0.0
+        combined = 0.5 * rank_score + 0.5 * similarity
+        scored.append((combined, index, row))
+
+    # Secondary key = original index keeps ties in their original (already
+    # filter/geo/sort-ordered) relative order rather than an arbitrary one.
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [row for _, _, row in scored]
+
+
+async def _semantic_rerank(
+    session: AsyncSession, rows: list[tuple], embedding: list[float]
+) -> list[tuple]:
+    """Fetches cosine distance (query embedding <-> each candidate's stored
+    description_embedding) for `rows` in one bulk query -- avoids an N+1
+    round-trip per candidate -- then delegates to `_blend_semantic_rank`."""
+    listing_ids = [row[0].id for row in rows]
+    dist_query = select(Listing.id, Listing.description_embedding.cosine_distance(embedding)).where(
+        Listing.id.in_(listing_ids)
+    )
+    dist_rows = (await session.execute(dist_query)).all()
+    distance_by_id = {lid: distance for lid, distance in dist_rows if distance is not None}
+    return _blend_semantic_rank(rows, distance_by_id)
 
 
 def _build_base_query(filters: SearchFilters) -> tuple[Select, CommercialListing, ShortletListing]:
@@ -231,19 +327,56 @@ def _apply_sort_and_cursor(
 async def search_listings(
     session: AsyncSession, filters: SearchFilters, cursor: str | None, page_size: int
 ) -> SearchPage:
-    """Core FEAT-006/FEAT-007 query. FEAT-031's free-text `filters.query` is
-    handled as a plain ILIKE keyword match (the graceful-degradation fallback
-    FEAT-031 itself requires) -- see module docstring gap #2 for what a real
-    semantic layer would add on top without changing this function's
-    contract (it would re-rank/blend, not replace, these results).
+    """Core FEAT-006/FEAT-007/FEAT-031 query.
+
+    `filters.query` always drives the plain ILIKE keyword match in
+    `_build_base_query` (the graceful-degradation fallback FEAT-031 itself
+    requires, and the only thing that ever happens for cursor-paginated
+    continuations). On the *first page* of a free-text query, this also
+    attempts to blend in semantic ranking: a bounded-timeout, circuit-
+    breaker-guarded embedding call (`embed_text`) for the query text, then
+    `_semantic_rerank` combines relevance with the existing geo/filter/sort
+    order -- never replacing it. Repeated/common first-page queries are
+    served from the shared Cache (Redis) instead of recomputing.
     """
     page_size = max(1, min(page_size, MAX_PAGE_SIZE))
+    settings = get_settings()
+
+    # Semantic ranking/caching only ever apply to a free-text query's first
+    # page -- see module docstring's "RESOLVED (FEAT-031 embedding column)"
+    # note for why deeper pages intentionally fall back to plain ordering.
+    attempt_semantic = bool(filters.query) and cursor is None
+
+    cache_key: str | None = None
+    if attempt_semantic:
+        cache_key = _build_semantic_cache_key(filters, page_size)
+        cached_raw = await cache.peek(cache_key)
+        if cached_raw is not None:
+            return _deserialize_page(cached_raw)
+
+    semantic_embedding: list[float] | None = None
+    if attempt_semantic:
+        semantic_embedding = await embed_text(
+            filters.query, timeout_seconds=settings.semantic_search_timeout_seconds
+        )
+
+    fetch_limit = page_size
+    if attempt_semantic and semantic_embedding is not None:
+        # Pull a wider candidate window so reranking has real headroom to
+        # surface relevant-but-not-top-ranked-by-filters listings, capped so
+        # a popular query never forces an unbounded fetch.
+        fetch_limit = min(page_size * 3, MAX_SEMANTIC_CANDIDATES)
 
     query, commercial, shortlet = _build_base_query(filters)
-    query = _apply_sort_and_cursor(query, commercial, shortlet, filters, cursor, page_size)
+    query = _apply_sort_and_cursor(query, commercial, shortlet, filters, cursor, fetch_limit)
 
     result = await session.execute(query)
     rows = result.all()
+
+    semantic_applied = False
+    if attempt_semantic and semantic_embedding is not None and rows:
+        rows = await _semantic_rerank(session, rows, semantic_embedding)
+        semantic_applied = True
 
     has_more = len(rows) > page_size
     rows = rows[:page_size]
@@ -311,17 +444,34 @@ async def search_listings(
             sort_value = last.created_at
         next_cursor = _encode_cursor(sort_value, last.id)
 
-    return SearchPage(
+    if filters.query and not semantic_applied:
+        degraded_reason = (
+            "Semantic ranking unavailable for this page -- keyword/filter-only "
+            "fallback in effect (query embedding timed out/failed, the circuit "
+            "breaker is open, or this is a paginated continuation, which always "
+            "uses plain ordering; see search_service.py's module docstring)."
+        )
+    else:
+        degraded_reason = None
+
+    page = SearchPage(
         results=results,
         next_cursor=next_cursor,
         has_more=has_more,
         degraded_info=SemanticSearchDegradedInfo(
-            semantic_ranking_applied=False,
-            reason=(
-                "FEAT-031 embedding column not yet defined in schema.md/models "
-                "-- keyword/filter-only fallback always in effect."
-            )
-            if filters.query
-            else None,
+            semantic_ranking_applied=semantic_applied,
+            reason=degraded_reason,
         ),
     )
+
+    if attempt_semantic and cache_key is not None:
+        # Cache-aside: only ever written for the (query, filters, page_size)
+        # combination just computed above, first page only -- see
+        # module docstring. Cached even when degraded, so a temporarily
+        # unavailable ranking service doesn't cause every repeated request
+        # for the same popular query to each independently retry it.
+        await cache.set_with_ttl(
+            cache_key, _serialize_page(page), ttl_seconds=settings.semantic_search_cache_ttl_seconds
+        )
+
+    return page

@@ -35,6 +35,18 @@ CHAT_STARTED = "chat_started"
 BOOKING_INITIATED = "booking_initiated"
 PAYMENT_COMPLETED = "payment_completed"
 
+# FEAT-009 (In-App Reporting) -- fired on every listing/conversation report
+# submission (report_service.create_report).
+REPORT_SUBMITTED = "report_submitted"
+
+# FEAT-016 (Off-Platform Payment Leakage Mitigation) AC: "Analytics capture
+# chat-to-payment conversion rate for ongoing monitoring." Fired when a
+# checkout completes (payment_service/booking_service's success path) for a
+# transaction whose listing had an active chat conversation -- lets the
+# Admin Web Console analytics dashboard (FEAT-034/FEAT-035) compute the
+# conversion rate against CHAT_STARTED volume.
+CHAT_TO_PAYMENT_CONVERSION = "chat_to_payment_conversion"
+
 
 def _is_configured() -> bool:
     return settings.analytics_write_key != "REPLACE_ME"

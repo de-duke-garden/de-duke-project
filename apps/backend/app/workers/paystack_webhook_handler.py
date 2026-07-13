@@ -125,6 +125,18 @@ async def handle_paystack_webhook(
                 "commission_amount": txn.commission_amount,
             },
         )
+        # FEAT-016 AC: "Analytics capture chat-to-payment conversion rate
+        # for ongoing monitoring." Fired alongside PAYMENT_COMPLETED for
+        # every successful payment -- the Admin Web Console analytics
+        # dashboard computes the conversion rate against CHAT_STARTED
+        # volume for the same listing (chat_service.create_conversation
+        # already fires CHAT_STARTED), rather than requiring this worker
+        # to look up whether a specific chat thread preceded this payment.
+        await analytics_service.track_event(
+            event_name=analytics_service.CHAT_TO_PAYMENT_CONVERSION,
+            user_id=txn.payer_id,
+            properties={"transaction_id": txn.id, "listing_id": txn.listing_id},
+        )
     else:
         txn.status = "failed"
         session.add(txn)

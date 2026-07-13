@@ -3,6 +3,7 @@
 library;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +18,7 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/list_stagger.dart';
 import '../../../core/widgets/skeleton_loader.dart';
 import '../data/search_models.dart';
+import '../logic/saved_search_providers.dart';
 import '../logic/search_providers.dart';
 import 'filter_sheet.dart';
 import 'listing_result_card.dart';
@@ -120,6 +122,12 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                           .read(searchNotifierProvider.notifier)
                           .updateQuery((_) => updated),
                     ),
+          ),
+          // FEAT-023 exit point: Search Results -> Saved Searches.
+          IconButton(
+            icon: const Icon(Icons.bookmarks_outlined),
+            tooltip: 'Saved Searches',
+            onPressed: () => context.pushNamed(RouteNames.savedSearches),
           ),
         ],
       ),
@@ -318,16 +326,42 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     );
   }
 
-  void _saveSearch(BuildContext context) {
-    // POST /v1/searches/saved -- FEAT-023 (Saved Searches), out of this
-    // feature's owned scope (see features.md FEAT-023, owned elsewhere);
-    // wiring the button here since Screen 5 specifies it, but the endpoint
-    // itself is not part of FEAT-006/007/031.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text(
-              'Saved search (FEAT-023) -- not yet wired to a backend endpoint.')),
+  Future<void> _saveSearch(BuildContext context) async {
+    // Screen 5's "Save this search" exit point -- POST /v1/searches/saved
+    // (FEAT-023). Prompts for a label (Screen 20's saved search rows are
+    // labeled, e.g. "3-bed shortlets in Lekki"), then persists the
+    // current filter/query state.
+    final label = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => _SaveSearchDialog(
+        suggestedLabel: _searchController.text.isNotEmpty
+            ? _searchController.text
+            : 'My saved search',
+      ),
     );
+    if (label == null || label.trim().isEmpty || !context.mounted) return;
+
+    final query = ref.read(searchNotifierProvider).query;
+    try {
+      await ref
+          .read(savedSearchRepositoryProvider)
+          .create(label: label.trim(), query: query);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Search saved. You\'ll be alerted to new matches.'),
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () => context.pushNamed(RouteNames.savedSearches),
+          ),
+        ),
+      );
+    } on DioException {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't save this search. Please try again.")),
+      );
+    }
   }
 }
 
@@ -404,6 +438,51 @@ class _EmptyState extends StatelessWidget {
           : null,
       actionLabel: hasActiveFilters ? 'Clear filters' : null,
       onAction: hasActiveFilters ? onClearFilters : null,
+    );
+  }
+}
+
+/// Prompts for a label when saving the current search (FEAT-023) --
+/// Screen 20's rows are labeled (e.g. "3-bed shortlets in Lekki"), so the
+/// save action collects one rather than auto-generating an opaque name.
+class _SaveSearchDialog extends StatefulWidget {
+  const _SaveSearchDialog({required this.suggestedLabel});
+
+  final String suggestedLabel;
+
+  @override
+  State<_SaveSearchDialog> createState() => _SaveSearchDialogState();
+}
+
+class _SaveSearchDialogState extends State<_SaveSearchDialog> {
+  late final _controller = TextEditingController(text: widget.suggestedLabel);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Save this search'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: 'Label'),
+        onSubmitted: (value) => Navigator.of(context).pop(value),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

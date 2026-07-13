@@ -8,8 +8,14 @@ Handles the two backend-owned Firestore touchpoints:
      exists (architecture.md's Chat Data Store section).
 
 Real-time message send/receive/listening is CLIENT-SIDE only, direct to
-Firestore (mobile + admin console) -- this service never reads/writes
+Firestore (mobile + admin console) -- this service itself never reads/writes
 ChatMessage documents, only ChatConversation documents at creation time.
+
+Documented exception: app/workers/listing_response_time_worker.py (FEAT-019)
+reads ChatMessage documents read-only, for analytics purposes only (average
+first-response-time per listing), via this module's `_get_firestore_client`
+helper -- it never writes a message and is not part of the real-time
+send/receive path.
 """
 
 from __future__ import annotations

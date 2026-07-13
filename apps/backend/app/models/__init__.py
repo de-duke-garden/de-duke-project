@@ -30,6 +30,8 @@ from app.models.listing import (
 )
 from app.models.ops import AuditLogEntry, CommissionRateConfig, Dispute
 from app.models.push_token import PushToken
+from app.models.report import Report
+from app.models.saved_search_alert import SavedSearchAlertLog
 from app.models.transaction import Receipt, Transaction
 from app.models.user import User
 
@@ -59,4 +61,6 @@ __all__ = [
     "CommissionRateConfig",
     "AuditLogEntry",
     "PushToken",
+    "SavedSearchAlertLog",
+    "Report",
 ]

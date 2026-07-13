@@ -26,6 +26,14 @@ class SavedSearch(SQLModel, table=True):
     max_price: float | None = Field(default=None)
     verified_only: bool = Field(default=False)
     alerts_enabled: bool = Field(default=False)
+    # Best-effort geocode of `location_query` (FEAT-023), resolved once at
+    # save time via app/services/geocoding_service.py -- null until/unless
+    # geocoding succeeds (unconfigured API key, outage, or unresolvable
+    # address all leave this null; matching then degrades to the
+    # pre-existing substring match against listing city/state/address,
+    # per saved_search_service.py's listing_matches_saved_search).
+    location_latitude: float | None = Field(default=None)
+    location_longitude: float | None = Field(default=None)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
     )

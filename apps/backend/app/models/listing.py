@@ -2,19 +2,37 @@
 ShortletListing -- schema.md.
 
 `Listing.location` uses a GeoAlchemy2 Geography column (PostGIS) for
-geospatial search (FEAT-006). schema.md's prose also references vector
-embeddings for semantic search (FEAT-031), but no embedding field/table is
-defined in schema.md's JSON Schema for Listing -- that column is deliberately
-left out here rather than invented; it must be specified before Subagent 3
-(Search & Discovery) implements FEAT-031.
+geospatial search (FEAT-006).
+
+FEAT-031 (Semantic Property Search): `description_embedding` is a pgvector
+`Vector` column, width `EMBEDDING_DIMENSIONS` (must match
+Settings.embedding_dimensions, app/core/config.py -- see
+app/services/embedding_service.py for why the default provider is a local,
+dependency-free fallback rather than an assumed external vendor). Nullable
+and additive (expand-only migration; alembic/versions/<rev>_add_listing_
+semantic_search_embedding.py) -- existing rows backfill lazily via
+app/workers/listing_embedding_worker.py rather than a blocking migration-time
+backfill. `embedding_updated_at` tracks staleness: the worker re-embeds a
+listing whenever it is NULL or older than `Listing.updated_at`, satisfying
+FEAT-031's "reflected within a few minutes of publish/edit" AC without the
+listing write path itself having to block on an embedding call.
 """
 
 from datetime import UTC, datetime
 from uuid import uuid4
 
 from geoalchemy2 import Geography
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, Column, DateTime, Index
 from sqlmodel import Field, SQLModel
+
+# Single source of truth for the embedding column's width -- must stay in
+# sync with Settings.embedding_dimensions (app/core/config.py). Duplicated
+# as a plain int (not read from get_settings() at import time) because
+# Alembic's `env.py` imports this module before any DB/settings context is
+# guaranteed ready, and a pgvector Vector column's dimension is fixed at
+# migration time regardless of runtime config.
+EMBEDDING_DIMENSIONS = 256
 
 
 class Listing(SQLModel, table=True):
@@ -74,6 +92,15 @@ class Listing(SQLModel, table=True):
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
     )
+
+    # FEAT-031 -- see module docstring. Populated asynchronously by
+    # app/workers/listing_embedding_worker.py, never computed synchronously
+    # on the listing create/update request path.
+    description_embedding: list[float] | None = Field(
+        default=None,
+        sa_column=Column(Vector(EMBEDDING_DIMENSIONS), nullable=True),
+    )
+    embedding_updated_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
 
     # Explicit GiST index for location_point -- required for ST_DWithin/<->
     # performance at scale (FEAT-006/007); not something SQLModel's plain

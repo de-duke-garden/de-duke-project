@@ -114,6 +114,35 @@ class Settings(BaseSettings):
     # -- Business rules (defaults per features.md; admin-configurable at runtime where noted) --
     booking_hold_duration_minutes: int = 15  # FEAT-032 default; see risk_log.md R-018
 
+    # -- Semantic Search / Embeddings (FEAT-031) --
+    # Vendor chosen: Gemini (Google's `gemini-embedding-001` model via
+    # generativelanguage.googleapis.com -- see
+    # app/services/embedding_service.py's GeminiEmbeddingProvider). "local"
+    # remains the zero-dependency, deterministic fallback that
+    # get_embedding_provider() still returns whenever embedding_provider !=
+    # "gemini" or gemini_api_key is still REPLACE_ME -- an incomplete/typo'd
+    # config must never hard-break search, only run it in degraded mode.
+    embedding_provider: str = "local"
+    embedding_api_key: str = "REPLACE_ME"
+    # Google AI Studio API key for the Gemini embedding endpoint -- a
+    # distinct Google API product/key from google_maps_api_key above.
+    gemini_api_key: str = "REPLACE_ME"
+    # Must match app/models/listing.py's Listing.description_embedding Vector
+    # column width -- changing this requires a new Alembic migration (a
+    # pgvector Vector column is fixed-width), not just a config change.
+    embedding_dimensions: int = 256
+    # Bounded timeout for the *query-time* embedding call inside
+    # search_service.search_listings -- keeps a single slow/unavailable
+    # ranking service from ever stalling a search request (FEAT-031 AC +
+    # AGENTS.md's external-dependency resilience rule). The background
+    # (re)embedding worker uses its own, more generous timeout since it is
+    # not user-facing -- see app/workers/listing_embedding_worker.py.
+    semantic_search_timeout_seconds: float = 0.4
+    # Cache TTL for repeated/common first-page free-text search results
+    # (FEAT-031 AC) -- 5 minutes, within the "short TTL, e.g. 5-10 min"
+    # guidance; stored in the shared Cache (Redis), never per-task memory.
+    semantic_search_cache_ttl_seconds: int = 300
+
     # -- Cross-app links --
     # Base URL of the Admin Web Console (apps/admin-console), used to build
     # links that leave the backend's own response (e.g. FEAT-033 staff
@@ -164,6 +193,7 @@ class Settings(BaseSettings):
                 "SENTRY_DSN": "sentry_dsn",
                 "ANALYTICS_WRITE_KEY": "analytics_write_key",
                 "JWT_SIGNING_SECRET": "jwt_signing_secret",
+                "GEMINI_API_KEY": "gemini_api_key",
             }
             for key, field_name in field_by_key.items():
                 if key not in app_secrets:

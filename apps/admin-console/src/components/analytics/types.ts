@@ -60,6 +60,7 @@ export interface BusinessDashboard {
   active_listings: ActiveListings;
   conversion_funnel: ConversionFunnel;
   revenue: Revenue;
-  leakage_rate: null;
-  agency_tier: null;
+  // FEAT-016 now exists (Phase 3) -- null only when there have been zero
+  // inquiries to measure a rate against, see business_analytics_service.py.
+  leakage_rate: number | null;
 }

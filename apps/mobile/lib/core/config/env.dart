@@ -33,4 +33,14 @@ class AppConfig {
     'GOOGLE_MAPS_API_KEY',
     defaultValue: '',
   );
+
+  /// Public origin hosting the Admin Web Console's unauthenticated
+  /// `/s/:token` route (FEAT-020, screens.md Screen 18) -- e.g.
+  /// `https://admin.de-duke.com`. The backend only ever returns a bare
+  /// `share_token`; this base is what Screen 17 (Generate) prefixes onto it
+  /// to build the full external URL handed to Copy/Share actions.
+  static const String publicShareBaseUrl = String.fromEnvironment(
+    'PUBLIC_SHARE_BASE_URL',
+    defaultValue: 'http://localhost:3000',
+  );
 }

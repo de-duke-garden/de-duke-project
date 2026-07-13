@@ -59,9 +59,27 @@ abstract final class RouteNames {
   // -- Screen 5: Search Results.
   static const search = 'search';
 
+  // -- Screen 20: Saved Searches (FEAT-023).
+  static const savedSearches = 'savedSearches';
+
   // -- Bottom-nav tab roots (Screens 4/8/12/21).
   static const home = 'home';
   static const chat = 'chat';
   static const host = 'host';
   static const settings = 'settings';
+
+  // -- Screen 13: Agency Dashboard (bottom-nav tab root for agency accounts).
+  static const agency = 'agency';
+
+  // -- Screen 14: Portfolio List View.
+  static const agencyPortfolio = 'agencyPortfolio';
+
+  // -- Screen 15: Unassigned Leads Inbox.
+  static const agencyLeads = 'agencyLeads';
+
+  // -- Screen 16: Lead Analytics View (child of Portfolio List View / Listing Detail).
+  static const agencyListingAnalytics = 'agencyListingAnalytics';
+
+  // -- Team management (FEAT-012: invite/list team members).
+  static const agencyTeam = 'agencyTeam';
 }
