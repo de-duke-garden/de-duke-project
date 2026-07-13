@@ -16,6 +16,8 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
@@ -402,22 +404,15 @@ class _ListingBodyState extends State<_ListingBody> {
         const SizedBox(height: AppSpacing.lg),
         Text('Location', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
-        // Embedded map preview. TODO: wire to Google Maps SDK with
-        // GOOGLE_MAPS_API_KEY once available (never hardcode the key).
-        Container(
-          height: 160,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceSecondary,
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Center(
-            child: Text(
-              'Map preview (${listing.latitude.toStringAsFixed(4)}, '
-              '${listing.longitude.toStringAsFixed(4)})',
-              style: const TextStyle(color: AppColors.textSecondary),
-            ),
-          ),
+        // Embedded map preview -- a small, non-interactive GoogleMap
+        // centered on the listing (zoom/rotate/tilt/scroll gestures
+        // disabled: this is a preview, not the pan/zoom search map
+        // SearchMapView already implements). Tapping it opens full
+        // turn-by-turn navigation in the device's own maps app instead of
+        // building a second in-app interactive map for the same listing.
+        _ListingLocationPreview(
+          latitude: listing.latitude,
+          longitude: listing.longitude,
         ),
         if (commercial != null) ...[
           const SizedBox(height: AppSpacing.lg),
@@ -467,6 +462,99 @@ class _VerifiedBadge extends StatelessWidget {
           Text('Verified',
               style: TextStyle(color: AppColors.verified, fontSize: 12)),
         ],
+      ),
+    );
+  }
+}
+
+/// Small, non-interactive map preview for Screen 6's "Location" section.
+/// Real GoogleMap widget (not a placeholder) -- gestures are disabled since
+/// this is a preview, not SearchMapView's pan/zoom search map, and it opens
+/// external turn-by-turn navigation on tap rather than duplicating that
+/// interactive-map experience in a second place.
+class _ListingLocationPreview extends StatelessWidget {
+  const _ListingLocationPreview({
+    required this.latitude,
+    required this.longitude,
+  });
+
+  final double latitude;
+  final double longitude;
+
+  Future<void> _openInMapsApp() async {
+    // Universal Google Maps URL -- opens the installed Google/Apple Maps
+    // app on both platforms via url_launcher's external-application mode,
+    // rather than requiring a native platform-specific deep link scheme.
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude',
+    );
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final position = LatLng(latitude, longitude);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadii.md),
+      child: SizedBox(
+        height: 160,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            GoogleMap(
+              initialCameraPosition: CameraPosition(target: position, zoom: 15),
+              markers: {
+                Marker(markerId: const MarkerId('listing-location'), position: position),
+              },
+              // Preview only -- SearchMapView (Screen 5) already owns the
+              // pan/zoom interactive map experience; this widget just shows
+              // "roughly here" and hands off to a real maps app on tap.
+              zoomControlsEnabled: false,
+              zoomGesturesEnabled: false,
+              scrollGesturesEnabled: false,
+              rotateGesturesEnabled: false,
+              tiltGesturesEnabled: false,
+              myLocationButtonEnabled: false,
+              liteModeEnabled: true,
+            ),
+            // Full-bounds tap target -- GoogleMap swallows taps for its own
+            // gesture recognizers even with gestures disabled above, so a
+            // transparent Material+InkWell on top is what actually makes
+            // "tap to open in Maps" reliably tappable (48x48 minimum target
+            // satisfied trivially since it spans the whole 160px-tall preview).
+            Positioned.fill(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _openInMapsApp,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+            Positioned(
+              right: AppSpacing.sm,
+              bottom: AppSpacing.sm,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.surface.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.open_in_new, size: 14, color: AppColors.textSecondary),
+                    SizedBox(width: 4),
+                    Text('Open in Maps',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
