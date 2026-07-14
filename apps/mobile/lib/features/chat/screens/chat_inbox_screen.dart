@@ -241,8 +241,11 @@ class _ConversationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<ChatMessage?>(
-      future: chatRepository.getLastMessage(conversation.id),
+    // Live, not a one-time fetch -- see ChatRepository.watchLastMessage's
+    // docstring for the real bug this fixes (unread dot/preview text
+    // getting stuck stale until an unrelated conversation-list rebuild).
+    return StreamBuilder<ChatMessage?>(
+      stream: chatRepository.watchLastMessage(conversation.id),
       builder: (context, snapshot) {
         final lastMessage = snapshot.data;
         final isUnread = lastMessage != null &&

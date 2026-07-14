@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -33,6 +33,7 @@ from app.core.security import UserRole
 from app.firestore_models import ChatConversation, SupportConversation
 from app.models.host_account import HostAccount
 from app.models.listing import Listing
+from app.models.user import User
 
 _firebase_app: Any = None
 
@@ -319,3 +320,20 @@ async def notify_new_support_message(
         template=push_service.NEW_CHAT_MESSAGE,
         context={"conversation_id": conversation_id},
     )
+
+
+async def resolve_user_names(session: AsyncSession, user_ids: list[str]) -> list[User]:
+    """Batch name lookup for the Admin Web Console's Chat Oversight Module
+    (screens.md Screen 22) -- ChatConversation's clientId/propertyManagementId/
+    assignedStaffId are raw User.id references (Firestore has no join), so
+    the console previously showed bare UUIDs for all three instead of
+    names. One query for the whole visible conversation list's ids rather
+    than N one-at-a-time lookups (dispute_service.get_user_name_or_unknown
+    is the single-id equivalent, used where only one id is ever needed).
+    Silently drops unknown/deleted ids rather than erroring -- the caller
+    falls back to "Unknown" per id it doesn't get a name back for."""
+    unique_ids = {uid for uid in user_ids if uid}
+    if not unique_ids:
+        return []
+    result = await session.execute(select(User).where(User.id.in_(unique_ids)))
+    return list(result.scalars().all())

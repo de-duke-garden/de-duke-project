@@ -153,6 +153,20 @@ async def test_create_conversation_writes_expected_shape_to_firestore() -> None:
     assert written["listingId"] == "listing-1"
 
 
+@pytest.mark.asyncio
+async def test_resolve_user_names_short_circuits_on_no_ids() -> None:
+    """No DB round-trip for an empty/all-blank id list -- a real query
+    would 500 on an empty IN() clause in some SQL dialects, so this is a
+    correctness guard, not just a micro-optimization."""
+    session = MagicMock()
+    session.execute = AsyncMock()
+
+    result = await svc.resolve_user_names(session, [])
+
+    assert result == []
+    session.execute.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # Router tests (Firebase Admin SDK + DB session mocked, auth overridden)
 # ---------------------------------------------------------------------------
@@ -208,6 +222,37 @@ def test_start_conversation_endpoint_404_for_missing_listing(client: TestClient)
         response = client.post("/v1/chat/conversations", json={"listing_id": "missing-listing"})
 
     assert response.status_code == 404
+
+
+def test_resolve_chat_user_names_endpoint_requires_staff(client: TestClient) -> None:
+    """Chat Oversight (screens.md Screen 22) is staff/admin-only, same as
+    Firestore's own isStaff() rule -- a seeker requesting other users'
+    names must get a 403, not a leaked directory."""
+    _override_current_user(UserRole.SEEKER)
+
+    response = client.get("/v1/chat/users", params={"ids": "user-1,user-2"})
+
+    assert response.status_code == 403
+
+
+def test_resolve_chat_user_names_endpoint_returns_known_users(client: TestClient) -> None:
+    _override_current_user(UserRole.DEDUKE_STAFF)
+
+    async def fake_resolve_user_names(*args, **kwargs):  # noqa: ANN002, ANN003
+        return [
+            SimpleNamespace(id="user-1", full_name="Amaka Client"),
+            SimpleNamespace(id="user-2", full_name="Tunde Host"),
+        ]
+
+    with patch.object(svc, "resolve_user_names", side_effect=fake_resolve_user_names):
+        response = client.get("/v1/chat/users", params={"ids": "user-1,user-2,missing-user"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert {u["id"]: u["full_name"] for u in body} == {
+        "user-1": "Amaka Client",
+        "user-2": "Tunde Host",
+    }
 
 
 def test_start_conversation_endpoint_success(client: TestClient) -> None:

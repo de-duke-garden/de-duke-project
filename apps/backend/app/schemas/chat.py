@@ -37,3 +37,12 @@ class ChatConversationOut(BaseModel):
     assigned_staff_id: str | None = None
     last_message_at: datetime
     created_at: datetime
+
+
+class ChatUserOut(BaseModel):
+    """Backs the Admin Web Console's Chat Oversight Module (screens.md
+    Screen 22) resolving raw clientId/propertyManagementId/assignedStaffId
+    references to display names -- see GET /v1/chat/users."""
+
+    id: str
+    full_name: str

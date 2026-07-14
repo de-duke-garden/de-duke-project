@@ -52,20 +52,27 @@ class ChatRepository {
     return ChatConversation.fromFirestore(doc);
   }
 
-  /// One-time fetch of the most recent message in a conversation, for the
-  /// Chat Inbox's last-message preview / unread indicator (screens.md
-  /// Screen 8) -- not a live stream, since the inbox itself already listens
-  /// to the conversation list for lastMessageAt changes.
-  Future<ChatMessage?> getLastMessage(String conversationId) async {
-    final snap = await _firestore
+  /// Live stream of a conversation's most recent message, backing each
+  /// Chat Inbox row's preview text/unread indicator. Confirmed real gap
+  /// this replaces: the inbox previously resolved this via a one-time
+  /// `getLastMessage().then(...)` fetch inside a `FutureBuilder`, which
+  /// only ever re-ran when the *conversation list itself* rebuilt (i.e.
+  /// when `lastMessageAt` changed). Marking a message read doesn't touch
+  /// `lastMessageAt`, so returning to the inbox after reading a thread
+  /// left the unread dot/bold preview stuck stale until some unrelated new
+  /// message arrived anywhere in the list. Streaming the same query
+  /// directly means a row's preview and unread state update the instant
+  /// either a new message arrives or its delivery status changes -- true
+  /// real-time, not "real-time until the row stops rebuilding".
+  Stream<ChatMessage?> watchLastMessage(String conversationId) {
+    return _firestore
         .collection('conversations')
         .doc(conversationId)
         .collection('messages')
         .orderBy('sentAt', descending: true)
         .limit(1)
-        .get();
-    if (snap.docs.isEmpty) return null;
-    return ChatMessage.fromFirestore(snap.docs.first);
+        .snapshots()
+        .map((snap) => snap.docs.isEmpty ? null : ChatMessage.fromFirestore(snap.docs.first));
   }
 
   /// Conversations visible to the current user -- Firestore security rules

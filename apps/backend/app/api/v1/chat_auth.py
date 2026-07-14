@@ -14,11 +14,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.core.security import CurrentUser, get_current_user
-from app.schemas.chat import ChatConversationOut, ChatTokenResponse, StartConversationRequest
+from app.core.security import CurrentUser, UserRole, get_current_user, require_roles
+from app.schemas.chat import (
+    ChatConversationOut,
+    ChatTokenResponse,
+    ChatUserOut,
+    StartConversationRequest,
+)
 from app.services import chat_service as svc
 
 router = APIRouter()
+
+# Chat Oversight (screens.md Screen 22) is available to any De-Duke Staff
+# or Admin, same as Firestore's own isStaff() rule -- not admin-only.
+staff_or_admin = require_roles(UserRole.DEDUKE_STAFF, UserRole.DEDUKE_ADMIN)
 
 # Firebase custom tokens are valid for 1 hour before the client must refresh
 # them (Firebase Admin SDK's own constraint) -- surfaced to the client so it
@@ -84,6 +93,25 @@ async def start_conversation(
         last_message_at=conversation.last_message_at,
         created_at=conversation.created_at,
     )
+
+
+@router.get("/users", response_model=list[ChatUserOut])
+async def resolve_chat_user_names(
+    ids: str,
+    current_user: CurrentUser = Depends(staff_or_admin),
+    session: AsyncSession = Depends(get_session),
+) -> list[ChatUserOut]:
+    """Admin Web Console's Chat Oversight Module (screens.md Screen 22):
+    resolves the raw clientId/propertyManagementId/assignedStaffId User
+    references a ChatConversation carries into display names, batched into
+    one call per visible conversation list rather than one request per id.
+    `ids` is a comma-separated list of User ids -- a query param, not a
+    path segment, since the caller may need to resolve dozens at once for
+    a full conversation list.
+    """
+    requested_ids = [i for i in ids.split(",") if i]
+    users = await svc.resolve_user_names(session, requested_ids)
+    return [ChatUserOut(id=u.id, full_name=u.full_name) for u in users]
 
 
 @router.post("/conversations/{conversation_id}/notify", status_code=status.HTTP_202_ACCEPTED)
