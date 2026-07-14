@@ -178,6 +178,21 @@ async def update_listing_endpoint(
         )
     if payload.amenities is not None:
         listing.amenities = payload.amenities
+    if payload.owner_client_name is not None:
+        listing.owner_client_name = payload.owner_client_name or None
+    if payload.status is not None:
+        # ListingUpdateIn's validator already restricts payload.status to
+        # {"active", "unpublished"}; the remaining guard here is that a
+        # host can only toggle between those two states themselves -- a
+        # listing currently under_review or banned stays that way until
+        # staff act on it (moderation_service.apply_moderation_decision),
+        # regardless of what the host's own PATCH request asks for.
+        if listing.status not in ("active", "unpublished"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot change status while listing is {listing.status}.",
+            )
+        listing.status = payload.status
     touch_updated_at(listing)
     session.add(listing)
 

@@ -238,6 +238,7 @@ def listing_to_dict(
         "status_reason": listing.status_reason,
         "view_count": listing.view_count,
         "inquiry_count": listing.inquiry_count,
+        "owner_client_name": listing.owner_client_name,
         "images": [
             {
                 "id": img.id,

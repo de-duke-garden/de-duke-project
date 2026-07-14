@@ -146,8 +146,7 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
         spacing: AppSpacing.sm,
         children: DealTypeFilter.values.map((dealType) {
           return ChoiceChip(
-            label: Text(
-                dealType.name[0].toUpperCase() + dealType.name.substring(1)),
+            label: Text(dealType.label),
             selected: _draft.dealType == dealType,
             onSelected: (selected) => setState(() {
               _draft = _draft.copyWith(

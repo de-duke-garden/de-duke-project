@@ -41,6 +41,11 @@ class Listing(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
     host_account_id: str = Field(foreign_key="host_accounts.id", index=True)
     agency_id: str | None = Field(default=None, foreign_key="users.id")
+    # FEAT-018 AC "originating client/owner" tagging -- a free-text label
+    # an agency enters (e.g. a landlord's name), not a platform account;
+    # only meaningful when agency_id is set, but not DB-enforced as such
+    # since a listing can be reassigned between agency/non-agency later.
+    owner_client_name: str | None = Field(default=None)
 
     # commercial | shortlet
     listing_type: str = Field(index=True)
@@ -167,8 +172,9 @@ class ShortletListing(SQLModel, table=True):
     # FEAT-007 filter requirements -- added post-Foundation (confirmed gaps
     # from the initial schema.md transcription, backfilled here).
     bathrooms: int = Field(index=True)
-    # hostel | hotel | 1_bedroom | 2_bedroom | 3_bedroom -- see
-    # app/schemas/search.py::ShortletSubtype for the canonical enum values.
+    # hostel | hotel -- see app/schemas/search.py::ShortletSubtype and
+    # schema.md's ShortletListing.propertySubtype for the canonical enum
+    # values. Bedroom count lives in `bedrooms` above, not encoded here.
     subtype: str = Field(index=True)
     house_rules: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     # ISO date strings (e.g. '2026-08-01') blocked on the availability calendar.

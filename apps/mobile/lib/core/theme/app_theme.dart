@@ -41,6 +41,25 @@ class AppTheme {
               borderRadius: BorderRadius.circular(AppRadii.md)),
         ),
       ),
+      // Previously unset -- fell back to Material 3's default pill-shaped,
+      // fully-transparent outline button, which visually clashed with the
+      // ElevatedButton it's so often paired with in a sticky action row
+      // (e.g. Listing Detail's "Message Host" / "Book Now" pair). Now
+      // shares the elevated button's height/radius exactly, but keeps the
+      // outline button's lighter, "secondary action" feel via a faint
+      // primary-tinted fill instead of a solid one, plus a visible border.
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          backgroundColor: AppColors.primary.withValues(alpha: 0.08),
+          foregroundColor: AppColors.primary,
+          disabledForegroundColor:
+              AppColors.textSecondary.withValues(alpha: 0.5),
+          minimumSize: const Size.fromHeight(AppSizing.buttonHeight),
+          side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.md)),
+        ),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surfaceSecondary,
@@ -94,6 +113,22 @@ class AppTheme {
           backgroundColor: AppColors.primaryDark,
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(AppSizing.buttonHeight),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.md)),
+        ),
+      ),
+      // Dark-mode counterpart of the light theme's outlinedButtonTheme --
+      // same shape/size parity with ElevatedButton, tinted with
+      // primaryDark instead of primary.
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          backgroundColor: AppColors.primaryDark.withValues(alpha: 0.12),
+          foregroundColor: AppColors.primaryDark,
+          disabledForegroundColor:
+              AppColors.textSecondaryDark.withValues(alpha: 0.5),
+          minimumSize: const Size.fromHeight(AppSizing.buttonHeight),
+          side:
+              BorderSide(color: AppColors.primaryDark.withValues(alpha: 0.5)),
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadii.md)),
         ),

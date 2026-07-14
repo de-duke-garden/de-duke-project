@@ -39,6 +39,11 @@ abstract final class RouteNames {
   // -- Screen 6b: Confirm Booking Details (child of listing detail).
   static const listingConfirmBooking = 'listingConfirmBooking';
 
+  // -- Edit Listing (child of listing detail; FEAT-004 AC "edit ... or
+  // unpublish an existing listing" -- no dedicated screens.md screen
+  // number exists for this).
+  static const listingEdit = 'listingEdit';
+
   // -- Screen 9: Chat Thread.
   static const chatThread = 'chatThread';
 

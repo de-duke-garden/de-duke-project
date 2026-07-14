@@ -97,6 +97,17 @@ class AgencySummaryOut(BaseModel):
     unassigned_leads_count: int
     deals_closed_this_month: int
     has_team: bool
+    # FEAT-018 AC "Portfolio view shows aggregate conversion metrics (views
+    # -> inquiries -> closed deals)" -- lifetime sums across every listing
+    # the agency owns (not just active ones, unlike total_active_listings
+    # above), so the funnel reflects the whole portfolio's track record.
+    # `deals_closed_this_month` above is this-month only; the funnel here
+    # deliberately uses all-time `total_deals_closed` as its third stage so
+    # the three numbers describe one consistent lifetime funnel rather than
+    # mixing windows.
+    total_views: int
+    total_inquiries: int
+    total_deals_closed: int
 
 
 class AgencyListingItemOut(BaseModel):
@@ -108,8 +119,42 @@ class AgencyListingItemOut(BaseModel):
     status: str
     assigned_agent_id: str | None
     assigned_agent_name: str | None
+    # FEAT-018 AC "originating client/owner" tagging -- an agency-entered
+    # free-text label (e.g. a landlord's name), not a platform account.
+    owner_client_name: str | None
     view_count: int
     inquiry_count: int
+
+
+# -- Bulk actions (FEAT-018) ---------------------------------------------------
+
+# relist -> status=active (only from unpublished); archive -> status=unpublished
+# (only from active) -- the same host-settable pair PATCH /v1/listings/:id
+# already enforces (app/schemas/listing.py's ListingUpdateIn), applied here
+# to many listings at once rather than introducing a third status value.
+BULK_LISTING_ACTIONS = ("relist", "archive")
+
+
+class BulkListingActionRequest(BaseModel):
+    listing_ids: list[str] = Field(min_length=1, max_length=200)
+    action: str
+
+    @property
+    def target_status(self) -> str:
+        return "active" if self.action == "relist" else "unpublished"
+
+
+class BulkListingActionResult(BaseModel):
+    listing_id: str
+    success: bool
+    # Populated only when success is False -- e.g. the listing wasn't
+    # found, doesn't belong to this agency, or is under_review/banned and
+    # therefore not eligible for a host/agency-initiated status change.
+    error: str | None = None
+
+
+class BulkListingActionResponse(BaseModel):
+    results: list[BulkListingActionResult]
 
 
 # -- Lead analytics per listing (FEAT-019) -----------------------------------

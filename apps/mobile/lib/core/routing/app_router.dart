@@ -17,6 +17,7 @@
 /// Feature subagents register their real screens here; this file stays a
 /// shared module (read/extend, do not restructure without coordinating
 /// across subagents to avoid navigation merge conflicts).
+import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
@@ -51,6 +52,7 @@ import '../../features/checkout/screens/checkout_screen.dart';
 import '../../features/checkout/screens/payment_confirmation_screen.dart';
 import '../../features/listings/data/listing_repository.dart';
 import '../../features/listings/screens/create_listing_screen.dart';
+import '../../features/listings/screens/edit_listing_screen.dart';
 import '../../features/listings/screens/listing_detail_screen.dart';
 import '../../features/reporting/data/report_repository.dart';
 import '../../features/search/data/search_repository.dart';
@@ -91,12 +93,41 @@ final ShareRepository _shareRepository = ShareRepository(_listingsApiClient);
 // are just more /v1 endpoints.
 final ReportRepository _reportRepository = ReportRepository(_listingsApiClient);
 
+final SessionStore _rootSessionStore = SessionStore();
 final ApiClient _authApiClient = ApiClient(
   baseUrl: AppConfig.apiBaseUrl,
-  sessionStore: SessionStore(),
+  sessionStore: _rootSessionStore,
 );
 final AuthRepository _authRepository =
-    AuthRepository(_authApiClient, SessionStore());
+    AuthRepository(_authApiClient, _rootSessionStore);
+
+/// Backs the `/` redirect's persistent-sign-in check (FEAT-001). A stored
+/// access token alone isn't proof of a valid session -- it could be
+/// expired/revoked -- so this round-trips `GET /v1/auth/me` to confirm it
+/// (transparently recovered by ApiClient's refresh-on-401 handling if just
+/// the access token had expired). Talks to `_authApiClient.dio` directly
+/// rather than through `AuthRepository.getCurrentUser` so the real
+/// `DioException` (status code, type) is visible here -- only a genuine
+/// 401 (refresh token itself invalid/expired/revoked, since ApiClient
+/// already tried and failed to refresh it) counts as "not signed in".
+/// Anything else -- offline, a 5xx, a timeout -- optimistically keeps the
+/// user signed in rather than bouncing them to `/auth` for what may be a
+/// purely transient failure; individual screens already have their own
+/// offline/error states once inside the app.
+Future<bool> _hasPersistedSession() async {
+  final accessToken = await _rootSessionStore.readAccessToken();
+  if (accessToken == null) return false;
+  try {
+    await _authApiClient.dio.get('/v1/auth/me');
+    return true;
+  } on DioException catch (e) {
+    if (e.response?.statusCode == 401) {
+      await _rootSessionStore.clear();
+      return false;
+    }
+    return true;
+  }
+}
 
 final ApiClient _hostAccountApiClient = ApiClient(
   baseUrl: AppConfig.apiBaseUrl,
@@ -182,11 +213,21 @@ final AgencyRepository _agencyRepository = AgencyRepository(_agencyApiClient);
 final GoRouter appRouter = GoRouter(
   // screens.md Screen 1 (Sign-Up / Login) documents its own entry point as
   // "App launch (unauthenticated)" -- there is no separate Splash/Onboarding
-  // screen in the docs, so app launch goes straight there. `/` redirects
-  // rather than rendering its own placeholder, in case anything still links
-  // to the bare root path.
-  initialLocation: '/auth',
-  redirect: (context, state) => state.uri.path == '/' ? '/auth' : null,
+  // screen in the docs, so app launch always resolves through this single
+  // `/` redirect rather than rendering its own placeholder screen, whether
+  // or not a session already exists.
+  initialLocation: '/',
+  // FEAT-001 AC "User can log in and stay logged in across app restarts" --
+  // previously every launch (and any stray link to `/`) went straight to
+  // `/auth` regardless of whether a session was already stored, silently
+  // ignoring that AC. Now checks for a persisted, still-valid session
+  // (ApiClient's own refresh-on-401 handles a merely-expired access token,
+  // see api_client.dart) and only falls back to `/auth` if there truly
+  // isn't one.
+  redirect: (context, state) async {
+    if (state.uri.path != '/') return null;
+    return await _hasPersistedSession() ? '/home' : '/auth';
+  },
   routes: [
     // -- Screen 1: Sign-Up / Login. screens.md's route is a single `/auth`
     // path with an internal Sign Up / Log In tab toggle, not two separate
@@ -285,6 +326,16 @@ final GoRouter appRouter = GoRouter(
             bookingController: BookingController(_bookingApi),
           ),
         ),
+        // -- Edit Listing (FEAT-004 AC) -- see edit_listing_screen.dart's
+        // header docstring for why this has no screens.md screen number.
+        GoRoute(
+          path: 'edit',
+          name: RouteNames.listingEdit,
+          builder: (context, state) => EditListingScreen(
+            listingId: state.pathParameters['id']!,
+            repository: _listingRepository,
+          ),
+        ),
       ],
     ),
 
@@ -299,6 +350,7 @@ final GoRouter appRouter = GoRouter(
         chatRepository: _chatRepository,
         authRepository: _authRepository,
         reportRepository: _reportRepository,
+        listingRepository: _listingRepository,
       ),
     ),
 
@@ -333,6 +385,7 @@ final GoRouter appRouter = GoRouter(
         transactionsRepository: _transactionsRepository,
         checkoutRepository: _checkoutRepository,
         disputeRepository: _disputeRepository,
+        listingRepository: _listingRepository,
       ),
       routes: [
         // Hero destination for the row's `transaction-amount-<id>` tag
@@ -351,6 +404,7 @@ final GoRouter appRouter = GoRouter(
             child: TransactionDetailScreen(
               transactionId: state.pathParameters['id']!,
               repository: _checkoutRepository,
+              listingRepository: _listingRepository,
             ),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) =>
@@ -457,6 +511,7 @@ final GoRouter appRouter = GoRouter(
               builder: (context, state) => ChatInboxScreen(
                 chatRepository: _chatRepository,
                 authRepository: _authRepository,
+                listingRepository: _listingRepository,
               ),
             ),
           ],

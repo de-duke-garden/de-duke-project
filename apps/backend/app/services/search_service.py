@@ -23,8 +23,8 @@ comparatively rare and always re-run against the DB.
 RESOLVED SCHEMA GAPS (were flagged during Phase B review, now fixed):
 - `bathrooms: int` (indexed) added to both CommercialListing and
   ShortletListing; the filter below queries it directly.
-- `subtype: str` (indexed) added to ShortletListing (hostel/hotel/
-  1-3_bedroom); the shortlet_subtype filter queries it directly.
+- `subtype: str` (indexed) added to ShortletListing (hostel/hotel); the
+  shortlet_subtype filter queries it directly.
 - Missing indexes backfilled on app/models/listing.py: Listing.created_at,
   CommercialListing.deal_type/price/size_square_meters,
   ShortletListing.nightly_price, and an explicit GiST index on

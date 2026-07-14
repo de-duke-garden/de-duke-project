@@ -72,8 +72,8 @@ class _SearchMapViewState extends State<SearchMapView> {
         if (_showSearchThisArea)
           Positioned(
             top: AppSpacing.md,
-            left: 0,
-            right: 0,
+            left: AppSpacing.md,
+            right: AppSpacing.md,
             child: Center(
               child: ElevatedButton.icon(
                 onPressed: () {

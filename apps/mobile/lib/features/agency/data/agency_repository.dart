@@ -57,17 +57,48 @@ class AgencyRepository {
 
   // -- Screen 14: Portfolio List View ----------------------------------------
 
-  Future<List<AgencyListingItem>> getListings({String? status}) async {
+  Future<List<AgencyListingItem>> getListings({
+    String? status,
+    String? assignedAgentId,
+  }) async {
     try {
       final response = await _apiClient.dio.get(
         '/v1/agency/listings',
-        queryParameters: {if (status != null) 'status': status},
+        queryParameters: {
+          if (status != null) 'status': status,
+          if (assignedAgentId != null) 'assigned_agent_id': assignedAgentId,
+        },
       );
       return (response.data as List)
           .map((e) => AgencyListingItem.fromJson(e as Map<String, dynamic>))
           .toList();
     } on DioException catch (e) {
       throw _toException(e, "Couldn't load your portfolio.");
+    }
+  }
+
+  /// Screen 14's Bulk Action Bar -- relist (-> active) or archive (->
+  /// unpublished) many listings in one request. Every listing succeeds or
+  /// fails independently server-side (see
+  /// agency_service.bulk_update_listing_status's docstring); this surfaces
+  /// that per-listing breakdown rather than collapsing it into a single
+  /// pass/fail for the whole batch.
+  Future<List<BulkListingActionResult>> bulkUpdateListingStatus({
+    required List<String> listingIds,
+    required String action, // relist | archive
+  }) async {
+    try {
+      final response = await _apiClient.dio.post(
+        '/v1/agency/listings/bulk-action',
+        data: {'listing_ids': listingIds, 'action': action},
+      );
+      final body = response.data as Map<String, dynamic>;
+      return (body['results'] as List)
+          .map((e) =>
+              BulkListingActionResult.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw _toException(e, "Couldn't update these listings.");
     }
   }
 

@@ -9,11 +9,12 @@ enum DealTypeFilter { sale, lease }
 
 enum CommercialSubtype { office, shop, home, land }
 
-/// NOTE: backend schema-gap (see search_service.py) -- "hostel"/"hotel"
-/// values are accepted by the API but are currently a documented no-op
-/// filter until ShortletListing gains a subtype column. 1/2/3 bedroom values
-/// map onto the existing `bedrooms` column and do work today.
-enum ShortletSubtype { hostel, hotel, oneBedroom, twoBedroom, threeBedroom }
+/// Matches docs/De-Duke/schema.md's ShortletListing.propertySubtype exactly
+/// (hotel|hostel, product decision) -- previously also had 1/2/3-bedroom
+/// values duplicating the separate `bedrooms` field as a string enum
+/// instead of a count; removed to match app/schemas/search.py's
+/// ShortletSubtype, which stopped accepting them.
+enum ShortletSubtype { hostel, hotel }
 
 enum SortField { price, distance, newest }
 
@@ -25,10 +26,18 @@ extension SortDirectionX on SortDirection {
 
 extension ListingTypeFilterX on ListingTypeFilter {
   String get apiValue => name;
+  String get label => switch (this) {
+        ListingTypeFilter.commercial => 'Commercial',
+        ListingTypeFilter.shortlet => 'Shortlet',
+      };
 }
 
 extension DealTypeFilterX on DealTypeFilter {
   String get apiValue => name;
+  String get label => switch (this) {
+        DealTypeFilter.sale => 'Sale',
+        DealTypeFilter.lease => 'Lease',
+      };
 }
 
 extension CommercialSubtypeX on CommercialSubtype {
@@ -45,17 +54,11 @@ extension ShortletSubtypeX on ShortletSubtype {
   String get apiValue => switch (this) {
         ShortletSubtype.hostel => 'hostel',
         ShortletSubtype.hotel => 'hotel',
-        ShortletSubtype.oneBedroom => '1_bedroom',
-        ShortletSubtype.twoBedroom => '2_bedroom',
-        ShortletSubtype.threeBedroom => '3_bedroom',
       };
 
   String get label => switch (this) {
         ShortletSubtype.hostel => 'Hostel',
         ShortletSubtype.hotel => 'Hotel',
-        ShortletSubtype.oneBedroom => '1 Bedroom',
-        ShortletSubtype.twoBedroom => '2 Bedroom',
-        ShortletSubtype.threeBedroom => '3 Bedroom',
       };
 }
 

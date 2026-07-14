@@ -24,6 +24,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/enum_display.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/listing_card.dart';
 import '../../../core/widgets/skeleton_loader.dart';
@@ -125,8 +126,8 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     setState(() => _startingConversation = true);
     try {
       await widget.chatRepository.ensureSignedIn();
-      final conversationId =
-          await widget.chatRepository.startConversation(listingId: widget.listingId);
+      final conversationId = await widget.chatRepository
+          .startConversation(listingId: widget.listingId);
       if (!mounted) return;
       context.pushNamed(
         RouteNames.chatThread,
@@ -135,7 +136,8 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Couldn't start a conversation. Try again.")),
+        const SnackBar(
+            content: Text("Couldn't start a conversation. Try again.")),
       );
     } finally {
       if (mounted) setState(() => _startingConversation = false);
@@ -250,14 +252,38 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: _startingConversation ? null : _messagePropertyManagement,
+                        onPressed: _startingConversation
+                            ? null
+                            : _messagePropertyManagement,
+                        // Full "Message Property Management" label wrapped/
+                        // clipped the button on narrow screens -- shortened
+                        // to "Message Host" with an icon (still communicates
+                        // the same "Chat Thread" exit point from screens.md)
+                        // and forced to a single line so it can never push
+                        // the sibling "Book Now" button off-balance.
                         child: _startingConversation
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Text('Message Property Management'),
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.chat_bubble_outline,
+                                      size: AppSizing.iconSm),
+                                  SizedBox(width: AppSpacing.xs),
+                                  Flexible(
+                                    child: Text(
+                                      'Message Host',
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
@@ -288,7 +314,8 @@ class _DetailSkeleton extends StatelessWidget {
       children: [
         const AspectRatio(
           aspectRatio: 16 / 9,
-          child: SkeletonBox(borderRadius: AppRadii.md, height: double.infinity),
+          child:
+              SkeletonBox(borderRadius: AppRadii.md, height: double.infinity),
         ),
         const SizedBox(height: AppSpacing.md),
         const SkeletonBox(width: 220, height: 22),
@@ -355,7 +382,8 @@ class _ListingBodyState extends State<_ListingBody> {
             // Listing/Featured card -- the shared-element transition
             // (branding.md `shared-element-transition`) flies the tapped
             // card's image into this carousel's first frame.
-            child: ListingImage(imageUrl: primaryImageUrl, heroTag: widget.heroTag),
+            child: ListingImage(
+                imageUrl: primaryImageUrl, heroTag: widget.heroTag),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -398,9 +426,26 @@ class _ListingBodyState extends State<_ListingBody> {
         // Fixed price -- `stat-display` type token, no offer/negotiation
         // controls, by design (AGENTS.md fixed-price rule).
         Text(priceLabel,
-            style: AppTypography.statDisplay.copyWith(color: AppColors.primary)),
+            style:
+                AppTypography.statDisplay.copyWith(color: AppColors.primary)),
         const SizedBox(height: AppSpacing.md),
         Text(listing.description),
+        // schema.md base Listing.amenities -- shared by both listing
+        // types (mirrors Create Listing's own shared placement, above the
+        // type-specific sections). Was collected by Create Listing but
+        // never displayed anywhere on this screen.
+        if (listing.amenities.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.lg),
+          Text('Amenities', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: listing.amenities
+                .map((amenity) => _TagChip(label: humanizeEnumValue(amenity)))
+                .toList(),
+          ),
+        ],
         const SizedBox(height: AppSpacing.lg),
         Text('Location', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
@@ -419,23 +464,74 @@ class _ListingBodyState extends State<_ListingBody> {
           Text('Property details',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            '${commercial.propertySubtype} • ${commercial.sizeSquareMeters} sqm • ${commercial.bathrooms} bath',
+          // Was a single run-on `•`-joined Text -- replaced with a card of
+          // icon-labelled stats (matches the visual weight of the price/
+          // location sections above it) so the section reads as scannable
+          // facts rather than a plain sentence.
+          _DetailStatsCard(
+            stats: [
+              _DetailStat(Icons.category_outlined,
+                  humanizeEnumValue(commercial.propertySubtype)),
+              _DetailStat(Icons.square_foot,
+                  '${commercial.sizeSquareMeters.toStringAsFixed(0)} sqm'),
+              _DetailStat(Icons.bathtub_outlined,
+                  '${commercial.bathrooms} bath${commercial.bathrooms == 1 ? '' : 's'}'),
+            ],
           ),
-          if (commercial.rooms.isNotEmpty)
+          if (commercial.rooms.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
             ...commercial.rooms.map(
-              (r) => Text('${r.level}: ${r.widthMeters}m x ${r.lengthMeters}m'),
+              (r) => _RoomRow(
+                label: r.level,
+                dimensions: '${r.widthMeters}m x ${r.lengthMeters}m',
+              ),
             ),
+          ],
+          // schema.md's CommercialListing.legalDocuments -- "Shown to
+          // seekers as a trust signal, particularly for Sale listings."
+          // Was collected by Create Listing but never displayed anywhere.
+          if (commercial.legalDocuments.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text('Legal documents available',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: commercial.legalDocuments
+                  .map((doc) => _TagChip(label: humanizeEnumValue(doc)))
+                  .toList(),
+            ),
+          ],
         ],
         if (shortlet != null) ...[
           const SizedBox(height: AppSpacing.lg),
           Text('Stay details', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            '${shortlet.subtype} • ${shortlet.bedrooms} bedroom(s) • ${shortlet.bathrooms} bath • min ${shortlet.minimumStayNights} night(s)',
+          // Same run-on-sentence problem as Property details above --
+          // now a stat card of icon + value pairs.
+          _DetailStatsCard(
+            stats: [
+              _DetailStat(
+                  Icons.villa_outlined, humanizeEnumValue(shortlet.subtype)),
+              _DetailStat(Icons.bed_outlined,
+                  '${shortlet.bedrooms} bedroom${shortlet.bedrooms == 1 ? '' : 's'}'),
+              _DetailStat(Icons.bathtub_outlined,
+                  '${shortlet.bathrooms} bath${shortlet.bathrooms == 1 ? '' : 's'}'),
+              _DetailStat(Icons.nights_stay_outlined,
+                  'Min ${shortlet.minimumStayNights} night${shortlet.minimumStayNights == 1 ? '' : 's'}'),
+            ],
           ),
-          if (shortlet.houseRules.isNotEmpty)
-            ...shortlet.houseRules.map((rule) => Text('• $rule')),
+          if (shortlet.houseRules.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: shortlet.houseRules
+                  .map((rule) => _TagChip(label: rule))
+                  .toList(),
+            ),
+          ],
         ],
       ],
     );
@@ -461,6 +557,120 @@ class _VerifiedBadge extends StatelessWidget {
           SizedBox(width: 4),
           Text('Verified',
               style: TextStyle(color: AppColors.verified, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+}
+
+/// One icon + value fact rendered inside a [_DetailStatsCard], e.g. the
+/// bedroom count or minimum stay length.
+class _DetailStat {
+  const _DetailStat(this.icon, this.label);
+
+  final IconData icon;
+  final String label;
+}
+
+/// Replaces the old plain `'a • b • c'` sentence in the Property/Stay
+/// details sections with a bordered card of icon-labelled facts, laid out
+/// in a wrap so it reflows cleanly on narrow screens instead of truncating.
+class _DetailStatsCard extends StatelessWidget {
+  const _DetailStatsCard({required this.stats});
+
+  final List<_DetailStat> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSecondary,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+      ),
+      child: Wrap(
+        spacing: AppSpacing.lg,
+        runSpacing: AppSpacing.sm,
+        children: stats
+            .map(
+              (stat) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(stat.icon,
+                      size: AppSizing.iconSm, color: AppColors.primary),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(stat.label,
+                      style: Theme.of(context).textTheme.bodyMedium),
+                ],
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+}
+
+/// A single commercial room's level and dimensions, e.g. "Ground floor:
+/// 4m x 5m" -- given its own icon/row treatment instead of a bare Text so
+/// a listing with several rooms doesn't read as a wall of plain sentences.
+class _RoomRow extends StatelessWidget {
+  const _RoomRow({required this.label, required this.dimensions});
+
+  final String label;
+  final String dimensions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.meeting_room_outlined,
+              size: AppSizing.iconSm, color: AppColors.textSecondary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+              child:
+                  Text(label, style: Theme.of(context).textTheme.bodyMedium)),
+          Text(dimensions,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: AppColors.textSecondary)),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single confirmed-present tag -- a house rule ("No smoking"), an
+/// amenity ("Parking"), or a confirmed-available legal document
+/// ("Certificate of Occupancy") -- rendered as a pill chip instead of a
+/// bare "• value" text line. Shared across all three sections rather than
+/// duplicated per-section since they're visually and semantically the same
+/// "here's a confirmed fact about this listing" chip.
+class _TagChip extends StatelessWidget {
+  const _TagChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSecondary,
+        borderRadius: BorderRadius.circular(AppRadii.full),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check_circle_outline,
+              size: AppSizing.iconSm, color: AppColors.textSecondary),
+          const SizedBox(width: AppSpacing.xs),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );
@@ -505,7 +715,9 @@ class _ListingLocationPreview extends StatelessWidget {
             GoogleMap(
               initialCameraPosition: CameraPosition(target: position, zoom: 15),
               markers: {
-                Marker(markerId: const MarkerId('listing-location'), position: position),
+                Marker(
+                    markerId: const MarkerId('listing-location'),
+                    position: position),
               },
               // Preview only -- SearchMapView (Screen 5) already owns the
               // pan/zoom interactive map experience; this widget just shows
@@ -545,10 +757,12 @@ class _ListingLocationPreview extends StatelessWidget {
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.open_in_new, size: 14, color: AppColors.textSecondary),
+                    Icon(Icons.open_in_new,
+                        size: 14, color: AppColors.textSecondary),
                     SizedBox(width: 4),
                     Text('Open in Maps',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        style: TextStyle(
+                            color: AppColors.textSecondary, fontSize: 12)),
                   ],
                 ),
               ),

@@ -9,9 +9,11 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/list_stagger.dart';
+import '../../../core/widgets/listing_title_text.dart';
 import '../../../core/widgets/skeleton_loader.dart';
 import '../../checkout/data/checkout_repository.dart';
 import '../../checkout/data/transaction_models.dart';
+import '../../listings/data/listing_repository.dart';
 import '../data/dispute_repository.dart';
 import '../data/transactions_repository.dart';
 
@@ -25,11 +27,16 @@ class TransactionHistoryScreen extends StatefulWidget {
     required this.transactionsRepository,
     required this.checkoutRepository,
     required this.disputeRepository,
+    required this.listingRepository,
   });
 
   final TransactionsRepository transactionsRepository;
   final CheckoutRepository checkoutRepository;
   final DisputeRepository disputeRepository;
+
+  /// Resolves each transaction's `listingId` to its listing title for the
+  /// row heading -- previously the row showed the raw listing id.
+  final ListingRepository listingRepository;
 
   @override
   State<TransactionHistoryScreen> createState() =>
@@ -179,7 +186,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   margin: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                   child: ListTile(
-                    title: Text('Listing ${txn.listingId}'),
+                    // Was `Text('Listing ${txn.listingId}')` -- the raw id.
+                    title: ListingTitleText(
+                      listingId: txn.listingId,
+                      listingRepository: widget.listingRepository,
+                    ),
                     subtitle: Text(
                         '${_statusLabel(txn.status)} • ${_formatDate(txn.createdAt)}'),
                     trailing: Row(

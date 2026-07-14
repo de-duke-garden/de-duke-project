@@ -128,7 +128,9 @@ class ShortletListingDetails {
   int? maximumStayNights;
   int bedrooms;
   int bathrooms;
-  // hostel | hotel | 1_bedroom | 2_bedroom | 3_bedroom
+  // hostel | hotel -- schema.md's ShortletListing.propertySubtype (product
+  // decision). Previously also accepted 1_bedroom/2_bedroom/3_bedroom,
+  // duplicating `bedrooms` above as a string enum instead of a count.
   String subtype;
   List<String> houseRules;
   List<String> blockedDates;
@@ -151,7 +153,7 @@ class ShortletListingDetails {
         maximumStayNights: json['maximum_stay_nights'] as int?,
         bedrooms: json['bedrooms'] as int,
         bathrooms: json['bathrooms'] as int? ?? 0,
-        subtype: json['subtype'] as String? ?? '1_bedroom',
+        subtype: json['subtype'] as String? ?? 'hotel',
         houseRules: (json['house_rules'] as List? ?? [])
             .map((e) => e as String)
             .toList(),
@@ -177,6 +179,7 @@ class Listing {
     required this.status,
     this.statusReason,
     required this.viewCount,
+    this.ownerClientName,
     this.images = const [],
     this.commercial,
     this.shortlet,
@@ -197,6 +200,10 @@ class Listing {
   final String status;
   final String? statusReason;
   final int viewCount;
+  // FEAT-018 AC "originating client/owner" tagging -- an agency-entered
+  // free-text label (e.g. a landlord's name), not a platform account. Null
+  // for the vast majority of (non-agency) listings.
+  final String? ownerClientName;
   final List<ListingImage> images;
   final CommercialListingDetails? commercial;
   final ShortletListingDetails? shortlet;
@@ -219,6 +226,7 @@ class Listing {
         status: json['status'] as String,
         statusReason: json['status_reason'] as String?,
         viewCount: json['view_count'] as int? ?? 0,
+        ownerClientName: json['owner_client_name'] as String?,
         images: (json['images'] as List? ?? [])
             .map((e) => ListingImage.fromJson(e as Map<String, dynamic>))
             .toList(),

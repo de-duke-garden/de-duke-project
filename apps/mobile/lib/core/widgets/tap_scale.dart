@@ -15,6 +15,7 @@ class TapScale extends StatefulWidget {
     super.key,
     required this.child,
     this.onTap,
+    this.onLongPress,
     this.emphasis = false,
     this.scale = 0.97,
     this.borderRadius,
@@ -22,6 +23,11 @@ class TapScale extends StatefulWidget {
 
   final Widget child;
   final VoidCallback? onTap;
+
+  /// Optional long-press handler -- e.g. Portfolio List View's bulk
+  /// selection entry gesture. Purely additive: omitting it keeps every
+  /// existing call site's plain-tap behavior unchanged.
+  final VoidCallback? onLongPress;
 
   /// Use for primary CTAs (Book Now, Publish, Save Search, selection
   /// cards) -- release uses `ease-spring-soft` instead of a plain settle.
@@ -53,6 +59,7 @@ class _TapScaleState extends State<TapScale> {
 
     return GestureDetector(
       onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
       onTapDown: (_) => _setPressed(true),
       onTapUp: (_) => _setPressed(false),
       onTapCancel: () => _setPressed(false),

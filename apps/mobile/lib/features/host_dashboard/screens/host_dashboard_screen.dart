@@ -187,10 +187,22 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
         index: index,
         child: _ListingStatusCard(
           listing: _listings[index],
-          onTap: () => context.pushNamed(
-            RouteNames.listingDetail,
-            pathParameters: {'id': _listings[index].id},
-          ),
+          // Was `RouteNames.listingDetail` (the read-only seeker-facing
+          // screen) -- a host tapping their own listing here wants to
+          // manage it (edit price/description, unpublish per FEAT-004's
+          // AC), not preview it as a seeker would. Listing Detail is still
+          // one tap away via Edit Listing's own AppBar "View listing"
+          // action for hosts who do want that preview.
+          onTap: () async {
+            final saved = await context.pushNamed<bool>(
+              RouteNames.listingEdit,
+              pathParameters: {'id': _listings[index].id},
+            );
+            // Refreshes so an edited price/description/publish-state
+            // shows up immediately instead of the stale card sticking
+            // around until the next manual pull-to-refresh.
+            if (saved == true && mounted) _load();
+          },
         ),
       ),
     );

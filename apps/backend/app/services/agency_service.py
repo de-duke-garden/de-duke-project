@@ -365,11 +365,42 @@ async def get_agency_summary(session: AsyncSession, current_user: CurrentUser) -
         )
     ).scalar_one()
 
+    # FEAT-018 AC "aggregate conversion metrics (views -> inquiries ->
+    # closed deals)" -- lifetime sums across every listing this agency
+    # owns, regardless of current status (a closed/unpublished listing's
+    # historical views/inquiries still count toward the portfolio's
+    # track record). Listing.view_count/inquiry_count are the same
+    # denormalized lifetime counters Host Dashboard (FEAT-017) already
+    # reads per-listing; this is just their portfolio-wide sum.
+    view_inquiry_totals = (
+        await session.execute(
+            select(
+                func.coalesce(func.sum(Listing.view_count), 0),
+                func.coalesce(func.sum(Listing.inquiry_count), 0),
+            ).where(Listing.agency_id == agency_id)
+        )
+    ).one()
+
+    total_deals_closed = (
+        await session.execute(
+            select(func.count())
+            .select_from(Transaction)
+            .join(Listing, Listing.id == Transaction.listing_id)
+            .where(
+                Listing.agency_id == agency_id,
+                Transaction.status.in_(_CLOSED_TRANSACTION_STATUSES),
+            )
+        )
+    ).scalar_one()
+
     return AgencySummaryOut(
         total_active_listings=int(total_active),
         unassigned_leads_count=int(unassigned_leads),
         deals_closed_this_month=int(deals_closed),
         has_team=int(team_count) > 0,
+        total_views=int(view_inquiry_totals[0]),
+        total_inquiries=int(view_inquiry_totals[1]),
+        total_deals_closed=int(total_deals_closed),
     )
 
 
@@ -425,11 +456,58 @@ async def list_agency_listings(
                 status=listing.status,
                 assigned_agent_id=agent_id,
                 assigned_agent_name=agent_name,
+                owner_client_name=listing.owner_client_name,
                 view_count=listing.view_count,
                 inquiry_count=listing.inquiry_count,
             )
         )
     return items
+
+
+# -- Bulk actions (FEAT-018) ---------------------------------------------------
+
+
+async def bulk_update_listing_status(
+    session: AsyncSession,
+    *,
+    current_user: CurrentUser,
+    listing_ids: list[str],
+    target_status: str,
+) -> list[tuple[str, bool, str | None]]:
+    """Screen 14's Bulk Action Bar (relist/archive). Every listing is
+    checked independently -- one listing belonging to another agency, not
+    found, or stuck under_review/banned never blocks the rest of the
+    batch from applying; the caller gets a per-listing result back instead
+    of an all-or-nothing failure, mirroring the same host-settable-status
+    guard PATCH /v1/listings/:id already enforces one listing at a time
+    (see app/api/v1/listings.py's update_listing_endpoint).
+
+    Only an agency admin may bulk-act -- unlike list_agency_listings
+    (read-only, any team member), this mutates every listing in the
+    agency's portfolio at once, the same admin-only bar FEAT-012's other
+    mutating actions (invite, assign) already hold.
+    """
+    agency_id = await _agency_root_id(session, current_user)
+    if not await _is_agency_admin(session, agency_id=agency_id, current_user=current_user):
+        raise NotAnAgencyAdminError("Only an agency admin can perform bulk listing actions.")
+
+    results: list[tuple[str, bool, str | None]] = []
+    for listing_id in listing_ids:
+        listing = await session.get(Listing, listing_id)
+        if listing is None or listing.agency_id != agency_id:
+            results.append((listing_id, False, "Listing not found in this agency's portfolio."))
+            continue
+        if listing.status not in ("active", "unpublished"):
+            results.append(
+                (listing_id, False, f"Cannot change status while listing is {listing.status}.")
+            )
+            continue
+        listing.status = target_status
+        session.add(listing)
+        results.append((listing_id, True, None))
+
+    await session.commit()
+    return results
 
 
 # -- Lead analytics per listing (FEAT-019) -----------------------------------

@@ -31,9 +31,11 @@ import '../../../core/services/places_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/enum_display.dart';
 import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/celebratory_sequence.dart';
 import '../../../core/widgets/image_source_picker.dart';
+import '../data/listing_constants.dart';
 import '../data/listing_models.dart';
 import '../data/listing_repository.dart';
 
@@ -87,16 +89,23 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _priceController = TextEditingController();
   // Confirmed real gap: "Size" was a single free-typed sqm field with no
   // way to express it as actual room dimensions. Split into Length x
-  // Breadth -- schema.md/the backend still only stores a single
+  // Width -- schema.md/the backend still only stores a single
   // size_square_meters value, so the product of these two is what's sent
   // (see _buildReviewStep/_submit), matching how a host actually measures
-  // a room in practice.
+  // a room in practice. Named "Width" (not "Breadth") to match
+  // CommercialListingRoom.widthMeters' naming in schema.md exactly.
   final _lengthController = TextEditingController();
-  final _breadthController = TextEditingController();
+  final _widthController = TextEditingController();
   String _propertySubtype = 'office';
   final _commercialBathroomsController = TextEditingController();
   final _possessionDaysController = TextEditingController();
   final List<CommercialRoom> _rooms = [];
+  // Confirmed real gap: schema.md's CommercialListing.legalDocuments is a
+  // required field (schema.md: shown to seekers "as a trust signal,
+  // particularly for Sale listings") but this form never rendered any UI
+  // for it -- every listing silently submitted an empty list regardless of
+  // what documents the host actually has.
+  final Set<String> _legalDocuments = {};
 
   // Shortlet fields.
   final _nightlyPriceController = TextEditingController();
@@ -104,8 +113,25 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _maxStayController = TextEditingController();
   final _bedroomsController = TextEditingController();
   final _shortletBathroomsController = TextEditingController();
-  String _shortletSubtype = '1_bedroom';
+  // hostel | hotel -- schema.md's ShortletListing.propertySubtype (product
+  // decision: docs/De-Duke/schema.md). Previously defaulted to '1_bedroom',
+  // a value that duplicated `_bedroomsController` as a string enum instead
+  // of a count and is no longer accepted by the backend.
+  String _shortletSubtype = 'hotel';
   final List<String> _houseRules = [];
+  final _houseRuleController = TextEditingController();
+  // ISO date strings (YYYY-MM-DD) -- schema.md's
+  // ShortletListing.blockedDates. Confirmed real gap: declared on the
+  // model since the start (see the pre-existing `_houseRules` field right
+  // above) but never had any UI to actually populate it, same as
+  // `_houseRules` did before this change.
+  final List<String> _blockedDates = [];
+
+  // Shared -- schema.md's base Listing.amenities (free-form tag list, "e.g.,
+  // 'parking', 'generator', 'air_conditioning'"). Confirmed real gap: no UI
+  // existed anywhere in this form; every listing silently submitted an
+  // empty amenities array regardless of what the host actually offers.
+  final Set<String> _amenities = {};
 
   final List<PendingListingImage> _images = [];
 
@@ -116,12 +142,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
   /// Backend/schema.md still only stores a single `size_square_meters`
   /// value (see CommercialListingDetails) -- this is the product of the
-  /// Length x Breadth fields a host actually fills in, computed once here
+  /// Length x Width fields a host actually fills in, computed once here
   /// rather than duplicated at every call site.
   double get _computedSizeSquareMeters {
     final length = double.tryParse(_lengthController.text) ?? 0;
-    final breadth = double.tryParse(_breadthController.text) ?? 0;
-    return length * breadth;
+    final width = double.tryParse(_widthController.text) ?? 0;
+    return length * width;
   }
 
   @override
@@ -133,7 +159,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _stateController.dispose();
     _priceController.dispose();
     _lengthController.dispose();
-    _breadthController.dispose();
+    _widthController.dispose();
     _possessionDaysController.dispose();
     _nightlyPriceController.dispose();
     _minStayController.dispose();
@@ -141,6 +167,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _bedroomsController.dispose();
     _commercialBathroomsController.dispose();
     _shortletBathroomsController.dispose();
+    _houseRuleController.dispose();
     _mapController?.dispose();
     _pageController.dispose();
     super.dispose();
@@ -364,8 +391,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             return 'Enter a valid price to continue.';
           }
           if (double.tryParse(_lengthController.text) == null ||
-              double.tryParse(_breadthController.text) == null) {
-            return 'Enter a valid length and breadth to continue.';
+              double.tryParse(_widthController.text) == null) {
+            return 'Enter a valid length and width to continue.';
           }
           if (int.tryParse(_commercialBathroomsController.text) == null) {
             return 'Enter a valid bathroom count to continue.';
@@ -457,6 +484,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         addressLine: _addressController.text.trim(),
         city: _cityController.text.trim(),
         state: _stateController.text.trim(),
+        amenities: _amenities.toList(),
         commercial: _listingType == 'commercial'
             ? CommercialListingDetails(
                 dealType: _dealType,
@@ -468,6 +496,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 propertySubtype: _propertySubtype,
                 bathrooms:
                     int.tryParse(_commercialBathroomsController.text) ?? 0,
+                legalDocuments: _legalDocuments.toList(),
                 rooms: _rooms,
               )
             : null,
@@ -481,6 +510,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 bathrooms: int.tryParse(_shortletBathroomsController.text) ?? 0,
                 subtype: _shortletSubtype,
                 houseRules: _houseRules,
+                blockedDates: _blockedDates,
               )
             : null,
       );
@@ -677,8 +707,43 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           enabled: !submitting,
         ),
         const SizedBox(height: AppSpacing.lg),
+        _buildAmenitiesField(submitting),
+        const SizedBox(height: AppSpacing.lg),
         if (_listingType == 'commercial') _buildCommercialFields(submitting),
         if (_listingType == 'shortlet') _buildShortletFields(submitting),
+      ],
+    );
+  }
+
+  /// schema.md base Listing.amenities -- shared by both listing types, so
+  /// it lives above the type-specific sections rather than duplicated into
+  /// both `_buildCommercialFields`/`_buildShortletFields`.
+  Widget _buildAmenitiesField(bool submitting) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Amenities', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: kAmenityOptions.map((option) {
+            final selected = _amenities.contains(option.value);
+            return FilterChip(
+              label: Text(option.label),
+              selected: selected,
+              onSelected: submitting
+                  ? null
+                  : (value) => setState(() {
+                        if (value) {
+                          _amenities.add(option.value);
+                        } else {
+                          _amenities.remove(option.value);
+                        }
+                      }),
+            );
+          }).toList(),
+        ),
       ],
     );
   }
@@ -721,8 +786,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         ],
         const SizedBox(height: AppSpacing.sm),
         // Confirmed real gap: "Size" used to be a single free-typed sqm
-        // field -- split into Length x Breadth, the way a host actually
+        // field -- split into Length x Width, the way a host actually
         // measures a room, with the sqm total computed and shown live.
+        // "Width" (not "Breadth") to match schema.md's
+        // CommercialListingRoom.widthMeters naming exactly.
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -741,11 +808,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: TextFormField(
-                controller: _breadthController,
-                decoration: const InputDecoration(labelText: 'Breadth (m)'),
+                controller: _widthController,
+                decoration: const InputDecoration(labelText: 'Width (m)'),
                 keyboardType: TextInputType.number,
                 validator: (v) => (double.tryParse(v ?? '') == null)
-                    ? 'Enter a valid breadth'
+                    ? 'Enter a valid width'
                     : null,
                 enabled: !submitting,
                 onChanged: (_) => setState(() {}),
@@ -754,7 +821,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           ],
         ),
         if (_lengthController.text.isNotEmpty &&
-            _breadthController.text.isNotEmpty) ...[
+            _widthController.text.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.xs),
           Text(
             'Size: ${_computedSizeSquareMeters.toStringAsFixed(1)} sqm',
@@ -783,7 +850,42 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               (int.tryParse(v ?? '') == null) ? 'Enter a valid number' : null,
           enabled: !submitting,
         ),
+        const SizedBox(height: AppSpacing.md),
+        // schema.md's CommercialListing.legalDocuments -- see
+        // `_legalDocuments`'s field docstring for why this section exists
+        // now where it previously didn't.
+        Text('Legal documents available',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Shown to seekers as a trust signal, especially for Sale listings.',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: AppColors.textSecondary),
+        ),
         const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: kLegalDocumentOptions.map((option) {
+            final selected = _legalDocuments.contains(option.value);
+            return FilterChip(
+              label: Text(option.label),
+              selected: selected,
+              onSelected: submitting
+                  ? null
+                  : (value) => setState(() {
+                        if (value) {
+                          _legalDocuments.add(option.value);
+                        } else {
+                          _legalDocuments.remove(option.value);
+                        }
+                      }),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: AppSpacing.md),
         Text('Room breakdown (optional)',
             style: Theme.of(context).textTheme.bodyMedium),
         // Confirmed real gap: rooms used to be added with a hardcoded
@@ -839,7 +941,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       };
 
   /// Add/edit-room dialog -- collects the floor (level) and actual
-  /// length/breadth dimensions a host measures, rather than silently
+  /// length/width dimensions a host measures, rather than silently
   /// defaulting to ground/0.0m x 0.0m with no way to change them.
   Future<void> _showRoomDialog({int? editIndex, CommercialRoom? existing}) {
     var level = existing?.level ?? 'ground';
@@ -885,12 +987,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 TextFormField(
                   controller: widthController,
-                  decoration: const InputDecoration(labelText: 'Breadth (m)'),
+                  decoration: const InputDecoration(labelText: 'Width (m)'),
                   keyboardType: TextInputType.number,
                   validator: (v) {
                     final parsed = double.tryParse(v ?? '');
                     return (parsed == null || parsed <= 0)
-                        ? 'Enter a valid breadth'
+                        ? 'Enter a valid width'
                         : null;
                   },
                 ),
@@ -972,6 +1074,24 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
+        DropdownButtonFormField<String>(
+          initialValue: _shortletSubtype,
+          decoration: const InputDecoration(labelText: 'Property subtype'),
+          // hostel | hotel -- schema.md's ShortletListing.propertySubtype
+          // (docs/De-Duke/schema.md, product decision). Was hostel/hotel/
+          // 1-3 bedroom -- the bedroom-count items duplicated the
+          // "Bedrooms" field below as a string enum and are no longer
+          // accepted by the backend. Ordered ahead of Bedrooms/Bathrooms:
+          // the property subtype is the higher-level classification, with
+          // the room counts as its detail fields underneath.
+          items: const [
+            DropdownMenuItem(value: 'hostel', child: Text('Hostel')),
+            DropdownMenuItem(value: 'hotel', child: Text('Hotel')),
+          ],
+          onChanged:
+              submitting ? null : (v) => setState(() => _shortletSubtype = v!),
+        ),
+        const SizedBox(height: AppSpacing.sm),
         TextFormField(
           controller: _bedroomsController,
           decoration: const InputDecoration(labelText: 'Bedrooms'),
@@ -989,24 +1109,108 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               (int.tryParse(v ?? '') == null) ? 'Enter a valid number' : null,
           enabled: !submitting,
         ),
+        const SizedBox(height: AppSpacing.md),
+        // schema.md's ShortletListing.houseRules -- confirmed real gap:
+        // `_houseRules` was declared and passed straight through to
+        // `_submit()` already, but nothing in this form ever added an
+        // entry to it, so every shortlet listing silently published with
+        // an empty house rules list regardless of what the host typed
+        // here (there was nowhere to type it).
+        Text('House rules', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
-        DropdownButtonFormField<String>(
-          initialValue: _shortletSubtype,
-          decoration: const InputDecoration(labelText: 'Subtype'),
-          items: const [
-            DropdownMenuItem(value: 'hostel', child: Text('Hostel')),
-            DropdownMenuItem(value: 'hotel', child: Text('Hotel')),
-            DropdownMenuItem(value: '1_bedroom', child: Text('1 Bedroom')),
-            DropdownMenuItem(value: '2_bedroom', child: Text('2 Bedroom')),
-            DropdownMenuItem(value: '3_bedroom', child: Text('3 Bedroom')),
+        if (_houseRules.isNotEmpty)
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: _houseRules
+                .map((rule) => Chip(
+                      label: Text(rule),
+                      onDeleted: submitting
+                          ? null
+                          : () => setState(() => _houseRules.remove(rule)),
+                    ))
+                .toList(),
+          ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _houseRuleController,
+                decoration: const InputDecoration(
+                    hintText: 'e.g. No smoking, No pets'),
+                enabled: !submitting,
+                onFieldSubmitted: (_) => _addHouseRule(),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            IconButton(
+              onPressed: submitting ? null : _addHouseRule,
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: 'Add house rule',
+            ),
           ],
-          onChanged:
-              submitting ? null : (v) => setState(() => _shortletSubtype = v!),
         ),
-        // Availability calendar (blocked_dates) is edited after creation on
-        // the listing edit screen -- TODO: add a calendar widget there.
+        const SizedBox(height: AppSpacing.md),
+        // schema.md's ShortletListing.blockedDates -- same confirmed real
+        // gap as houseRules above: the field existed on the model with no
+        // UI anywhere to populate it.
+        Text('Blocked dates', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Dates already unavailable for booking (e.g. for maintenance or personal use).',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if (_blockedDates.isNotEmpty)
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: _blockedDates
+                .map((date) => Chip(
+                      label: Text(date),
+                      onDeleted: submitting
+                          ? null
+                          : () => setState(() => _blockedDates.remove(date)),
+                    ))
+                .toList(),
+          ),
+        const SizedBox(height: AppSpacing.sm),
+        TextButton.icon(
+          onPressed: submitting ? null : _pickBlockedDate,
+          icon: const Icon(Icons.event_busy_outlined),
+          label: const Text('Block a date'),
+        ),
       ],
     );
+  }
+
+  void _addHouseRule() {
+    final rule = _houseRuleController.text.trim();
+    if (rule.isEmpty) return;
+    setState(() {
+      _houseRules.add(rule);
+      _houseRuleController.clear();
+    });
+  }
+
+  Future<void> _pickBlockedDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 730)),
+    );
+    if (picked == null || !mounted) return;
+    // ISO date string (YYYY-MM-DD) -- matches schema.md's
+    // ShortletListing.blockedDates format exactly.
+    final iso =
+        '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    if (_blockedDates.contains(iso)) return;
+    setState(() => _blockedDates.add(iso));
   }
 
   // -- Step 3: location -------------------------------------------------------
@@ -1192,19 +1396,35 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                     _listingType == 'commercial' ? 'Commercial' : 'Shortlet'),
                 _reviewRow('Title', _titleController.text),
                 _reviewRow('Description', _descriptionController.text),
+                _reviewRow(
+                  'Amenities',
+                  _amenities.isEmpty ? 'None selected' : '${_amenities.length} selected',
+                ),
                 if (_listingType == 'commercial') ...[
-                  _reviewRow('Deal type', _dealType),
+                  _reviewRow('Deal type', humanizeEnumValue(_dealType)),
                   _reviewRow('Price', _priceController.text),
-                  _reviewRow('Length x Breadth',
-                      '${_lengthController.text}m x ${_breadthController.text}m'),
+                  _reviewRow('Length x Width',
+                      '${_lengthController.text}m x ${_widthController.text}m'),
                   _reviewRow('Size (sqm)',
                       _computedSizeSquareMeters.toStringAsFixed(1)),
                   _reviewRow('Bathrooms', _commercialBathroomsController.text),
+                  _reviewRow(
+                    'Legal documents',
+                    _legalDocuments.isEmpty
+                        ? 'None confirmed'
+                        : '${_legalDocuments.length} confirmed',
+                  ),
                   _reviewRow('Rooms', '${_rooms.length}'),
                 ] else ...[
                   _reviewRow('Nightly price', _nightlyPriceController.text),
                   _reviewRow('Bedrooms', _bedroomsController.text),
                   _reviewRow('Bathrooms', _shortletBathroomsController.text),
+                  _reviewRow('House rules',
+                      _houseRules.isEmpty ? 'None' : '${_houseRules.length} added'),
+                  _reviewRow(
+                    'Blocked dates',
+                    _blockedDates.isEmpty ? 'None' : '${_blockedDates.length} blocked',
+                  ),
                 ],
                 _reviewRow('Photos', '${_images.length}'),
               ],

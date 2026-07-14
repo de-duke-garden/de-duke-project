@@ -10,12 +10,21 @@ class AgencySummary {
     required this.unassignedLeadsCount,
     required this.dealsClosedThisMonth,
     required this.hasTeam,
+    required this.totalViews,
+    required this.totalInquiries,
+    required this.totalDealsClosed,
   });
 
   final int totalActiveListings;
   final int unassignedLeadsCount;
   final int dealsClosedThisMonth;
   final bool hasTeam;
+  // FEAT-018 AC "Portfolio view shows aggregate conversion metrics (views
+  // -> inquiries -> closed deals)" -- lifetime portfolio-wide totals,
+  // distinct from dealsClosedThisMonth's this-month window above.
+  final int totalViews;
+  final int totalInquiries;
+  final int totalDealsClosed;
 
   factory AgencySummary.fromJson(Map<String, dynamic> json) {
     return AgencySummary(
@@ -23,6 +32,9 @@ class AgencySummary {
       unassignedLeadsCount: json['unassigned_leads_count'] as int,
       dealsClosedThisMonth: json['deals_closed_this_month'] as int,
       hasTeam: json['has_team'] as bool,
+      totalViews: json['total_views'] as int,
+      totalInquiries: json['total_inquiries'] as int,
+      totalDealsClosed: json['total_deals_closed'] as int,
     );
   }
 }
@@ -35,6 +47,7 @@ class AgencyListingItem {
     required this.status,
     required this.assignedAgentId,
     required this.assignedAgentName,
+    required this.ownerClientName,
     required this.viewCount,
     required this.inquiryCount,
   });
@@ -45,6 +58,9 @@ class AgencyListingItem {
   final String status;
   final String? assignedAgentId;
   final String? assignedAgentName;
+  // FEAT-018 AC "originating client/owner" tagging -- a free-text label an
+  // agency enters (e.g. a landlord's name), not a platform account.
+  final String? ownerClientName;
   final int viewCount;
   final int inquiryCount;
 
@@ -56,8 +72,33 @@ class AgencyListingItem {
       status: json['status'] as String,
       assignedAgentId: json['assigned_agent_id'] as String?,
       assignedAgentName: json['assigned_agent_name'] as String?,
+      ownerClientName: json['owner_client_name'] as String?,
       viewCount: json['view_count'] as int,
       inquiryCount: json['inquiry_count'] as int,
+    );
+  }
+}
+
+/// One listing's outcome from a `POST /agency/listings/bulk-action` call
+/// (Screen 14's Bulk Action Bar) -- every listing in the batch is
+/// independently succeed/fail, never all-or-nothing (see
+/// agency_service.bulk_update_listing_status's docstring).
+class BulkListingActionResult {
+  const BulkListingActionResult({
+    required this.listingId,
+    required this.success,
+    this.error,
+  });
+
+  final String listingId;
+  final bool success;
+  final String? error;
+
+  factory BulkListingActionResult.fromJson(Map<String, dynamic> json) {
+    return BulkListingActionResult(
+      listingId: json['listing_id'] as String,
+      success: json['success'] as bool,
+      error: json['error'] as String?,
     );
   }
 }

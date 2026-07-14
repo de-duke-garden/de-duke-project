@@ -17,6 +17,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/badge_pop.dart';
 import '../../../core/widgets/skeleton_loader.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../listings/data/listing_repository.dart';
 import '../../reporting/data/report_repository.dart';
 import '../../reporting/screens/report_sheet.dart';
 import '../data/chat_models.dart';
@@ -58,6 +59,7 @@ class ChatThreadScreen extends StatefulWidget {
     required this.chatRepository,
     required this.authRepository,
     required this.reportRepository,
+    required this.listingRepository,
   });
 
   final String conversationId;
@@ -66,6 +68,11 @@ class ChatThreadScreen extends StatefulWidget {
 
   /// FEAT-009 -- backs the overflow menu's "Report conversation" action.
   final ReportRepository reportRepository;
+
+  /// Resolves the conversation's `listingId` to its title for the AppBar
+  /// heading -- previously the AppBar just read "Chat" with no indication
+  /// of which listing the thread was about.
+  final ListingRepository listingRepository;
 
   @override
   State<ChatThreadScreen> createState() => _ChatThreadScreenState();
@@ -76,6 +83,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   String? _errorMessage;
 
   ChatConversation? _conversation;
+  // Fetched once the conversation resolves its listingId. Left null (AppBar
+  // falls back to "Chat") if the fetch fails -- a missing title is not
+  // worth blocking or erroring the whole thread screen over.
+  String? _listingTitle;
   CurrentUser? _currentUser;
   List<ChatMessage> _messages = [];
   bool _isOffline = false;
@@ -141,6 +152,19 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
 
       _currentUser = user;
       _conversation = conversation;
+
+      // Fire-and-forget: doesn't block the message stream subscription
+      // below, and a failed/slow title fetch shouldn't hold up the rest of
+      // the thread from loading.
+      unawaited(
+        widget.listingRepository.getListing(conversation.listingId).then(
+          (listing) {
+            if (!mounted) return;
+            setState(() => _listingTitle = listing.title);
+          },
+          onError: (_) {},
+        ),
+      );
 
       _messagesSub?.cancel();
       _messagesSub = widget.chatRepository
@@ -271,7 +295,14 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Chat'),
+                    // Was a static "Chat" -- now shows the listing title
+                    // this thread is about, once resolved (falls back to
+                    // "Chat" while loading/on fetch failure).
+                    Text(
+                      _listingTitle ?? 'Chat',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     Text(
                       'Client • Property Management • De-Duke Staff',
                       style: Theme.of(context).textTheme.bodySmall,

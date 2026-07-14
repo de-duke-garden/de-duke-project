@@ -33,15 +33,16 @@ class CommercialSubtype(StrEnum):
 
 
 class ShortletSubtype(StrEnum):
-    """FEAT-005/FEAT-007 Hostel/Hotel/1-3 Bedroom shortlet subtypes -- maps
-    directly onto ShortletListing.subtype (backfilled onto the shared model
-    during Phase B review; see app/models/listing.py)."""
+    """FEAT-005/FEAT-007 shortlet subtypes -- maps directly onto
+    ShortletListing.subtype (see app/models/listing.py). Matches
+    schema.md's ShortletListing.propertySubtype exactly (hotel|hostel,
+    product decision) -- previously also had one/two/three_bedroom members
+    duplicating the separate `bedrooms` integer field as a string enum;
+    removed rather than left as permanently-dead filter values once
+    ListingUpdateIn/ShortletListingIn stopped accepting them."""
 
     hostel = "hostel"
     hotel = "hotel"
-    one_bedroom = "1_bedroom"
-    two_bedroom = "2_bedroom"
-    three_bedroom = "3_bedroom"
 
 
 class SortField(StrEnum):

@@ -18,9 +18,11 @@ import '../../../core/widgets/branded_refresh_indicator.dart';
 import '../../../core/widgets/de_duke_logo.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/list_stagger.dart';
+import '../../../core/widgets/listing_title_text.dart';
 import '../../../core/widgets/skeleton_loader.dart';
 import '../../../core/widgets/tap_scale.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../listings/data/listing_repository.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
 
@@ -31,10 +33,15 @@ class ChatInboxScreen extends StatefulWidget {
     super.key,
     required this.chatRepository,
     required this.authRepository,
+    required this.listingRepository,
   });
 
   final ChatRepository chatRepository;
   final AuthRepository authRepository;
+
+  /// Resolves each conversation's `listingId` to its listing title for the
+  /// tile heading -- previously the tile showed the raw listing id.
+  final ListingRepository listingRepository;
 
   @override
   State<ChatInboxScreen> createState() => _ChatInboxScreenState();
@@ -195,6 +202,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                     ? 'You are the seeker'
                     : 'You are property management',
                 chatRepository: widget.chatRepository,
+                listingRepository: widget.listingRepository,
                 currentUserId: _currentUserId,
                 onTap: () => context.pushNamed(
                   RouteNames.chatThread,
@@ -219,6 +227,7 @@ class _ConversationTile extends StatelessWidget {
     required this.conversation,
     required this.roleLabel,
     required this.chatRepository,
+    required this.listingRepository,
     required this.currentUserId,
     required this.onTap,
   });
@@ -226,6 +235,7 @@ class _ConversationTile extends StatelessWidget {
   final ChatConversation conversation;
   final String roleLabel;
   final ChatRepository chatRepository;
+  final ListingRepository listingRepository;
   final String? currentUserId;
   final VoidCallback onTap;
 
@@ -253,7 +263,14 @@ class _ConversationTile extends StatelessWidget {
                   child: Icon(isUnread
                       ? Icons.mark_chat_unread
                       : Icons.chat_bubble_outline)),
-              title: Text('Listing ${conversation.listingId}'),
+              // Was `Text('Listing ${conversation.listingId}')` -- the raw
+              // Firestore listing id, meaningless to a user. Resolved to
+              // the actual listing title via a one-off REST fetch, with the
+              // id kept only as a fallback (deleted listing, fetch failure).
+              title: ListingTitleText(
+                listingId: conversation.listingId,
+                listingRepository: listingRepository,
+              ),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

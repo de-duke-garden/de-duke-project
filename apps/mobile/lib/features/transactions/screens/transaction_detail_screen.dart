@@ -20,8 +20,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/listing_title_text.dart';
 import '../../checkout/data/checkout_repository.dart';
 import '../../checkout/data/transaction_models.dart';
+import '../../listings/data/listing_repository.dart';
 
 enum _ScreenState { loading, loaded, error, offline }
 
@@ -30,10 +32,15 @@ class TransactionDetailScreen extends StatefulWidget {
     super.key,
     required this.transactionId,
     required this.repository,
+    required this.listingRepository,
   });
 
   final String transactionId;
   final CheckoutRepository repository;
+
+  /// Resolves the transaction's `listingId` to its listing title for the
+  /// "Listing" row -- previously showed the raw listing id.
+  final ListingRepository listingRepository;
 
   @override
   State<TransactionDetailScreen> createState() =>
@@ -161,7 +168,17 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 padding: const EdgeInsets.all(AppSpacing.md),
                 child: Column(
                   children: [
-                    _row('Listing', txn.listingId),
+                    // Was `_row('Listing', txn.listingId)` -- the raw id.
+                    _rowWidget(
+                      'Listing',
+                      DefaultTextStyle.merge(
+                        textAlign: TextAlign.right,
+                        child: ListingTitleText(
+                          listingId: txn.listingId,
+                          listingRepository: widget.listingRepository,
+                        ),
+                      ),
+                    ),
                     _row('Transaction type', txn.transactionType),
                     const Divider(height: AppSpacing.lg),
                     _row('Gross amount',
@@ -216,7 +233,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
-  Widget _row(String label, String value) {
+  Widget _row(String label, String value) => _rowWidget(
+        label,
+        Text(value, textAlign: TextAlign.right),
+      );
+
+  Widget _rowWidget(String label, Widget value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -225,9 +247,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           Text(label,
               style: AppTypography.bodySmall
                   .copyWith(color: AppColors.textSecondary)),
-          Flexible(
-            child: Text(value, textAlign: TextAlign.right),
-          ),
+          Flexible(child: value),
         ],
       ),
     );

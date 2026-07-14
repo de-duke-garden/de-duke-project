@@ -154,9 +154,19 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
             child:
                 ListStaggerItem(index: i, child: _MetricCard(data: cards[i])),
           ),
-        const SizedBox(height: AppSpacing.sm),
+        // FEAT-018 AC "Portfolio view shows aggregate conversion metrics
+        // (views -> inquiries -> closed deals)" -- lifetime portfolio-wide
+        // funnel, distinct from the "this month" figure in the cards above.
         ListStaggerItem(
           index: cards.length,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: _ConversionFunnelCard(summary: summary),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        ListStaggerItem(
+          index: cards.length + 1,
           child: _ShortcutRow(
             icon: Icons.apartment_outlined,
             label: 'Portfolio',
@@ -164,7 +174,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
           ),
         ),
         ListStaggerItem(
-          index: cards.length + 1,
+          index: cards.length + 2,
           child: _ShortcutRow(
             icon: Icons.mark_email_unread_outlined,
             label: 'New Leads',
@@ -172,6 +182,69 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Views -> Inquiries -> Closed Deals, as three stages in one card rather
+/// than three separate metric tiles -- the funnel shape itself (and the
+/// drop-off between stages) is the point of this AC, not just three more
+/// numbers indistinguishable from the cards above.
+class _ConversionFunnelCard extends StatelessWidget {
+  const _ConversionFunnelCard({required this.summary});
+
+  final AgencySummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final stages = [
+      ('Views', summary.totalViews, Icons.visibility_outlined),
+      ('Inquiries', summary.totalInquiries, Icons.chat_bubble_outline),
+      ('Closed Deals', summary.totalDealsClosed, Icons.handshake_outlined),
+    ];
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Portfolio Conversion', style: AppTypography.h3),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              for (var i = 0; i < stages.length; i++) ...[
+                if (i > 0)
+                  const Padding(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                    child: Icon(Icons.arrow_forward,
+                        size: 16, color: AppColors.textSecondary),
+                  ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(stages[i].$3,
+                          size: 18, color: AppColors.textSecondary),
+                      const SizedBox(height: 4),
+                      Text(stages[i].$2.toString(),
+                          style: AppTypography.statSmall),
+                      Text(stages[i].$1,
+                          style: AppTypography.bodySmall
+                              .copyWith(color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

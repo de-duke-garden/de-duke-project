@@ -11,15 +11,19 @@
 /// listings rather than a separate `/listings/nearby` endpoint -- that
 /// endpoint doesn't exist, and search's geospatial capability already
 /// covers exactly this need (deliberate reuse decision, not a placeholder).
-/// `GET /notifications/count` (screens.md's notification bell data source)
-/// does not exist either -- FEAT-022 (Push Notifications) is push
-/// delivery + preferences only, an in-app notification center/count is a
-/// separate, not-yet-scoped feature, so the bell renders without a badge
-/// count for now rather than calling an endpoint that doesn't exist.
+/// screens.md's AppBar spec also calls for a notification bell, but there
+/// is no in-app notification feed/list anywhere in this codebase --
+/// `GET /notifications/count` doesn't exist, and FEAT-022 (Push
+/// Notifications) is push delivery + preferences only, a separate,
+/// not-yet-scoped feature. Rather than ship a bell that no-ops or fakes a
+/// destination, it's omitted entirely until that feature is actually
+/// scoped.
 /// The location indicator (Components table: "Shows/change current search
-/// location") is similarly a static label today -- changing it needs the
-/// same device-location plugin this file's own `_fallbackLatitude`/
-/// `_fallbackLongitude` TODO already defers.
+/// location") now opens `change_location_sheet.dart` (device GPS or a
+/// Places Autocomplete address search, same building blocks Create
+/// Listing's own location step already uses) instead of the previous
+/// "not available yet" snackbar; `_fallbackLatitude`/`_fallbackLongitude`
+/// remain the default until the user actually changes it.
 library;
 
 import 'package:dio/dio.dart';
@@ -37,6 +41,7 @@ import '../../../core/widgets/skeleton_loader.dart';
 import '../../push_notifications/data/push_notification_service.dart';
 import '../../search/data/search_models.dart';
 import '../../search/data/search_repository.dart';
+import 'change_location_sheet.dart';
 
 enum _ScreenState { loading, loaded, empty, error, offline }
 
@@ -70,6 +75,12 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
   List<ListingSearchResult> _nearYou = [];
   List<ListingSearchResult> _recentlyAdded = [];
 
+  // Search origin -- defaults to the documented city-level fallback until
+  // the user picks a real location via the change-location sheet.
+  double _latitude = _fallbackLatitude;
+  double _longitude = _fallbackLongitude;
+  String _locationLabel = 'Lagos';
+
   @override
   void initState() {
     super.initState();
@@ -86,18 +97,18 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
     setState(() => _state = _ScreenState.loading);
     try {
       final nearYouFuture = widget.searchRepository.search(
-        const SearchQueryState(
-          latitude: _fallbackLatitude,
-          longitude: _fallbackLongitude,
+        SearchQueryState(
+          latitude: _latitude,
+          longitude: _longitude,
           radiusKm: 15,
           sortBy: SortField.distance,
         ),
         pageSize: 10,
       );
       final recentFuture = widget.searchRepository.search(
-        const SearchQueryState(
-          latitude: _fallbackLatitude,
-          longitude: _fallbackLongitude,
+        SearchQueryState(
+          latitude: _latitude,
+          longitude: _longitude,
           radiusKm: 50,
           sortBy: SortField.newest,
         ),
@@ -119,11 +130,26 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
       if (!mounted) return;
       final isOffline = e.type == DioExceptionType.connectionError ||
           e.type == DioExceptionType.connectionTimeout;
-      setState(() => _state = isOffline ? _ScreenState.offline : _ScreenState.error);
+      setState(
+          () => _state = isOffline ? _ScreenState.offline : _ScreenState.error);
     } catch (_) {
       if (!mounted) return;
       setState(() => _state = _ScreenState.error);
     }
+  }
+
+  /// AppBar's location indicator -- opens the change-location sheet and,
+  /// on a real pick, re-runs both feed queries against the new coordinate.
+  /// A dismissed sheet (returns null) is a no-op, same as before.
+  Future<void> _changeLocation() async {
+    final result = await showChangeLocationSheet(context);
+    if (result == null || !mounted) return;
+    setState(() {
+      _latitude = result.latitude;
+      _longitude = result.longitude;
+      _locationLabel = result.label;
+    });
+    _load();
   }
 
   @override
@@ -136,20 +162,14 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
         automaticallyImplyLeading: false, // tab root -- never a back arrow
         actions: [
           // Components table: "Location indicator -- Shows/change current
-          // search location". Static label for now -- see file header for
-          // why "change" isn't wired yet.
+          // search location".
           TextButton.icon(
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Changing location is not available yet.')),
-            ),
+            onPressed: _changeLocation,
             icon: const Icon(Icons.location_on_outlined, size: 18),
-            label: const Text('Lagos'),
+            label: Text(_locationLabel),
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            tooltip: 'Notifications',
-            onPressed: () {}, // no in-app notification center yet -- see file header
-          ),
+          // Notification bell intentionally omitted -- see file header:
+          // no in-app notification feed/list exists to navigate to yet.
         ],
       ),
       body: SafeArea(
@@ -163,8 +183,9 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
             // even while Home Feed itself is loading/erroring/offline.
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
-              child: _SearchEntryField(onTap: () => context.pushNamed(RouteNames.search)),
+                  AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+              child: _SearchEntryField(
+                  onTap: () => context.pushNamed(RouteNames.search)),
             ),
             Expanded(child: _buildBody(context)),
           ],
@@ -198,7 +219,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
         return Column(
           children: [
             MaterialBanner(
-              content: const Text("You're offline. Showing last saved listings."),
+              content:
+                  const Text("You're offline. Showing last saved listings."),
               actions: [
                 TextButton(onPressed: _load, child: const Text('Retry')),
               ],
@@ -244,7 +266,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
         if (_nearYou.isNotEmpty) ...[
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            child: Text('Near You', style: TextStyle(fontWeight: FontWeight.bold)),
+            child:
+                Text('Near You', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           // First card in the feed's top slot renders as the Featured/Hero
           // Card per screens.md Screen 4 Layout ("day's top listing").
@@ -255,7 +278,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
                   ? FeaturedListingCard(
                       imageUrl: result.primaryImageUrl,
                       title: result.title,
-                      subtitle: '${result.locationCity}, ${result.locationState}',
+                      subtitle:
+                          '${result.locationCity}, ${result.locationState}',
                       priceLabel: _priceLabel(result),
                       isVerified: result.isVerifiedHost,
                       heroTag: heroTagFor(result.id),
@@ -267,7 +291,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
                   : ListingCard(
                       imageUrl: result.primaryImageUrl,
                       title: result.title,
-                      subtitle: '${result.locationCity}, ${result.locationState}',
+                      subtitle:
+                          '${result.locationCity}, ${result.locationState}',
                       priceLabel: _priceLabel(result),
                       isVerified: result.isVerifiedHost,
                       heroTag: heroTagFor(result.id),
@@ -281,7 +306,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
         if (_recentlyAdded.isNotEmpty) ...[
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            child: Text('Recently Added', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text('Recently Added',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           for (final result in _recentlyAdded)
             ListStaggerItem(
@@ -335,14 +361,13 @@ class _SearchEntryField extends StatelessWidget {
               horizontal: AppSpacing.md, vertical: AppSpacing.md),
           child: Row(
             children: [
-              Icon(Icons.search, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              Icon(Icons.search,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
               const SizedBox(width: AppSpacing.sm),
               Text(
                 'Search by location or keyword',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyLarge
-                    ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ],
           ),

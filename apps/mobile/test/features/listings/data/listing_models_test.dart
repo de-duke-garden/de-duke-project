@@ -41,22 +41,25 @@ void main() {
         minimumStayNights: 2,
         bedrooms: 2,
         bathrooms: 1,
-        subtype: '2_bedroom',
+        subtype: 'hostel',
       );
 
       final json = details.toJson();
-      expect(json['subtype'], '2_bedroom');
+      expect(json['subtype'], 'hostel');
       expect(json['bathrooms'], 1);
       expect(json['bedrooms'], 2);
     });
 
-    test('fromJson defaults subtype to 1_bedroom when absent', () {
+    // schema.md's ShortletListing.propertySubtype is scoped to hotel|hostel
+    // only (product decision) -- previously also had 1/2/3-bedroom values
+    // duplicating `bedrooms` as a string enum instead of a count.
+    test('fromJson defaults subtype to hotel when absent', () {
       final details = ShortletListingDetails.fromJson({
         'nightly_price': 30000,
         'minimum_stay_nights': 1,
         'bedrooms': 1,
       });
-      expect(details.subtype, '1_bedroom');
+      expect(details.subtype, 'hotel');
       expect(details.bathrooms, 0);
     });
   });

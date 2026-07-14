@@ -18,9 +18,13 @@ from app.core.db import get_session
 from app.core.security import CurrentUser, get_current_user
 from app.schemas.agency import (
     ANALYTICS_RANGE_DAYS,
+    BULK_LISTING_ACTIONS,
     AgencyListingItemOut,
     AgencySummaryOut,
     AssignLeadRequest,
+    BulkListingActionRequest,
+    BulkListingActionResponse,
+    BulkListingActionResult,
     InviteTeamMemberRequest,
     InviteTeamMemberResponse,
     LeadOut,
@@ -224,6 +228,38 @@ async def get_agency_listings(
         )
     except agency_service.AgencyError as exc:
         raise _handle_agency_error(exc) from exc
+
+
+# -- Bulk actions (FEAT-018, Screen 14 Bulk Action Bar) ------------------------
+
+
+@router.post("/listings/bulk-action", response_model=BulkListingActionResponse)
+async def bulk_listing_action(
+    payload: BulkListingActionRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> BulkListingActionResponse:
+    if payload.action not in BULK_LISTING_ACTIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"action must be one of {BULK_LISTING_ACTIONS}",
+        )
+    try:
+        results = await agency_service.bulk_update_listing_status(
+            session,
+            current_user=current_user,
+            listing_ids=payload.listing_ids,
+            target_status=payload.target_status,
+        )
+    except agency_service.AgencyError as exc:
+        raise _handle_agency_error(exc) from exc
+
+    return BulkListingActionResponse(
+        results=[
+            BulkListingActionResult(listing_id=listing_id, success=success, error=error)
+            for listing_id, success, error in results
+        ]
+    )
 
 
 # -- Lead analytics per listing (FEAT-019, Screen 16) --------------------------

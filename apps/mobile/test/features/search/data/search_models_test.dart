@@ -16,10 +16,10 @@ void main() {
   });
 
   group('ShortletSubtypeX.apiValue', () {
-    test('bedroom variants map to underscored backend values', () {
-      expect(ShortletSubtype.oneBedroom.apiValue, '1_bedroom');
-      expect(ShortletSubtype.twoBedroom.apiValue, '2_bedroom');
-      expect(ShortletSubtype.threeBedroom.apiValue, '3_bedroom');
+    // schema.md's ShortletListing.propertySubtype is scoped to hotel|hostel
+    // only (product decision) -- previously also had 1/2/3-bedroom values
+    // duplicating the separate `bedrooms` field as a string enum.
+    test('matches the backend query parameter values', () {
       expect(ShortletSubtype.hostel.apiValue, 'hostel');
       expect(ShortletSubtype.hotel.apiValue, 'hotel');
     });
@@ -40,12 +40,12 @@ void main() {
     test('includes bathrooms and shortlet subtype once set (FEAT-007)', () {
       const state = SearchQueryState(
         bathrooms: 2,
-        shortletSubtype: ShortletSubtype.twoBedroom,
+        shortletSubtype: ShortletSubtype.hostel,
       );
       final params = state.toQueryParameters();
 
       expect(params['bathrooms'], 2);
-      expect(params['shortlet_subtype'], '2_bedroom');
+      expect(params['shortlet_subtype'], 'hostel');
     });
 
     test('activeFilterCount counts each distinct filter group once', () {

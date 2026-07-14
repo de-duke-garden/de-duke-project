@@ -180,12 +180,15 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     final notifier = ref.read(searchNotifierProvider.notifier);
 
     if (q.listingType != null) {
-      chips.add(_chip(q.listingType!.apiValue,
+      // Was `.apiValue` (raw wire value, e.g. 'commercial') -- chip now
+      // shows the normalized `.label` ('Commercial') like every other
+      // filter chip here.
+      chips.add(_chip(q.listingType!.label,
           () =>
               notifier.updateQuery((s) => s.copyWith(clearListingType: true))));
     }
     if (q.dealType != null) {
-      chips.add(_chip(q.dealType!.apiValue,
+      chips.add(_chip(q.dealType!.label,
           () => notifier.updateQuery((s) => s.copyWith(clearDealType: true))));
     }
     if (q.verifiedOnly) {
