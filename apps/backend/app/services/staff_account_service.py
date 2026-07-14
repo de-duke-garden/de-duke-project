@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import secrets
 
+import anyio
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -122,13 +123,17 @@ async def invite_staff(
         raise EmailAlreadyInUseError(f"{email} is already associated with an account.")
 
     raw_token = secrets.token_urlsafe(32)
+    # Offloaded to a worker thread -- bcrypt is CPU-bound and synchronous;
+    # calling it directly in this `async def` would block the event loop
+    # for the hash's full duration. See auth_service.register_with_email's
+    # comment for the load-test regression this pattern was found from.
     user = User(
         full_name=full_name,
         email=email,
         role=UserRole.DEDUKE_STAFF.value,
         is_active=True,
         invited_by_id=actor.user_id,
-        password_hash=hash_password(raw_token),
+        password_hash=await anyio.to_thread.run_sync(hash_password, raw_token),
     )
     session.add(user)
     await session.flush()  # populate user.id for the audit log FK

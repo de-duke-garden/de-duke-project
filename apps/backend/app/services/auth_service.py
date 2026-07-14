@@ -13,6 +13,7 @@ from __future__ import annotations
 import secrets
 from datetime import UTC, datetime, timedelta
 
+import anyio
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -70,11 +71,23 @@ async def register_with_email(
             detail="An account with this email already exists.",
         )
 
+    # bcrypt hashing is CPU-bound and, at a realistic work factor, slow
+    # enough (~100-300ms) to matter -- calling it synchronously inside an
+    # `async def` blocks the whole event loop for that long, serializing
+    # every other in-flight request behind it. Found via a real staging
+    # load test run: 20 concurrent users hitting /auth/login alone was
+    # enough to push p95 latency into the tens of seconds and fail nearly
+    # every request, even though each individual bcrypt call is fast in
+    # isolation. Offloaded to a worker thread (anyio.to_thread.run_sync,
+    # same pattern app/core/storage.py and app/services/sms_service.py
+    # already use for their own blocking I/O) at every call site in this
+    # file, not just login -- register/reset/accept-invite hit the same
+    # bcrypt cost and would reproduce the same stall under load.
     user = User(
         full_name=full_name,
         email=email,
         role=UserRole.SEEKER.value,
-        password_hash=hash_password(password),
+        password_hash=await anyio.to_thread.run_sync(hash_password, password),
     )
     session.add(user)
     await session.commit()
@@ -141,11 +154,15 @@ async def verify_phone_otp(session: AsyncSession, *, phone_number: str, otp_code
 async def login_with_email(session: AsyncSession, *, email: str, password: str) -> User:
     result = (await session.execute(select(User).where(User.email == email))).scalars()
     user = result.first()
-    if (
-        user is None
-        or user.password_hash is None
-        or not verify_password(password, user.password_hash)
-    ):
+    # See register_with_email's comment on why verify_password is offloaded
+    # to a thread here -- this is the hottest of these call sites (every
+    # login hits it), and the one the load-test smoke run actually caught.
+    password_ok = (
+        user is not None
+        and user.password_hash is not None
+        and await anyio.to_thread.run_sync(verify_password, password, user.password_hash)
+    )
+    if not password_ok:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="We couldn't verify those details. Try again or reset your password.",
@@ -261,7 +278,7 @@ async def reset_password(session: AsyncSession, *, reset_token: str, new_passwor
     user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
-    user.password_hash = hash_password(new_password)
+    user.password_hash = await anyio.to_thread.run_sync(hash_password, new_password)
     user.updated_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
@@ -292,22 +309,24 @@ async def accept_invite(
     would, but without a second piece of state to keep in sync.
     """
     user = await session.get(User, user_id)
-    if (
-        user is None
-        or user.password_hash is None
-        or not verify_password(invite_token, user.password_hash)
-    ):
+    token_ok = (
+        user is not None
+        and user.password_hash is not None
+        and await anyio.to_thread.run_sync(verify_password, invite_token, user.password_hash)
+    )
+    if not token_ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This invite link is invalid or has already been used.",
         )
+    assert user is not None  # narrowed by token_ok above, for the type checker
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account has been deactivated. Contact an Admin for a new invite.",
         )
 
-    user.password_hash = hash_password(new_password)
+    user.password_hash = await anyio.to_thread.run_sync(hash_password, new_password)
     user.updated_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
