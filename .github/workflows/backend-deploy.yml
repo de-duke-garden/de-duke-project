@@ -131,8 +131,8 @@ jobs:
       matrix:
         include:
           - environment: development
-          - environment: staging
-          - environment: production
+          # - environment: staging
+          # - environment: production
     runs-on: ubuntu-latest
     environment: ${{ matrix.environment }}
     # Keyed per environment -- shared with infra-terraform.yml's apply job.
