@@ -59,14 +59,29 @@ async def get_own_submission(session: AsyncSession, *, user_id: str) -> HostAcco
     return result.scalars().first()
 
 
-async def update_bio(session: AsyncSession, *, user_id: str, bio: str) -> HostAccount:
+async def update_profile(
+    session: AsyncSession,
+    *,
+    user_id: str,
+    bio: str | None = None,
+    photo: UploadFile | None = None,
+) -> HostAccount:
     """FEAT-042 AC: a host whose most recent submission is `verified` or
-    `rejected` can edit their bio via `PATCH /host-accounts/me`, without
-    re-submitting photo or documents -- independent of the full
-    resubmission-after-rejection flow (Screen 3a "Resubmit"). Deliberately
-    blocked while `in_review`: staff are actively evaluating exactly what
-    was submitted, and letting the bio change underneath an active review
-    risks staff reviewing stale/mismatched content."""
+    `rejected` can edit their bio and/or their listing photo
+    (`HostAccount.hostPhotoUrl`) via `PATCH /host-accounts/me`, without
+    re-submitting documents -- independent of the full resubmission-after-
+    rejection flow (Screen 3a "Resubmit"). Deliberately blocked while
+    `in_review`: staff are actively evaluating exactly what was submitted,
+    and letting either field change underneath an active review risks
+    staff reviewing stale/mismatched content.
+
+    Both fields are optional and independent -- a caller may update bio
+    only, photo only, or both in the same call (the router's multipart
+    endpoint only passes what the client actually sent). Photo behaves
+    identically to bio: it takes effect on the host's existing live
+    listings immediately, since Listing Detail reads `HostAccount` at
+    render time rather than baking a copy into each listing (FEAT-042 AC).
+    """
     host_account = await get_own_submission(session, user_id=user_id)
     if host_account is None:
         raise HTTPException(
@@ -77,12 +92,20 @@ async def update_bio(session: AsyncSession, *, user_id: str, bio: str) -> HostAc
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                "Your bio can't be edited while your submission is under review "
-                "-- it's part of what staff are currently evaluating."
+                "Your bio and photo can't be edited while your submission is "
+                "under review -- they're part of what staff are currently "
+                "evaluating."
             ),
         )
 
-    host_account.bio = bio
+    if bio is not None:
+        host_account.bio = bio
+    if photo is not None:
+        # Same File Storage Service (S3 + CDN) path the original Become a
+        # Host submission uses -- see _store_file's docstring. Namespaced
+        # by user_id, same as submission time.
+        host_account.host_photo_url = await _store_file(photo, user_id=user_id)
+
     host_account.updated_at = datetime.now(UTC)
     session.add(host_account)
     await session.commit()

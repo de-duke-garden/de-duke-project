@@ -131,15 +131,6 @@ class HostAccountDetailResponse(BaseModel):
     ref_phone_no: str | None = None
 
 
-class HostAccountBioUpdateRequest(BaseModel):
-    """PATCH /host-accounts/me body -- FEAT-042 quick bio-only edit,
-    independent of the full resubmission flow. Bio-only by design (see
-    FEAT-042's description) -- profile photo editing is a separate,
-    unrequested capability not added here."""
-
-    bio: str = Field(min_length=1, max_length=2000)
-
-
 class HostAccountReviewAction(BaseModel):
     """PATCH /admin/host-accounts/:id/status body -- Screen 27."""
 

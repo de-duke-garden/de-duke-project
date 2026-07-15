@@ -20,6 +20,7 @@ import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/badge_pop.dart';
 import '../../../core/widgets/de_duke_logo.dart';
+import '../../../core/widgets/image_source_picker.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../push_notifications/data/push_notification_repository.dart';
 import '../data/account_deletion_repository.dart';
@@ -50,6 +51,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   String? _errorMessage;
   bool _actionInFlight = false;
   bool _linkActionInFlight = false;
+  bool _avatarUploading = false;
   Map<String, bool>? _pushPreferences;
   Map<String, bool>? _emailPreferences;
   // Screen 21 Modernization Notes: the "Saving" state's inline checkmark
@@ -237,6 +239,69 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     }
   }
 
+  /// FEAT-041 -- personal avatar, editable for EVERY account type (unlike
+  /// `email`, this isn't gated by `authProvider`). Offers "Remove photo"
+  /// only when one is already set.
+  Future<void> _editAvatar() async {
+    final hasPhoto = _profile?.profilePhotoUrl != null;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Change photo'),
+              onTap: () => Navigator.of(context).pop('change'),
+            ),
+            if (hasPhoto)
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Remove photo'),
+                onTap: () => Navigator.of(context).pop('remove'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+
+    if (action == 'remove') {
+      await _saveAvatar(clearProfilePhoto: true);
+      return;
+    }
+    final path = await pickImageFromCameraOrGallery(context);
+    if (path == null || !mounted) return;
+    await _saveAvatar(profilePhotoLocalPath: path);
+  }
+
+  Future<void> _saveAvatar({
+    String? profilePhotoLocalPath,
+    bool clearProfilePhoto = false,
+  }) async {
+    setState(() => _avatarUploading = true);
+    try {
+      final updated = await widget.authRepository.updateProfile(
+        profilePhotoLocalPath: profilePhotoLocalPath,
+        clearProfilePhoto: clearProfilePhoto,
+      );
+      if (!mounted) return;
+      setState(() {
+        _profile = updated;
+        _avatarUploading = false;
+      });
+      _flashSaved('profile:avatar');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _avatarUploading = false);
+      final message =
+          e is AuthException ? e.message : "Couldn't save that -- try again.";
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
   /// FEAT-040 -- opens the inline Google/Phone/Email flow (same methods
   /// as Screen 1), then re-fetches the profile so the row reflects the
   /// new linked state.
@@ -414,6 +479,47 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         Card(
           child: Column(
             children: [
+              // profilePhotoUrl -- editable for EVERY account type
+              // regardless of authProvider (FEAT-041), distinct from
+              // FEAT-042's HostAccount.hostPhotoUrl.
+              ListTile(
+                leading: GestureDetector(
+                  onTap: _avatarUploading ? null : _editAvatar,
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppColors.primaryLight,
+                        backgroundImage: profile?.profilePhotoUrl != null
+                            ? NetworkImage(profile!.profilePhotoUrl!)
+                            : null,
+                        child: profile?.profilePhotoUrl == null
+                            ? const Icon(Icons.person_outline,
+                                color: AppColors.primary)
+                            : null,
+                      ),
+                      const CircleAvatar(
+                        radius: 10,
+                        child: Icon(Icons.camera_alt_outlined, size: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                title: const Text('Profile photo'),
+                trailing: _avatarUploading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : AnimatedOpacity(
+                        opacity: _justSavedKey == 'profile:avatar' ? 1 : 0,
+                        duration: AppDurations.fast,
+                        child: const Icon(Icons.check_circle,
+                            size: 18, color: AppColors.primary),
+                      ),
+                onTap: _avatarUploading ? null : _editAvatar,
+              ),
               // fullName -- editable regardless of authProvider (FEAT-041).
               ListTile(
                 leading: const Icon(Icons.person_outline),

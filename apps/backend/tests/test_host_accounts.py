@@ -259,14 +259,15 @@ def _submit_owner(client: TestClient, token: str, bio: str = "Original bio") -> 
 
 
 def test_update_bio_blocked_while_in_review(client: TestClient) -> None:
-    """AC: bio can't be edited through the quick-edit path while the most
-    recent submission is `in_review` -- staff are actively evaluating it."""
+    """AC: bio/photo can't be edited through the quick-edit path while the
+    most recent submission is `in_review` -- staff are actively evaluating
+    it."""
     token, _ = _register_and_login(client, "bio-in-review@example.com")
     _submit_owner(client, token)
 
     response = client.patch(
         "/v1/host-accounts/me",
-        json={"bio": "Updated bio"},
+        data={"bio": "Updated bio"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 403
@@ -287,7 +288,7 @@ def test_update_bio_succeeds_once_verified(client: TestClient) -> None:
 
     response = client.patch(
         "/v1/host-accounts/me",
-        json={"bio": "Updated bio after verification"},
+        data={"bio": "Updated bio after verification"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
@@ -309,7 +310,7 @@ def test_update_bio_succeeds_when_rejected(client: TestClient) -> None:
 
     response = client.patch(
         "/v1/host-accounts/me",
-        json={"bio": "Fixed bio"},
+        data={"bio": "Fixed bio"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
@@ -320,7 +321,76 @@ def test_update_bio_requires_existing_submission(client: TestClient) -> None:
     token, _ = _register_and_login(client, "bio-none@example.com")
     response = client.patch(
         "/v1/host-accounts/me",
-        json={"bio": "No submission yet"},
+        data={"bio": "No submission yet"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 404
+
+
+def test_update_photo_only_succeeds_once_verified(client: TestClient) -> None:
+    """AC: photo can be updated independently of bio, once verified."""
+    token, _ = _register_and_login(client, "photo-verified@example.com")
+    host_account_id = _submit_owner(client, token)
+
+    staff_token = _staff_token()
+    client.patch(
+        f"/v1/host-accounts/admin/{host_account_id}/status",
+        headers={"Authorization": f"Bearer {staff_token}"},
+        json={"decision": "verified"},
+    )
+
+    response = client.patch(
+        "/v1/host-accounts/me",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"photo": ("new-photo.jpg", io.BytesIO(b"new-img"), "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    # Original bio ("Original bio", set by _submit_owner) is untouched --
+    # only the photo changed.
+    assert body["bio"] == "Original bio"
+    assert body["host_photo_url"] is not None
+
+
+def test_update_bio_and_photo_together_succeeds(client: TestClient) -> None:
+    """AC: bio and photo can both be updated in the same multipart request."""
+    token, _ = _register_and_login(client, "bio-and-photo@example.com")
+    host_account_id = _submit_owner(client, token)
+
+    staff_token = _staff_token()
+    client.patch(
+        f"/v1/host-accounts/admin/{host_account_id}/status",
+        headers={"Authorization": f"Bearer {staff_token}"},
+        json={"decision": "verified"},
+    )
+
+    response = client.patch(
+        "/v1/host-accounts/me",
+        headers={"Authorization": f"Bearer {token}"},
+        data={"bio": "Bio and photo together"},
+        files={"photo": ("new-photo.jpg", io.BytesIO(b"new-img"), "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["bio"] == "Bio and photo together"
+    assert body["host_photo_url"] is not None
+
+
+def test_update_profile_requires_bio_or_photo(client: TestClient) -> None:
+    """AC-adjacent: a request with neither bio nor photo is a clear
+    validation error, not a silent no-op."""
+    token, _ = _register_and_login(client, "empty-update@example.com")
+    host_account_id = _submit_owner(client, token)
+
+    staff_token = _staff_token()
+    client.patch(
+        f"/v1/host-accounts/admin/{host_account_id}/status",
+        headers={"Authorization": f"Bearer {staff_token}"},
+        json={"decision": "verified"},
+    )
+
+    response = client.patch(
+        "/v1/host-accounts/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 422

@@ -12,7 +12,20 @@
           "package_name": "com.deduke.de_duke_mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "162952114899-dt2guhd5mm2d1oddjos0deqberr5bbhr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.deduke.de_duke_mobile",
+            "certificate_hash": "43b2b694feab31ac0abe9736364d4eeed5ea6298"
+          }
+        },
+        {
+          "client_id": "162952114899-p6ch59s02ekbgiaag0qubl5cqv4midnl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCQ2uen7kzCWddSQ_IsPXGj9DtyH3ptf0E"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "162952114899-p6ch59s02ekbgiaag0qubl5cqv4midnl.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "162952114899-v6lau2i9qstuusvsq1mk57ai2v0nv00j.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.de-duke.app"
+              }
+            }
+          ]
         }
       }
     }

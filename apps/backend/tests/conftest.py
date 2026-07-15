@@ -178,3 +178,8 @@ def _stub_media_storage(monkeypatch: pytest.MonkeyPatch) -> None:
         "app.api.v1.listings.upload_to_media_storage",
         _fake_upload_to_media_storage,
     )
+    # FEAT-041 -- User.profile_photo_url upload (auth_service.update_profile).
+    monkeypatch.setattr(
+        "app.services.auth_service.upload_to_media_storage",
+        _fake_upload_to_media_storage,
+    )

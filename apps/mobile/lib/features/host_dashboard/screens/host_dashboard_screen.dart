@@ -10,6 +10,8 @@
 /// spinner; the empty state uses the illustrated system.
 library;
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -22,8 +24,10 @@ import '../../../core/widgets/badge_pop.dart';
 import '../../../core/widgets/de_duke_logo.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/list_stagger.dart';
+import '../../../core/widgets/image_source_picker.dart';
 import '../../../core/widgets/skeleton_loader.dart';
 import '../../../core/widgets/tap_scale.dart';
+import '../../auth/data/auth_repository.dart';
 import '../../become_host/data/host_account_models.dart';
 import '../../become_host/data/host_account_repository.dart';
 import '../data/host_dashboard_models.dart';
@@ -36,10 +40,16 @@ class HostDashboardScreen extends StatefulWidget {
     super.key,
     required this.dashboardRepository,
     required this.hostAccountRepository,
+    required this.authRepository,
   });
 
   final HostDashboardRepository dashboardRepository;
   final HostAccountRepository hostAccountRepository;
+
+  /// FEAT-041 -- the Edit Host Profile sheet's `fullName` field saves via
+  /// this repository (PATCH /v1/user/profile), separate from the host
+  /// account's own bio/photo PATCH -- see this file's _EditHostProfileSheet.
+  final AuthRepository authRepository;
 
   @override
   State<HostDashboardScreen> createState() => _HostDashboardScreenState();
@@ -49,6 +59,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
   _ScreenState _state = _ScreenState.loading;
   List<HostDashboardListingItem> _listings = [];
   HostAccountStatus? _verification;
+  String? _fullName;
 
   @override
   void initState() {
@@ -56,31 +67,37 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
     _load();
   }
 
-  /// FEAT-042 -- the verification badge/link opens the Edit Bio sheet for
-  /// a `verified`/`rejected` host (quick bio-only edit, independent of the
-  /// full resubmission flow), or routes to the existing Screen 3a status
-  /// view for `in_review` (bio not editable while a submission is
-  /// actively under review) -- unchanged behavior for that case.
+  /// FEAT-042 -- the verification badge/link opens the Edit Host Profile
+  /// sheet for a `verified`/`rejected` host (quick bio/photo/name edit,
+  /// independent of the full resubmission flow), or routes to the existing
+  /// Screen 3a status view for `in_review` (bio/photo not editable while a
+  /// submission is actively under review) -- unchanged behavior for that case.
   void _handleVerificationBadgeTap() {
     final status = _verification?.status;
     if (status == 'verified' || status == 'rejected') {
-      _openEditBioSheet();
+      _openEditHostProfileSheet();
     } else {
       context.pushNamed(RouteNames.verification);
     }
   }
 
-  Future<void> _openEditBioSheet() async {
-    final updated = await showModalBottomSheet<HostAccountStatus>(
+  Future<void> _openEditHostProfileSheet() async {
+    final result = await showModalBottomSheet<_EditHostProfileResult>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _EditBioSheet(
+      builder: (context) => _EditHostProfileSheet(
         initialBio: _verification?.bio ?? '',
-        repository: widget.hostAccountRepository,
+        initialPhotoUrl: _verification?.hostPhotoUrl,
+        initialFullName: _fullName ?? '',
+        hostAccountRepository: widget.hostAccountRepository,
+        authRepository: widget.authRepository,
       ),
     );
-    if (updated == null || !mounted) return;
-    setState(() => _verification = updated);
+    if (result == null || !mounted) return;
+    setState(() {
+      if (result.hostAccount != null) _verification = result.hostAccount;
+      if (result.fullName != null) _fullName = result.fullName;
+    });
   }
 
   Future<void> _load() async {
@@ -90,11 +107,22 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
       final listingsFuture = widget.dashboardRepository.getMyListings();
       final verification = await verificationFuture;
       final listings = await listingsFuture;
+      // Best-effort, separate from the critical verification/listings
+      // fetch above -- the Edit Host Profile sheet's fullName pre-fill is
+      // a nicety, not something a profile-fetch failure should block this
+      // screen on.
+      UserProfile? profile;
+      try {
+        profile = await widget.authRepository.getProfile();
+      } catch (_) {
+        profile = null;
+      }
 
       if (!mounted) return;
       setState(() {
         _verification = verification;
         _listings = listings;
+        _fullName = profile?.fullName;
         if (verification == null || verification.status != 'verified') {
           _state = _ScreenState.unverified;
         } else if (listings.isEmpty) {
@@ -417,57 +445,132 @@ class _ListingStatusCard extends StatelessWidget {
   }
 }
 
-/// FEAT-042 -- the verification badge/link's Edit Bio bottom sheet for a
-/// `verified`/`rejected` host: a single `TextField` pre-filled with the
-/// current bio and a Save button, independent of the full Become a Host
-/// resubmission flow. Pops with the updated `HostAccountStatus` on
-/// success so the caller can refresh its own state.
-class _EditBioSheet extends StatefulWidget {
-  const _EditBioSheet({required this.initialBio, required this.repository});
-
-  final String initialBio;
-  final HostAccountRepository repository;
-
-  @override
-  State<_EditBioSheet> createState() => _EditBioSheetState();
+/// Bundles whichever of the two independent PATCH calls
+/// `_EditHostProfileSheet` actually fired -- either/both may be null if
+/// that field wasn't changed, so the caller only updates the piece of
+/// state that actually has a fresh value.
+class _EditHostProfileResult {
+  const _EditHostProfileResult({this.hostAccount, this.fullName});
+  final HostAccountStatus? hostAccount;
+  final String? fullName;
 }
 
-class _EditBioSheetState extends State<_EditBioSheet> {
-  late final TextEditingController _controller =
+/// FEAT-042/FEAT-041 -- the verification badge/link's Edit Host Profile
+/// bottom sheet for a `verified`/`rejected` host: photo (tap-to-replace),
+/// bio, and fullName, independent of the full Become a Host resubmission
+/// flow. Save fires TWO independent calls -- NOT a merged endpoint, per
+/// screens.md Screen 12's Data Flow:
+///   1. `PATCH /host-accounts/me` (multipart bio/photo) -- only if bio
+///      and/or photo changed.
+///   2. `PATCH /user/profile` (fullName) -- only if fullName changed,
+///      since fullName lives on User, not HostAccount.
+/// Either call can fail independently while the other succeeds -- the
+/// sheet surfaces a per-field error (screens.md's "Host Profile Save
+/// Error" state) rather than treating this as one atomic operation, and
+/// pops with whichever result(s) actually succeeded so the caller can
+/// still refresh what did save.
+class _EditHostProfileSheet extends StatefulWidget {
+  const _EditHostProfileSheet({
+    required this.initialBio,
+    required this.initialPhotoUrl,
+    required this.initialFullName,
+    required this.hostAccountRepository,
+    required this.authRepository,
+  });
+
+  final String initialBio;
+  final String? initialPhotoUrl;
+  final String initialFullName;
+  final HostAccountRepository hostAccountRepository;
+  final AuthRepository authRepository;
+
+  @override
+  State<_EditHostProfileSheet> createState() => _EditHostProfileSheetState();
+}
+
+class _EditHostProfileSheetState extends State<_EditHostProfileSheet> {
+  late final TextEditingController _bioController =
       TextEditingController(text: widget.initialBio);
+  late final TextEditingController _nameController =
+      TextEditingController(text: widget.initialFullName);
+  String? _newPhotoLocalPath;
   bool _submitting = false;
   String? _error;
 
   @override
   void dispose() {
-    _controller.dispose();
+    _bioController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
+  bool get _bioChanged => _bioController.text.trim() != widget.initialBio;
+  bool get _nameChanged =>
+      _nameController.text.trim().isNotEmpty &&
+      _nameController.text.trim() != widget.initialFullName;
+  bool get _photoChanged => _newPhotoLocalPath != null;
+
   bool get _canSave =>
       !_submitting &&
-      _controller.text.trim().isNotEmpty &&
-      _controller.text.trim() != widget.initialBio;
+      _bioController.text.trim().isNotEmpty &&
+      (_bioChanged || _nameChanged || _photoChanged);
+
+  Future<void> _pickPhoto() async {
+    final path = await pickImageFromCameraOrGallery(context);
+    if (path == null || !mounted) return;
+    setState(() => _newPhotoLocalPath = path);
+  }
 
   Future<void> _save() async {
     setState(() {
       _submitting = true;
       _error = null;
     });
-    try {
-      final updated =
-          await widget.repository.updateBio(_controller.text.trim());
-      if (!mounted) return;
-      Navigator.of(context).pop(updated);
-    } on HostAccountException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _submitting = false;
-        _error = e.message == 'offline'
+
+    HostAccountStatus? updatedHostAccount;
+    String? updatedFullName;
+    final errors = <String>[];
+
+    if (_bioChanged || _photoChanged) {
+      try {
+        updatedHostAccount = await widget.hostAccountRepository.updateProfile(
+          bio: _bioChanged ? _bioController.text.trim() : null,
+          photoLocalPath: _newPhotoLocalPath,
+        );
+      } on HostAccountException catch (e) {
+        errors.add(e.message == 'offline'
             ? "You're offline. Check your connection and try again."
-            : e.message;
-      });
+            : e.message);
+      }
     }
+    if (_nameChanged) {
+      try {
+        final profile = await widget.authRepository
+            .updateProfile(fullName: _nameController.text.trim());
+        updatedFullName = profile.fullName;
+      } on AuthException catch (e) {
+        errors.add(e.message == 'offline'
+            ? "You're offline. Check your connection and try again."
+            : e.message);
+      }
+    }
+
+    if (!mounted) return;
+    if (errors.isEmpty) {
+      Navigator.of(context).pop(_EditHostProfileResult(
+        hostAccount: updatedHostAccount,
+        fullName: updatedFullName,
+      ));
+      return;
+    }
+    // Partial-success case: whichever call(s) succeeded are still reported
+    // back via the result the caller receives on dismiss, but the sheet
+    // stays open surfacing the error(s) so the user can retry the
+    // failed field(s) specifically, rather than losing that progress.
+    setState(() {
+      _submitting = false;
+      _error = errors.join('\n');
+    });
   }
 
   @override
@@ -483,8 +586,38 @@ class _EditBioSheetState extends State<_EditBioSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Edit bio', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: AppSpacing.sm),
+          Text('Edit host profile',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.md),
+          Center(
+            child: GestureDetector(
+              onTap: _submitting ? null : _pickPhoto,
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundColor: AppColors.primaryLight,
+                    backgroundImage: _newPhotoLocalPath != null
+                        ? FileImage(File(_newPhotoLocalPath!))
+                        : (widget.initialPhotoUrl != null
+                            ? NetworkImage(widget.initialPhotoUrl!)
+                            : null) as ImageProvider?,
+                    child: _newPhotoLocalPath == null &&
+                            widget.initialPhotoUrl == null
+                        ? const Icon(Icons.person_outline,
+                            color: AppColors.primary, size: 32)
+                        : null,
+                  ),
+                  const CircleAvatar(
+                    radius: 14,
+                    child: Icon(Icons.camera_alt_outlined, size: 16),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -492,7 +625,14 @@ class _EditBioSheetState extends State<_EditBioSheet> {
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),
           TextField(
-            controller: _controller,
+            controller: _nameController,
+            enabled: !_submitting,
+            decoration: const InputDecoration(labelText: 'Full name'),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _bioController,
             maxLines: 4,
             enabled: !_submitting,
             decoration: const InputDecoration(labelText: 'Bio'),

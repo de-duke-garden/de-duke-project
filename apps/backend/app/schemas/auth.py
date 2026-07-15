@@ -85,16 +85,18 @@ class UserProfileResponse(BaseModel):
     phone_number: str | None
     auth_provider: str
     is_firebase_linked: bool
+    # FEAT-041 -- a personal avatar, every account type, never gated by
+    # auth_provider (unlike email) -- distinct from FEAT-042's
+    # HostAccount.host_photo_url (the host-verification photo shown on a
+    # host's listings). See auth_service.update_profile's docstring.
+    profile_photo_url: str | None = None
 
 
-class UpdateProfileRequest(BaseModel):
-    """All fields optional -- a partial update, matching this codebase's
-    other PATCH endpoints (e.g. UpdateNotificationPreferencesRequest).
-    `email` is rejected server-side for `authProvider` "firebase" accounts
-    regardless of whether it's sent -- see auth_service.update_profile."""
-
-    full_name: str | None = Field(default=None, min_length=1, max_length=200)
-    email: EmailStr | None = None
+# PATCH /v1/user/profile is multipart (not JSON) since `profile_photo_url`
+# is a file upload -- see app/api/v1/user.py's endpoint, which takes
+# full_name/email as plain Form fields and profile_photo as a File,
+# validated inline there rather than via a Pydantic request body model
+# (same pattern app/api/v1/host_accounts.py's PATCH /me uses).
 
 
 class LinkFirebaseIdentityRequest(BaseModel):

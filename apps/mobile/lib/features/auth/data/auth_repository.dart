@@ -16,6 +16,7 @@ library;
 
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/api/api_client.dart';
@@ -88,6 +89,7 @@ class UserProfile {
     required this.phoneNumber,
     required this.authProvider,
     required this.isFirebaseLinked,
+    this.profilePhotoUrl,
   });
 
   final String userId;
@@ -99,6 +101,13 @@ class UserProfile {
   final String authProvider;
   final bool isFirebaseLinked;
 
+  /// FEAT-041 -- personal avatar, available to EVERY account type
+  /// equally (not gated by `authProvider` the way `email` is). Distinct
+  /// from FEAT-042's `HostAccount.hostPhotoUrl` (host-verification/listing
+  /// photo, hosts only) -- see host_account_models.dart's
+  /// `HostAccountStatus.hostPhotoUrl`.
+  final String? profilePhotoUrl;
+
   bool get isFirebaseProvider => authProvider == 'firebase';
   bool get isPasswordProvider => authProvider == 'password';
 
@@ -109,6 +118,7 @@ class UserProfile {
         phoneNumber: json['phone_number'] as String?,
         authProvider: json['auth_provider'] as String,
         isFirebaseLinked: json['is_firebase_linked'] as bool,
+        profilePhotoUrl: json['profile_photo_url'] as String?,
       );
 }
 
@@ -269,7 +279,23 @@ class AuthRepository {
   Future<AuthResult> linkGoogleIdentity() => _signInWithGoogle(linking: true);
 
   Future<AuthResult> _signInWithGoogle({required bool linking}) async {
-    final googleUser = await _googleSignIn.signIn();
+    // `GoogleSignIn.signIn()` itself is a NATIVE call (account picker,
+    // Play Services) that can fail for reasons entirely unrelated to
+    // Firebase -- most commonly a `PlatformException` (e.g. code
+    // 'sign_in_failed' wrapping "ApiException: 10", Google's
+    // DEVELOPER_ERROR for a SHA-1 fingerprint/OAuth client that isn't
+    // registered for this app's package+signing cert in the Firebase/
+    // Google Cloud console). Previously uncaught here entirely -- it
+    // propagated past every AuthException-aware catch up to the screen,
+    // which doesn't recognize a bare PlatformException and falls back to
+    // a generic "Something went wrong," giving no signal at all about
+    // what's actually broken.
+    GoogleSignInAccount? googleUser;
+    try {
+      googleUser = await _googleSignIn.signIn();
+    } on PlatformException catch (e) {
+      throw AuthException(_googleSignInErrorMessage(e));
+    }
     if (googleUser == null) {
       // User dismissed the picker -- screens.md's Edge Cases: this is not
       // an error banner moment, the screen just returns to Default.
@@ -286,7 +312,32 @@ class AuthRepository {
       return await _completeFirebaseFlow(userCredential.user, linking: linking);
     } on fb_auth.FirebaseAuthException catch (e) {
       throw AuthException(_firebaseErrorMessage(e));
+    } on PlatformException catch (e) {
+      throw AuthException(_googleSignInErrorMessage(e));
     }
+  }
+
+  /// Maps common native Google Sign-In `PlatformException`s to a specific,
+  /// actionable message rather than a generic fallback -- these are
+  /// config/environment failures (or connectivity), not something a user
+  /// retry alone fixes for the DEVELOPER_ERROR case.
+  String _googleSignInErrorMessage(PlatformException e) {
+    final detail = '${e.code} ${e.message ?? ''}';
+    if (detail.contains('ApiException: 10')) {
+      // DEVELOPER_ERROR -- the app's SHA-1 certificate fingerprint (or
+      // OAuth client ID) isn't registered for this package name in the
+      // Firebase console / Google Cloud OAuth consent screen. No retry
+      // fixes this; it needs a config change on the Firebase project.
+      return "Google sign-in isn't set up correctly for this app build yet. Contact support.";
+    }
+    if (detail.contains('ApiException: 7') || e.code == 'network_error') {
+      return 'offline';
+    }
+    if (e.code == 'sign_in_canceled' ||
+        detail.contains('ApiException: 12501')) {
+      return 'cancelled';
+    }
+    return 'Google sign-in failed. Please try again.';
   }
 
   /// screens.md Screen 1 Edge Case: "Google Sign-In succeeds at the
@@ -502,18 +553,34 @@ class AuthRepository {
 
   /// Partial update -- only non-null fields are sent. `email` is rejected
   /// server-side (403) for `firebase`-provider accounts regardless of
-  /// what's sent here -- see UpdateProfileRequest's backend docstring;
+  /// what's sent here -- see PATCH /v1/user/profile's backend docstring;
   /// the Account Settings screen shouldn't offer an editable email field
   /// for those accounts in the first place, but this call is not the only
   /// place that invariant is enforced.
-  Future<UserProfile> updateProfile({String? fullName, String? email}) async {
+  ///
+  /// Multipart (not JSON), since `profilePhotoLocalPath` (FEAT-041) is a
+  /// file upload -- matching host_account_repository.dart's own
+  /// updateProfile. `clearProfilePhoto` resets the avatar to null
+  /// independent of every other field; `profilePhotoLocalPath` takes
+  /// precedence if both are somehow set in the same call (matching the
+  /// backend's own precedence).
+  Future<UserProfile> updateProfile({
+    String? fullName,
+    String? email,
+    String? profilePhotoLocalPath,
+    bool clearProfilePhoto = false,
+  }) async {
     try {
+      final formMap = <String, dynamic>{
+        if (fullName != null) 'full_name': fullName,
+        if (email != null) 'email': email,
+        if (profilePhotoLocalPath != null)
+          'profile_photo': await MultipartFile.fromFile(profilePhotoLocalPath),
+        if (clearProfilePhoto) 'clear_profile_photo': 'true',
+      };
       final response = await _apiClient.dio.patch(
         '/v1/user/profile',
-        data: {
-          if (fullName != null) 'full_name': fullName,
-          if (email != null) 'email': email,
-        },
+        data: FormData.fromMap(formMap),
       );
       return UserProfile.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {

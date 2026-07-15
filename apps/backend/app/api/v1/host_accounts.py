@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.security import CurrentUser, UserRole, get_current_user, require_roles
 from app.schemas.host_account import (
-    HostAccountBioUpdateRequest,
     HostAccountDetailResponse,
     HostAccountQueueItem,
     HostAccountReviewAction,
@@ -81,16 +80,32 @@ async def submit_host_account(
 
 
 @router.patch("/me", response_model=HostAccountStatusResponse)
-async def update_my_bio(
-    payload: HostAccountBioUpdateRequest,
+async def update_my_profile(
+    bio: str | None = Form(default=None),
+    photo: UploadFile | None = File(default=None),
     current_user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> HostAccountStatusResponse:
-    """FEAT-042 -- Host Dashboard's Edit Bio bottom sheet. Bio-only, no
-    photo/document resubmission; blocked while the most recent submission
-    is `in_review` (see verification_service.update_bio)."""
-    host_account = await verification_service.update_bio(
-        session, user_id=current_user.user_id, bio=payload.bio
+    """FEAT-042 -- Host Dashboard's Edit Host Profile bottom sheet.
+    Multipart (not JSON), since a photo is a file upload -- `bio` and
+    `photo` are both optional and independent, a caller may send either
+    or both in the same request. No document resubmission; blocked while
+    the most recent submission is `in_review` (see
+    verification_service.update_profile).
+    """
+    if bio is None and photo is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Provide a new bio, a new photo, or both.",
+        )
+    if bio is not None and len(bio.strip()) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Bio cannot be empty.",
+        )
+
+    host_account = await verification_service.update_profile(
+        session, user_id=current_user.user_id, bio=bio, photo=photo
     )
     return _to_status_response(host_account)
 

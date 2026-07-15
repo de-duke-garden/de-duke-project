@@ -33,7 +33,7 @@ from functools import partial
 from typing import Any
 
 import anyio
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -41,6 +41,7 @@ from sqlmodel import select
 from app.core import cache
 from app.core import firebase as firebase_core
 from app.core.security import UserRole, create_access_token, hash_password, verify_password
+from app.core.storage import upload_file as upload_to_media_storage
 from app.models.user import User
 from app.services.email_service import PASSWORD_RESET, WELCOME, notify_user
 
@@ -427,6 +428,8 @@ async def update_profile(
     user_id: str,
     full_name: str | None = None,
     email: str | None = None,
+    profile_photo: UploadFile | None = None,
+    clear_profile_photo: bool = False,
 ) -> User:
     """FEAT-041 AC: `fullName` is editable regardless of `authProvider`.
     `email` is only accepted for `authProvider` "password" accounts (Staff/
@@ -437,6 +440,17 @@ async def update_profile(
     editable through this endpoint for either provider (schema.md:
     Firebase-owned for "firebase" accounts, unused today by "password"
     accounts).
+
+    `profile_photo_url` is a personal avatar available to EVERY account
+    type equally -- deliberately NOT gated by `auth_provider` the way
+    `email` is (a photo isn't a Firebase/Google-owned credential). Stored
+    via the same File Storage Service (S3 + CDN) path
+    verification_service.py uses for HostAccount.host_photo_url, but this
+    is a distinct field on a distinct entity -- see this module's FEAT-041
+    docstring cross-reference and schema.md's User.profilePhotoUrl vs.
+    HostAccount.hostPhotoUrl descriptions. `clear_profile_photo` resets it
+    to null independent of any other field (FEAT-041 AC); `profile_photo`
+    takes precedence if both are somehow set in the same call.
     """
     user = await session.get(User, user_id)
     if user is None:
@@ -460,6 +474,12 @@ async def update_profile(
                 detail="That email is already in use by another account.",
             )
         user.email = email
+    if profile_photo is not None:
+        user.profile_photo_url = await upload_to_media_storage(
+            profile_photo, prefix=f"users/{user.id}"
+        )
+    elif clear_profile_photo:
+        user.profile_photo_url = None
 
     user.updated_at = datetime.now(UTC)
     session.add(user)

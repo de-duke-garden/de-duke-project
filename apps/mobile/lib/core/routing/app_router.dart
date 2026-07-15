@@ -507,6 +507,7 @@ final GoRouter appRouter = GoRouter(
               builder: (context, state) => HostDashboardScreen(
                 dashboardRepository: _hostDashboardRepository,
                 hostAccountRepository: _hostAccountRepository,
+                authRepository: _authRepository,
               ),
             ),
           ],

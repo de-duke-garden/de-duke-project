@@ -6,6 +6,7 @@ Firebase project or credentials, matching test_chat.py's own pattern for
 the other Firebase Admin SDK consumer in this codebase.
 """
 
+import io
 from unittest.mock import patch
 
 import pytest
@@ -349,7 +350,7 @@ def test_update_profile_full_name_works_for_firebase_provider(client: TestClient
     headers = {"Authorization": f"Bearer {signin.json()['access_token']}"}
 
     response = client.patch(
-        "/v1/user/profile", json={"full_name": "New Name"}, headers=headers
+        "/v1/user/profile", data={"full_name": "New Name"}, headers=headers
     )
     assert response.status_code == 200
     assert response.json()["full_name"] == "New Name"
@@ -360,7 +361,7 @@ def test_update_profile_rejects_email_change_for_firebase_provider(client: TestC
     headers = {"Authorization": f"Bearer {signin.json()['access_token']}"}
 
     response = client.patch(
-        "/v1/user/profile", json={"email": "new-email@example.com"}, headers=headers
+        "/v1/user/profile", data={"email": "new-email@example.com"}, headers=headers
     )
     assert response.status_code == 403
 
@@ -375,7 +376,7 @@ async def test_update_profile_email_editable_for_password_provider(
 
     response = client.patch(
         "/v1/user/profile",
-        json={"email": "staff-new-email@example.com"},
+        data={"email": "staff-new-email@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
@@ -393,10 +394,79 @@ async def test_update_profile_email_conflict_rejected(
 
     response = client.patch(
         "/v1/user/profile",
-        json={"email": "taken@example.com"},
+        data={"email": "taken@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 409
+
+
+def test_update_profile_avatar_works_regardless_of_auth_provider(client: TestClient) -> None:
+    """AC: profile_photo_url is NOT gated by auth_provider, unlike email --
+    every account type can set/replace it."""
+    signin = _firebase_signin(client, uid="uid-avatar", email="avatar@example.com")
+    headers = {"Authorization": f"Bearer {signin.json()['access_token']}"}
+
+    response = client.patch(
+        "/v1/user/profile",
+        headers=headers,
+        files={"profile_photo": ("avatar.jpg", io.BytesIO(b"img"), "image/jpeg")},
+    )
+    assert response.status_code == 200
+    assert response.json()["profile_photo_url"] is not None
+
+
+def test_update_profile_avatar_can_be_cleared(client: TestClient) -> None:
+    """AC: a user can clear their personal avatar back to unset (null),
+    independent of any other profile field."""
+    signin = _firebase_signin(client, uid="uid-clear-avatar", email="clear-avatar@example.com")
+    headers = {"Authorization": f"Bearer {signin.json()['access_token']}"}
+
+    client.patch(
+        "/v1/user/profile",
+        headers=headers,
+        files={"profile_photo": ("avatar.jpg", io.BytesIO(b"img"), "image/jpeg")},
+    )
+
+    response = client.patch(
+        "/v1/user/profile",
+        headers=headers,
+        data={"clear_profile_photo": "true"},
+    )
+    assert response.status_code == 200
+    assert response.json()["profile_photo_url"] is None
+
+
+async def test_update_profile_avatar_never_touches_host_photo_url(
+    client: TestClient, session: AsyncSession
+) -> None:
+    """AC: User.profilePhotoUrl and HostAccount.hostPhotoUrl remain
+    independent -- updating one never changes the other."""
+    from app.models.host_account import HostAccount
+
+    signin = _firebase_signin(client, uid="uid-dual-photo", email="dual-photo@example.com")
+    headers = {"Authorization": f"Bearer {signin.json()['access_token']}"}
+    user_id = signin.json()["user_id"]
+
+    host_account = HostAccount(
+        user_id=user_id,
+        host_type="owner",
+        host_photo_url="https://example.com/host-listing-photo.jpg",
+        bio="A great host.",
+        status="verified",
+    )
+    session.add(host_account)
+    await session.commit()
+
+    response = client.patch(
+        "/v1/user/profile",
+        headers=headers,
+        files={"profile_photo": ("avatar.jpg", io.BytesIO(b"personal-avatar"), "image/jpeg")},
+    )
+    assert response.status_code == 200
+    assert response.json()["profile_photo_url"] is not None
+
+    await session.refresh(host_account)
+    assert host_account.host_photo_url == "https://example.com/host-listing-photo.jpg"
 
 
 # ---------------------------------------------------------------------------

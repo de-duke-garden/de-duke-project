@@ -95,18 +95,29 @@ class HostAccountRepository {
     }
   }
 
-  /// FEAT-042 -- Host Dashboard's Edit Bio bottom sheet. Bio-only, no
-  /// photo/document resubmission; the backend blocks this (403) while the
-  /// most recent submission is `in_review`.
-  Future<HostAccountStatus> updateBio(String bio) async {
+  /// FEAT-042 -- Host Dashboard's Edit Host Profile bottom sheet. Bio
+  /// and/or photo, no document resubmission; the backend blocks this (403)
+  /// while the most recent submission is `in_review`. Both params are
+  /// optional and independent -- pass whichever changed; at least one must
+  /// be non-null (the backend also enforces this, 422 otherwise).
+  Future<HostAccountStatus> updateProfile({
+    String? bio,
+    String? photoLocalPath,
+  }) async {
     try {
+      final formMap = <String, dynamic>{
+        if (bio != null) 'bio': bio,
+        if (photoLocalPath != null)
+          'photo': await MultipartFile.fromFile(photoLocalPath),
+      };
       final response = await _apiClient.dio.patch(
         '/v1/host-accounts/me',
-        data: {'bio': bio},
+        data: FormData.fromMap(formMap),
       );
       return HostAccountStatus.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
-      throw HostAccountException(_errorMessage(e, 'Could not save your bio.'));
+      throw HostAccountException(
+          _errorMessage(e, 'Could not save your host profile.'));
     }
   }
 }

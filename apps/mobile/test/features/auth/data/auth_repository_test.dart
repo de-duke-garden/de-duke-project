@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart' show HttpClientAdapter;
+import 'package:dio/dio.dart' show FormData, HttpClientAdapter, RequestOptions;
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -251,6 +251,99 @@ void main() {
             verificationId: 'verification-id-1', smsCode: '000000'),
         throwsA(isA<AuthException>().having((e) => e.message, 'message',
             'That code expired. Request a new one.')),
+      );
+    });
+  });
+
+  group('AuthRepository.updateProfile', () {
+    test('sends fullName as multipart form data and parses the response',
+        () async {
+      final firebaseAuth = MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1'));
+      RequestOptions? captured;
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () => FakeHttpClientAdapter((options) {
+          captured = options;
+          return (
+            statusCode: 200,
+            body: {
+              'user_id': 'user-1',
+              'full_name': 'New Name',
+              'email': 'amaka@example.com',
+              'phone_number': null,
+              'auth_provider': 'firebase',
+              'is_firebase_linked': false,
+              'profile_photo_url': null,
+            },
+          );
+        }),
+      );
+
+      final result = await built.repository.updateProfile(fullName: 'New Name');
+
+      expect(result.fullName, 'New Name');
+      expect(captured!.data, isA<FormData>());
+      final fields = (captured!.data as FormData).fields;
+      expect(fields.any((f) => f.key == 'full_name' && f.value == 'New Name'),
+          isTrue);
+    });
+
+    test('sends clearProfilePhoto as a multipart form field', () async {
+      final firebaseAuth = MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1'));
+      RequestOptions? captured;
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () => FakeHttpClientAdapter((options) {
+          captured = options;
+          return (
+            statusCode: 200,
+            body: {
+              'user_id': 'user-1',
+              'full_name': 'Amaka',
+              'email': null,
+              'phone_number': null,
+              'auth_provider': 'firebase',
+              'is_firebase_linked': false,
+              'profile_photo_url': null,
+            },
+          );
+        }),
+      );
+
+      final result =
+          await built.repository.updateProfile(clearProfilePhoto: true);
+
+      expect(result.profilePhotoUrl, isNull);
+      final fields = (captured!.data as FormData).fields;
+      expect(
+          fields.any(
+              (f) => f.key == 'clear_profile_photo' && f.value == 'true'),
+          isTrue);
+    });
+
+    test('maps a 403 (firebase-provider email change) to a specific message',
+        () async {
+      final firebaseAuth = MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1'));
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () => FakeHttpClientAdapter(
+          (options) => (
+            statusCode: 403,
+            body: {
+              'detail':
+                  "Your email is managed by Google/Firebase and can't be changed here."
+            },
+          ),
+        ),
+      );
+
+      await expectLater(
+        () => built.repository.updateProfile(email: 'new@example.com'),
+        throwsA(isA<AuthException>().having(
+          (e) => e.message,
+          'message',
+          "Your email is managed by Google/Firebase and can't be changed here.",
+        )),
       );
     });
   });
