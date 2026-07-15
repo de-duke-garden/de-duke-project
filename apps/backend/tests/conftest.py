@@ -5,7 +5,9 @@ types, pgvector). FEAT-001/002/030 endpoints under test here only use plain
 relational tables, so SQLite is a safe stand-in per AGENTS.md test guidance.
 """
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterator
+from contextlib import contextmanager
+from unittest.mock import patch
 
 import fakeredis
 import pytest
@@ -112,6 +114,45 @@ async def _stub_redis(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None, N
 
     monkeypatch.setattr(cache, "get_redis_client", _make_fake_client)
     yield
+
+
+@contextmanager
+def mock_firebase_verify(
+    uid: str,
+    *,
+    email: str | None = None,
+    phone_number: str | None = None,
+    name: str | None = None,
+) -> Iterator[None]:
+    """Test helper (importable by any test module, e.g. `from
+    tests.conftest import mock_firebase_verify`): makes
+    POST /v1/auth/firebase-exchange (app.services.auth_service.
+    exchange_firebase_token, FEAT-001) succeed without a real Firebase
+    project, by faking the Firebase Admin SDK's ID-token verification --
+    the same "patch _is_configured/_get_firebase_app directly, replace the
+    real SDK call with a mock" pattern test_chat.py already established
+    for chat_service's own Firebase Admin SDK calls (see that file's
+    test_issue_custom_token_calls_admin_sdk_with_role_claim).
+
+    Wrap exactly the request(s) that should reach `firebase-exchange`:
+
+        with mock_firebase_verify(uid="uid-1", email="a@example.com"):
+            client.post("/v1/auth/firebase-exchange", json={"id_token": "x"})
+    """
+    decoded: dict[str, str] = {"uid": uid}
+    if email is not None:
+        decoded["email"] = email
+    if phone_number is not None:
+        decoded["phone_number"] = phone_number
+    if name is not None:
+        decoded["name"] = name
+
+    with (
+        patch("app.services.auth_service._is_configured", return_value=True),
+        patch("app.services.auth_service._get_firebase_app", return_value=object()),
+        patch("firebase_admin.auth.verify_id_token", return_value=decoded),
+    ):
+        yield
 
 
 async def _fake_upload_to_media_storage(upload, *, prefix: str) -> str:

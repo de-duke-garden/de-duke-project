@@ -20,7 +20,6 @@ send/receive path.
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -28,13 +27,17 @@ from uuid import uuid4
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
+from app.core import firebase as firebase_core
 from app.core.security import UserRole
 from app.firestore_models import ChatConversation, SupportConversation
 from app.models.host_account import HostAccount
 from app.models.listing import Listing
 from app.models.user import User
 
+# Kept as a module-level global (rather than only living in
+# app.core.firebase) so existing tests that reset it directly
+# (`svc._firebase_app = None`) keep working -- see that module's
+# `reset_cached_app_for_tests`, which this mirrors.
 _firebase_app: Any = None
 
 
@@ -50,18 +53,17 @@ class ListingNotFoundError(ValueError):
 
 
 def _is_configured() -> bool:
-    settings = get_settings()
-    return (
-        settings.firebase_service_account_json != "REPLACE_ME"
-        and settings.firestore_project_id != "REPLACE_ME"
-    )
+    return firebase_core.is_configured()
 
 
 def _get_firebase_app() -> Any:
-    """Lazily initializes the Firebase Admin SDK app. Guarded so importing
-    this module -- or booting the whole app with unconfigured creds in dev/CI
-    -- never raises. The error only surfaces when a chat endpoint is actually
-    invoked without real credentials.
+    """Lazily initializes the Firebase Admin SDK app (delegating to the
+    shared app.core.firebase singleton, also used by auth_service.py for
+    FEAT-001 Firebase ID token verification -- both consume the same
+    Firebase project). Guarded so importing this module -- or booting the
+    whole app with unconfigured creds in dev/CI -- never raises. The error
+    only surfaces when a chat endpoint is actually invoked without real
+    credentials.
     """
     global _firebase_app
     if _firebase_app is not None:
@@ -74,15 +76,7 @@ def _get_firebase_app() -> Any:
             "environment until real Firebase credentials are provisioned."
         )
 
-    import firebase_admin
-    from firebase_admin import credentials
-
-    settings = get_settings()
-    cred_info = json.loads(settings.firebase_service_account_json)
-    cred = credentials.Certificate(cred_info)
-    _firebase_app = firebase_admin.initialize_app(
-        cred, {"projectId": settings.firestore_project_id}
-    )
+    _firebase_app = firebase_core.get_firebase_app()
     return _firebase_app
 
 

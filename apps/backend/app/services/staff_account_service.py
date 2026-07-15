@@ -125,7 +125,7 @@ async def invite_staff(
     raw_token = secrets.token_urlsafe(32)
     # Offloaded to a worker thread -- bcrypt is CPU-bound and synchronous;
     # calling it directly in this `async def` would block the event loop
-    # for the hash's full duration. See auth_service.register_with_email's
+    # for the hash's full duration. See auth_service.login_with_email's
     # comment for the load-test regression this pattern was found from.
     user = User(
         full_name=full_name,

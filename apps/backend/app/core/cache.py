@@ -1,11 +1,14 @@
 """Cache client (Redis, architecture.md's Caching Layer).
 
 Also backs short-lived, single-use secrets that must survive correctly
-across Fargate's many stateless tasks -- OTP codes, the phone-registration
-name stash, refresh tokens, and password-reset tokens (all consumed by
-app/services/auth_service.py). A per-process dict (this module's
-predecessor) only works for a single process; any of these could be
-written by one Fargate task and read by another on the very next request.
+across Fargate's many stateless tasks -- refresh tokens and password-reset
+tokens (both consumed by app/services/auth_service.py; the latter is now
+Staff/Admin-only, FEAT-033, since FEAT-001's rewrite moved consumer OTP
+delivery/verification entirely into Firebase Authentication client-side, so
+this module no longer stores an OTP itself). A per-process dict (this
+module's predecessor) only works for a single process; any of these could
+be written by one Fargate task and read by another on the very next
+request.
 
 Deliberately a thin wrapper around a handful of primitives (get/set-with-
 TTL/atomic-pop), not a general-purpose cache abstraction -- call sites
@@ -61,9 +64,10 @@ async def pop(key: str) -> str | None:
 
 
 async def peek(key: str) -> str | None:
-    """Reads `key` without deleting it. Used only where a caller must
-    validate one key (via `pop`, above) before it's safe to also consume a
-    second, related key -- see verify_phone_otp's docstring."""
+    """Reads `key` without deleting it -- for cache-aside reads where the
+    entry is meant to be reused by every subsequent caller until its TTL
+    expires, not consumed once (see search_service.py's semantic search
+    result cache, this function's only caller)."""
     return await get_redis_client().get(key)
 
 

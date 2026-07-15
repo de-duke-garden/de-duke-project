@@ -85,13 +85,17 @@ class Settings(BaseSettings):
     # (as they do in docker-compose.yml).
     media_local_public_base_url: str = ""
 
-    # -- SMS (Amazon SNS, FEAT-001 phone OTP delivery, app/services/sms_service.py) --
-    # No separate third-party vendor/secret needed (unlike Paystack/SES
-    # below) -- SNS uses the same AWS account/IAM role already granted to
-    # this task (infra/environments/*/iam.tf). Still gated on this being a
-    # real, non-placeholder value before actually sending: Nigeria's
-    # mobile networks filter SMS from an unregistered Sender ID, so a real
-    # one must be registered with AWS SNS first, not just configured here.
+    # -- SMS (Amazon SNS, app/services/sms_service.py) --
+    # No longer used by FEAT-001 (phone sign-up/login OTP now runs through
+    # Firebase Authentication's own phone/OTP flow client-side) -- kept
+    # configured for any future backend-initiated SMS need, see
+    # sms_service.py's module docstring. No separate third-party
+    # vendor/secret needed (unlike Paystack/SES below) -- SNS uses the
+    # same AWS account/IAM role already granted to this task
+    # (infra/environments/*/iam.tf). Still gated on this being a real,
+    # non-placeholder value before actually sending: Nigeria's mobile
+    # networks filter SMS from an unregistered Sender ID, so a real one
+    # must be registered with AWS SNS first, not just configured here.
     aws_sns_sender_id: str = "REPLACE_ME"
 
     # -- Auth --

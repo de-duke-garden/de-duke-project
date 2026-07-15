@@ -1,5 +1,13 @@
 """SMS delivery -- thin wrapper around Amazon SNS's direct-to-phone-number
-publish. FEAT-001 phone sign-up/login OTP delivery.
+publish.
+
+Originally built for FEAT-001 phone sign-up/login OTP delivery; that flow
+now runs entirely through Firebase Authentication's own phone/OTP flow
+client-side (see auth_service.py's module docstring), so this module has
+no active caller in this codebase as of that change. Left in place, not
+deleted -- it's a working, tested integration (Amazon SNS, no separate
+vendor credential needed) that a future backend-initiated SMS need (e.g. a
+transactional alert unrelated to sign-in) can reuse directly.
 
 Unlike Paystack/SES/FCM (app/core/config.py's other REPLACE_ME-gated
 integrations), this needs no separate third-party vendor account or
@@ -10,12 +18,11 @@ networks filter SMS carrying an unregistered Sender ID, so a real one
 must be registered with AWS SNS first, not just present in config.
 
 Every external dependency call uses a bounded timeout (AGENTS.md Behavior
-Rules) -- see _CLIENT_CONFIG. Unlike email_service.send_transactional_email
-(which never raises -- a missed marketing/confirmation email is
-recoverable), a failed OTP send blocks the user from completing sign-up/
-login entirely, so this DOES raise on failure -- the caller (auth_service)
-surfaces that as a clear "couldn't send code, try again" rather than a
-false-positive 202 when nothing was actually delivered.
+Rules) -- see _CLIENT_CONFIG. Raises SmsDeliveryError on failure rather
+than swallowing it (unlike email_service.send_transactional_email, where a
+missed marketing/confirmation email is recoverable) -- an SMS a caller
+requested is usually time-sensitive, so failing loudly is the safer
+default for any future caller.
 """
 
 from __future__ import annotations

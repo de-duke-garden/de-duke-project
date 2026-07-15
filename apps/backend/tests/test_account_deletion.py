@@ -3,12 +3,15 @@ acceptance criteria."""
 
 from fastapi.testclient import TestClient
 
+from tests.conftest import mock_firebase_verify
+
 
 def _register(client: TestClient, email: str) -> str:
-    response = client.post(
-        "/v1/auth/register",
-        json={"full_name": "Deletable User", "email": email, "password": "supersecret1"},
-    )
+    """FEAT-001: consumer sign-in is Firebase-only now -- see
+    tests.conftest.mock_firebase_verify for why this fakes an ID-token
+    exchange instead of a backend-hosted register endpoint."""
+    with mock_firebase_verify(uid=f"uid-{email}", email=email, name="Deletable User"):
+        response = client.post("/v1/auth/firebase-exchange", json={"id_token": "fake-token"})
     return response.json()["access_token"]
 
 

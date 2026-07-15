@@ -9,13 +9,15 @@ import json
 from fastapi.testclient import TestClient
 
 from app.core.security import UserRole, create_access_token
+from tests.conftest import mock_firebase_verify
 
 
 def _register_and_login(client: TestClient, email: str) -> tuple[str, str]:
-    response = client.post(
-        "/v1/auth/register",
-        json={"full_name": "Test User", "email": email, "password": "supersecret1"},
-    )
+    """FEAT-001: consumer sign-in is Firebase-only now -- see
+    tests.conftest.mock_firebase_verify for why this fakes an ID-token
+    exchange instead of a backend-hosted register endpoint."""
+    with mock_firebase_verify(uid=f"uid-{email}", email=email, name="Test User"):
+        response = client.post("/v1/auth/firebase-exchange", json={"id_token": "fake-token"})
     body = response.json()
     return body["access_token"], body["user_id"]
 

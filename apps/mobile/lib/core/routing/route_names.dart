@@ -18,10 +18,12 @@ abstract final class RouteNames {
   // -- Screen 2: Role Selection (child of /auth).
   static const authRole = 'authRole';
 
-  // -- Forgot Password (child of /auth).
-  static const authForgotPassword = 'authForgotPassword';
-
   // -- Accept Invite (child of /auth) -- FEAT-012/FEAT-033 invite flows.
+  // (Forgot Password was removed here -- FEAT-001's Firebase rewrite moved
+  // consumer password reset entirely into Firebase's own client-side
+  // "forgot password" email flow; see AuthRepository.
+  // sendFirebasePasswordResetEmail. Staff/Admin reset via the Admin Web
+  // Console, a separate app.)
   static const authAcceptInvite = 'authAcceptInvite';
 
   // -- Screen 3a: Become a Host / verification type picker.

@@ -1,9 +1,11 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/routing/app_router.dart';
+import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'features/push_notifications/data/push_notification_service.dart';
@@ -20,7 +22,8 @@ Future<void> main() async {
   // at the point of use, and push registration degrades the same way (see
   // PushNotificationService.initialize's try/catch).
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform);
     // Must be registered before runApp, at top level (not a closure) --
     // firebase_messaging's own requirement, since this handler runs in a
     // separate isolate when the app is fully terminated.
@@ -52,6 +55,36 @@ class DeDukeApp extends StatelessWidget {
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
       routerConfig: appRouter,
+      // Android's system navigation bar (the OS-level back/home/recent-apps
+      // chrome) otherwise stays at the platform default -- solid black --
+      // regardless of the app's own theme, which reads as a jarring, un-
+      // themed strip beneath every screen. `builder` runs inside
+      // MaterialApp.router's own Theme, after light/dark/themeMode have
+      // already resolved, so `Theme.of(context).brightness` here is always
+      // the ACTUAL active brightness (correct under ThemeMode.system, and
+      // still correct if that ever changes to a fixed mode) -- not a
+      // re-derivation of MediaQuery's platform brightness, which could
+      // briefly disagree with it. AnnotatedRegion applies globally (every
+      // screen inherits it as a base), so this covers Scaffolds with no
+      // AppBar of their own (e.g. Screen 1's Sign-Up/Login) exactly like
+      // ones that do.
+      builder: (context, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            systemNavigationBarColor:
+                isDark ? AppColors.surfaceDark : AppColors.surface,
+            systemNavigationBarIconBrightness:
+                isDark ? Brightness.light : Brightness.dark,
+            systemNavigationBarDividerColor: Colors.transparent,
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness:
+                isDark ? Brightness.light : Brightness.dark,
+            statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

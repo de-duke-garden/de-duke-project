@@ -30,7 +30,6 @@ import '../../features/agency/screens/unassigned_leads_inbox_screen.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/screens/accept_invite_screen.dart';
 import '../../features/auth/screens/auth_screen.dart';
-import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/become_host/data/host_account_models.dart';
 import '../../features/become_host/data/host_account_repository.dart';
 import '../../features/become_host/screens/document_submission_screen.dart';
@@ -229,26 +228,16 @@ final GoRouter appRouter = GoRouter(
     return await _hasPersistedSession() ? '/home' : '/auth';
   },
   routes: [
-    // -- Screen 1: Sign-Up / Login. screens.md's route is a single `/auth`
-    // path with an internal Sign Up / Log In tab toggle, not two separate
-    // routes -- `?mode=login` preselects the Log In tab (AuthScreen's
-    // existing initialTabIndex), defaulting to Sign Up.
+    // -- Screen 1: Sign-Up / Login (Google / Firebase). Redesigned per
+    // FEAT-001's rewrite: a single `/auth` path with no Sign Up / Log In
+    // tab distinction anymore -- Google Sign-In, Firebase email/password,
+    // and Firebase phone/OTP each resolve whether the identity is new or
+    // returning themselves (see AuthScreen/AuthRepository), so the old
+    // `?mode=login` query param and its tab-index plumbing no longer apply.
     GoRoute(
       path: '/auth',
       name: RouteNames.auth,
-      builder: (context, state) => AuthScreen(
-        // Confirmed real bug: without an explicit key, navigating from
-        // `/auth?mode=login` back to plain `/auth` (or vice versa) keeps
-        // reusing the SAME AuthScreen Element (same widget type, same
-        // tree position) -- Flutter calls didUpdateWidget, not initState,
-        // so `initialTabIndex` (only consumed once, in initState's
-        // TabController) never re-applies and the tab stays wherever it
-        // was left. Keying by the resolved mode forces a fresh Element
-        // (and a fresh initState) whenever the mode actually changes.
-        key: ValueKey('auth-${state.uri.queryParameters['mode'] ?? 'signup'}'),
-        repository: _authRepository,
-        initialTabIndex: state.uri.queryParameters['mode'] == 'login' ? 1 : 0,
-      ),
+      builder: (context, state) => AuthScreen(repository: _authRepository),
       routes: [
         // Screen 2: Role Selection.
         GoRoute(
@@ -256,12 +245,6 @@ final GoRouter appRouter = GoRouter(
           name: RouteNames.authRole,
           builder: (context, state) =>
               RoleSelectionScreen(repository: _authRepository),
-        ),
-        GoRoute(
-          path: 'forgot-password',
-          name: RouteNames.authForgotPassword,
-          builder: (context, state) =>
-              ForgotPasswordScreen(repository: _authRepository),
         ),
         GoRoute(
           path: 'accept-invite',

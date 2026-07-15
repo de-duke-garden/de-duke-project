@@ -40,6 +40,21 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   mocktail: ^1.0.4
+  # FEAT-001 (Google & Firebase Sign-Up / Login) -- test-only fake
+  # FirebaseAuth/User/UserCredential implementations, so
+  # auth_repository_test.dart can exercise AuthRepository's Firebase-based
+  # sign-in methods without a real Firebase project or platform channels.
+  # Pinned to the 0.14.x line (latest: 0.14.2) rather than 0.15.x+ --
+  # 0.15.0 bumped its firebase_auth constraint to ^6.0.0, incompatible
+  # with this project's firebase_auth ^5.3.3 pin (shared by
+  # chat_repository.dart/support_repository.dart/main.dart; bumping that
+  # is a separate, wider-reaching upgrade, out of scope here).
+  firebase_auth_mocks: ^0.14.2
+  # Used directly in auth_repository_test.dart (whenCalling(...).thenThrow(...))
+  # to simulate FirebaseAuthException from a MockFirebaseAuth call -- also a
+  # transitive dependency of firebase_auth_mocks, but declared explicitly
+  # since it's imported directly, not just used through that package.
+  mock_exceptions: ^0.8.2
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.8
 
@@ -64,9 +79,9 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/images/de-duke.png"
+  image_path: "assets/images/de-duke-launch.png"
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/de-duke.png"
+  adaptive_icon_foreground: "assets/images/de-duke-launch.png"
   min_sdk_android: 21
 
 # flutter_native_splash config -- native splash screen per branding.md's
@@ -79,11 +94,11 @@ flutter_launcher_icons:
 # closer native-splash match to the full lockup is wanted later.
 flutter_native_splash:
   color: "#FFFFFF"
-  image: assets/images/de-duke.png
+  image: assets/images/de-duke-launch.png
   color_dark: "#101613"
-  image_dark: assets/images/de-duke.png
+  image_dark: assets/images/de-duke-launch.png
   android_12:
     color: "#FFFFFF"
-    image: assets/images/de-duke.png
+    image: assets/images/de-duke-launch.png
     color_dark: "#101613"
-    image_dark: assets/images/de-duke.png
+    image_dark: assets/images/de-duke-launch.png

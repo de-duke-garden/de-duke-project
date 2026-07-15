@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.conftest import mock_firebase_verify
+
 
 @pytest.fixture(autouse=True)
 def _fake_geocoding():
@@ -26,10 +28,11 @@ def _fake_geocoding():
 
 
 def _register_and_login(client: TestClient, email: str) -> str:
-    response = client.post(
-        "/v1/auth/register",
-        json={"full_name": "Test Seeker", "email": email, "password": "supersecret1"},
-    )
+    """FEAT-001: consumer sign-in is Firebase-only now -- see
+    tests.conftest.mock_firebase_verify for why this fakes an ID-token
+    exchange instead of a backend-hosted register endpoint."""
+    with mock_firebase_verify(uid=f"uid-{email}", email=email, name="Test Seeker"):
+        response = client.post("/v1/auth/firebase-exchange", json={"id_token": "fake-token"})
     return response.json()["access_token"]
 
 

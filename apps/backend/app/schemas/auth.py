@@ -8,48 +8,27 @@ note.
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
-class RegisterEmailRequest(BaseModel):
-    """Email + password registration -- Screen 1 'Sign Up' tab, phone toggle off."""
+class FirebaseExchangeRequest(BaseModel):
+    """Screen 1 (Sign-Up / Login) -- the single entry point for every
+    consumer-role sign-in (Google Sign-In, Firebase email/password, or
+    Firebase phone/OTP; the mobile client authenticates against Firebase
+    directly and never sends De-Duke a raw password/OTP). `id_token` is the
+    Firebase ID token Firebase's own SDK returns after any of those three
+    methods succeeds client-side -- see auth_service.exchange_firebase_token
+    for the server-side verification/User-resolution logic."""
 
-    full_name: str = Field(min_length=1, max_length=200)
-    email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
-
-
-class RegisterPhoneRequest(BaseModel):
-    """Step 1 of phone registration: request an OTP be sent. No password yet --
-    the account is created once the OTP is verified (see VerifyOtpRequest)."""
-
-    full_name: str = Field(min_length=1, max_length=200)
-    phone_number: str = Field(min_length=8, max_length=20)
-
-
-class VerifyOtpRequest(BaseModel):
-    """Step 2 of phone registration: verify the code sent to phone_number and
-    finalize account creation."""
-
-    phone_number: str = Field(min_length=8, max_length=20)
-    otp_code: str = Field(min_length=4, max_length=8)
+    id_token: str = Field(min_length=1)
 
 
 class LoginRequest(BaseModel):
-    """Screen 1 'Log In' tab. Exactly one of email/phone_number must be set,
-    matched against the identifier used at registration."""
+    """Staff/Admin-only (FEAT-033) -- the Admin Web Console's login screen.
+    Consumer roles never use this; they authenticate via
+    FirebaseExchangeRequest above. Kept email+password-only (no phone/OTP
+    branch) since Staff/Admin accounts, created via CLI bootstrap or
+    invitation, have never had a phone-based sign-in path."""
 
-    email: EmailStr | None = None
-    phone_number: str | None = None
-    password: str | None = Field(default=None, description="Required for email login")
-    otp_code: str | None = Field(default=None, description="Required for phone login")
-
-    @model_validator(mode="after")
-    def _one_identifier(self) -> "LoginRequest":
-        if bool(self.email) == bool(self.phone_number):
-            raise ValueError("Provide exactly one of email or phone_number")
-        if self.email and not self.password:
-            raise ValueError("password is required for email login")
-        if self.phone_number and not self.otp_code:
-            raise ValueError("otp_code is required for phone login")
-        return self
+    email: EmailStr
+    password: str = Field(min_length=1)
 
 
 class RefreshRequest(BaseModel):
@@ -133,9 +112,9 @@ class UpdateRoleRequest(BaseModel):
 
 
 class AuthTokenResponse(BaseModel):
-    """Returned on successful register/login/refresh. Session persists across
-    app restarts per FEAT-001 -- the mobile client stores access_token in
-    session_store.dart's secure storage."""
+    """Returned on successful firebase-exchange/login/refresh/accept-invite.
+    Session persists across app restarts per FEAT-001 -- the mobile client
+    stores access_token in session_store.dart's secure storage."""
 
     access_token: str
     refresh_token: str
@@ -143,3 +122,12 @@ class AuthTokenResponse(BaseModel):
     user_id: str
     role: str
     is_verified_host: bool
+    # True only for POST /firebase-exchange's first-ever sign-in for a given
+    # Firebase identity (see auth_service.exchange_firebase_token's
+    # docstring for why the client can't safely infer this from `role`
+    # alone -- a returning user can still legitimately be role "seeker").
+    # Always False for login/refresh/accept-invite, which by construction
+    # only ever resolve an existing account. FEAT-001 AC: routes a
+    # first-time sign-in to Role Selection, a returning identity to Home
+    # Feed/dashboard -- this field is what the mobile client branches on.
+    is_new_user: bool = False

@@ -106,7 +106,8 @@ class DeDukeLogoLockup extends StatelessWidget {
         fontFamily: 'Manrope',
         fontWeight: FontWeight.w700,
         letterSpacing: 1.5,
-        color: AppColors.textPrimary,
+        // color: AppColors.textPrimary,
+        // color: Theme.of(context).
       ),
     );
 

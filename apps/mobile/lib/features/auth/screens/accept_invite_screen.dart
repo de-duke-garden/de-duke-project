@@ -1,15 +1,18 @@
 /// FEAT-012 (Agency Team Inbox) invite acceptance -- reached from Screen 1's
-/// "Have an invite link?" entry point (mirrors forgot_password_screen.dart's
-/// shape). An agency admin invites a team member via
-/// TeamManagementScreen -> POST /v1/agency/team/invite, which emails a link
-/// of the form `<mobile-app-invite-base-url>/accept-invite?token=...&uid=...`
-/// (see app/api/v1/agency.py). No mobile deep-linking (Android App Links /
-/// iOS Universal Links) is configured anywhere in this codebase yet -- that
+/// "Have an invite link?" entry point. An agency admin invites a team
+/// member via TeamManagementScreen -> POST /v1/agency/team/invite, which
+/// emails a link of the form
+/// `<mobile-app-invite-base-url>/accept-invite?token=...&uid=...` (see
+/// app/api/v1/agency.py). No mobile deep-linking (Android App Links / iOS
+/// Universal Links) is configured anywhere in this codebase yet -- that
 /// requires hosting `assetlinks.json`/`apple-app-site-association` files
 /// alongside real production domains, which is an infra/deploy concern out
-/// of this feature's scope, not something to fabricate here. Instead,
-/// exactly like the pre-existing forgot-password flow, the invitee pastes
-/// the link (or just the token/uid) directly into this screen.
+/// of this feature's scope, not something to fabricate here. Instead, the
+/// invitee pastes the link (or just the token/uid) directly into this
+/// screen. Unlike Screen 1's Sign-Up/Login (FEAT-001, entirely Firebase
+/// now), FEAT-012 team-member accounts are still backend-managed password
+/// accounts (auth_provider "password") -- this invite/accept-password flow
+/// is unaffected by that rewrite; see auth_service.py's module docstring.
 library;
 
 import 'package:flutter/material.dart';
@@ -103,7 +106,8 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
       setState(() {
         if (message == 'offline') {
           _state = _ScreenState.offline;
-          _errorMessage = "You're offline. Check your connection and try again.";
+          _errorMessage =
+              "You're offline. Check your connection and try again.";
         } else {
           _state = _ScreenState.error;
           _errorMessage = message;
@@ -117,9 +121,9 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
     final submitting = _state == _ScreenState.submitting;
     // The uid field is only needed when the invitee types a bare token
     // (rather than pasting the full link, which already carries uid).
-    final needsManualUid =
-        Uri.tryParse(_linkOrTokenController.text.trim())?.queryParameters['uid'] ==
-            null;
+    final needsManualUid = Uri.tryParse(_linkOrTokenController.text.trim())
+            ?.queryParameters['uid'] ==
+        null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Accept your invite')),
@@ -159,7 +163,8 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
               const SizedBox(height: AppSpacing.sm),
               TextFormField(
                 controller: _uidController,
-                decoration: const InputDecoration(labelText: 'Account ID (from the email)'),
+                decoration: const InputDecoration(
+                    labelText: 'Account ID (from the email)'),
                 enabled: !submitting,
               ),
             ],

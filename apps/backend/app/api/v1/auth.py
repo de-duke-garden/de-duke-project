@@ -1,4 +1,6 @@
-"""Real endpoints for /v1/auth -- FEAT-001 (Email & Phone Sign-Up / Login).
+"""Real endpoints for /v1/auth -- FEAT-001 (Google & Firebase Sign-Up /
+Login) plus the Staff/Admin-only backend-managed password flow it left in
+place (FEAT-033).
 
 Router stays thin; all logic lives in app.services.auth_service per AGENTS.md.
 """
@@ -14,16 +16,14 @@ from app.schemas.auth import (
     AcceptInviteRequest,
     AuthTokenResponse,
     CurrentUserResponse,
+    FirebaseExchangeRequest,
     ForgotPasswordRequest,
     LoginRequest,
     NotificationPreferencesResponse,
     RefreshRequest,
-    RegisterEmailRequest,
-    RegisterPhoneRequest,
     ResetPasswordRequest,
     UpdateNotificationPreferencesRequest,
     UpdateRoleRequest,
-    VerifyOtpRequest,
 )
 from app.services import auth_service
 
@@ -57,13 +57,20 @@ async def get_me(
     )
 
 
-@router.post("/register", response_model=AuthTokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(
-    payload: RegisterEmailRequest, session: AsyncSession = Depends(get_session)
+@router.post("/firebase-exchange", response_model=AuthTokenResponse)
+async def firebase_exchange(
+    payload: FirebaseExchangeRequest, session: AsyncSession = Depends(get_session)
 ) -> AuthTokenResponse:
-    """Screen 1 Sign Up tab, email mode."""
-    user = await auth_service.register_with_email(
-        session, full_name=payload.full_name, email=payload.email, password=payload.password
+    """Screen 1 (Sign-Up / Login) -- the single entry point for every
+    consumer-role sign-in (Google Sign-In, Firebase email/password,
+    Firebase phone/OTP). Always returns 200 (FastAPI can't vary
+    status_code per branch on one route declaration) -- the client
+    distinguishes new-vs-returning via `is_new_user` on the response body
+    and routes to Role Selection vs. Home Feed accordingly (FEAT-001 AC),
+    not via the HTTP status code.
+    """
+    user, is_new_user = await auth_service.exchange_firebase_token(
+        session, id_token=payload.id_token
     )
     access_token, refresh_token = await auth_service.issue_tokens(user)
     return AuthTokenResponse(
@@ -72,61 +79,19 @@ async def register(
         user_id=user.id,
         role=user.role,
         is_verified_host=user.is_verified_host,
+        is_new_user=is_new_user,
     )
-
-
-@router.post("/register/phone/request-otp", status_code=status.HTTP_202_ACCEPTED)
-async def register_phone_request_otp(
-    payload: RegisterPhoneRequest, session: AsyncSession = Depends(get_session)
-) -> dict[str, str]:
-    """Screen 1 Sign Up tab, phone mode -- step 1 of 2."""
-    await auth_service.request_phone_otp(
-        session, full_name=payload.full_name, phone_number=payload.phone_number
-    )
-    return {"status": "otp_sent"}
-
-
-@router.post(
-    "/register/phone/verify-otp",
-    response_model=AuthTokenResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def register_phone_verify_otp(
-    payload: VerifyOtpRequest, session: AsyncSession = Depends(get_session)
-) -> AuthTokenResponse:
-    """Screen 1 Sign Up tab, phone mode -- step 2 of 2, finalizes account creation."""
-    user = await auth_service.verify_phone_otp(
-        session, phone_number=payload.phone_number, otp_code=payload.otp_code
-    )
-    access_token, refresh_token = await auth_service.issue_tokens(user)
-    return AuthTokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user_id=user.id,
-        role=user.role,
-        is_verified_host=user.is_verified_host,
-    )
-
-
-@router.post("/login/phone/request-otp", status_code=status.HTTP_202_ACCEPTED)
-async def login_phone_request_otp(phone_number: str) -> dict[str, str]:
-    await auth_service.request_login_otp(phone_number)
-    return {"status": "otp_sent"}
 
 
 @router.post("/login", response_model=AuthTokenResponse)
 async def login(
     payload: LoginRequest, session: AsyncSession = Depends(get_session)
 ) -> AuthTokenResponse:
-    """Screen 1 Log In tab -- email+password or phone+OTP."""
-    if payload.email:
-        user = await auth_service.login_with_email(
-            session, email=payload.email, password=payload.password or ""
-        )
-    else:
-        user = await auth_service.login_with_phone_otp(
-            session, phone_number=payload.phone_number or "", otp_code=payload.otp_code or ""
-        )
+    """Admin Web Console's login screen -- Staff/Admin only (FEAT-033).
+    Consumer roles use POST /firebase-exchange above instead."""
+    user = await auth_service.login_with_email(
+        session, email=payload.email, password=payload.password
+    )
     access_token, refresh_token = await auth_service.issue_tokens(user)
     return AuthTokenResponse(
         access_token=access_token,
@@ -168,8 +133,11 @@ async def logout(
 async def forgot_password(
     payload: ForgotPasswordRequest, session: AsyncSession = Depends(get_session)
 ) -> dict[str, str]:
-    """FEAT-001 AC: reset a forgotten password. Always returns 202 regardless
-    of whether the email exists, to avoid leaking account existence."""
+    """FEAT-033 AC: Staff/Admin reset a forgotten password (Admin Web
+    Console only). Always returns 202 regardless of whether the email
+    exists or belongs to a Firebase-provider (consumer) account, to avoid
+    leaking account existence/auth path -- see
+    auth_service.request_password_reset."""
     await auth_service.request_password_reset(session, email=payload.email)
     return {"status": "if_account_exists_reset_email_sent"}
 

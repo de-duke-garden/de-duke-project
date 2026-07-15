@@ -39,6 +39,19 @@ class User(SQLModel, table=True):
     email: str | None = Field(default=None, unique=True, index=True)
     phone_number: str | None = Field(default=None, unique=True, index=True)
 
+    # "firebase" (seeker/individual_host/agency/corporate, FEAT-001 --
+    # Google Sign-In, Firebase email/password, or Firebase phone/OTP; the
+    # Backend API Service never stores a password/OTP for these) |
+    # "password" (deduke_staff/deduke_admin only, FEAT-033 -- backend-
+    # managed bcrypt password, created via CLI bootstrap or invitation,
+    # never through Google/Firebase). See schema.md User.authProvider.
+    auth_provider: str = Field(default="password", index=True)
+    # Firebase Authentication UID -- set when auth_provider is "firebase",
+    # the field POST /v1/auth/firebase-exchange resolves an incoming
+    # Firebase ID token to a User record by (creating one on first
+    # sign-in). Null for auth_provider "password" accounts.
+    firebase_uid: str | None = Field(default=None, unique=True, index=True)
+
     # seeker | individual_host | agency | corporate | deduke_staff | deduke_admin
     role: str = Field(index=True)
 

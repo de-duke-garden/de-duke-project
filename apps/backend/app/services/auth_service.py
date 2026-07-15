@@ -1,17 +1,36 @@
-"""Business logic for FEAT-001 (Email & Phone Sign-Up / Login).
+"""Business logic for FEAT-001 (Google & Firebase Sign-Up / Login) and the
+Staff/Admin-only backend-managed password flow it left in place.
 
 Kept separate from app/api/v1/auth.py so the router stays thin per
-AGENTS.md. OTP codes, the phone-registration name stash, refresh tokens,
-and password-reset tokens all live in the Cache (Redis, app/core/cache.py)
--- not an in-process dict, which would silently break the moment Fargate
-runs more than one task (a token written by one task would be invisible to
-another handling the next request).
+AGENTS.md. Refresh tokens and password-reset tokens live in the Cache
+(Redis, app/core/cache.py) -- not an in-process dict, which would silently
+break the moment Fargate runs more than one task (a token written by one
+task would be invisible to another handling the next request).
+
+Two distinct, deliberately non-overlapping auth paths live in this module
+(architecture.md's Authentication & Authorization section):
+  - Consumer roles (seeker/individual_host/agency/corporate) authenticate
+    against Firebase Authentication client-side (Google Sign-In, Firebase
+    email/password, or Firebase phone/OTP) and never send a raw
+    password/OTP to this service at all -- see `exchange_firebase_token`,
+    the only entry point for these roles. There is deliberately no
+    backend-hosted register/OTP flow for them anymore (removed along with
+    the old FEAT-001 scope) -- schema.md's User.authProvider is always
+    "firebase" for these four roles, and a surviving password-based
+    self-registration path here would silently violate that invariant.
+  - Internal roles (deduke_staff/deduke_admin) are entirely unaffected and
+    keep the pre-existing backend-managed email + password flow below
+    (`login_with_email`, `request_password_reset`/`reset_password`,
+    `accept_invite`) -- created only via CLI bootstrap or invitation
+    (FEAT-033), never through Firebase/Google.
 """
 
 from __future__ import annotations
 
 import secrets
 from datetime import UTC, datetime, timedelta
+from functools import partial
+from typing import Any
 
 import anyio
 from fastapi import HTTPException, status
@@ -19,12 +38,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core import cache
+from app.core import firebase as firebase_core
 from app.core.security import UserRole, create_access_token, hash_password, verify_password
 from app.models.user import User
 from app.services.email_service import PASSWORD_RESET, WELCOME, notify_user
-from app.services.sms_service import SmsDeliveryError, send_sms
 
-OTP_TTL = timedelta(minutes=10)
 RESET_TOKEN_TTL = timedelta(hours=1)
 # Not specified in schema.md/features.md -- chosen to comfortably outlast
 # the mobile-first "stay logged in" expectation (FEAT-001 AC) across
@@ -32,16 +50,12 @@ RESET_TOKEN_TTL = timedelta(hours=1)
 REFRESH_TOKEN_TTL = timedelta(days=30)
 
 
-def _otp_key(phone_number: str) -> str:
-    return f"otp:register:{phone_number}"
-
-
-def _otp_name_key(phone_number: str) -> str:
-    return f"otp:register:{phone_number}:name"
-
-
-def _login_otp_key(phone_number: str) -> str:
-    return f"otp:login:{phone_number}"
+class FirebaseAuthUnavailableError(RuntimeError):
+    """Raised when the Firebase Admin SDK isn't configured for this
+    environment (firebase_service_account_json/firestore_project_id are
+    still REPLACE_ME) -- mirrors chat_service.ChatServiceUnavailableError,
+    the equivalent guard for the other Firebase Admin SDK consumer in this
+    codebase. Both share app.core.firebase's underlying lazy app init."""
 
 
 def _refresh_key(refresh_token: str) -> str:
@@ -52,25 +66,119 @@ def _pwreset_key(reset_token: str) -> str:
     return f"auth:pwreset:{reset_token}"
 
 
-def _generate_otp() -> str:
-    return f"{secrets.randbelow(1_000_000):06d}"
-
-
 def _generate_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-async def register_with_email(
-    session: AsyncSession, *, full_name: str, email: str, password: str
-) -> User:
-    """FEAT-001 AC: register with email + password."""
-    existing = (await session.execute(select(User).where(User.email == email))).scalars()
-    if existing.first() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists.",
-        )
+def _is_configured() -> bool:
+    return firebase_core.is_configured()
 
+
+def _get_firebase_app() -> Any:
+    if not _is_configured():
+        raise FirebaseAuthUnavailableError(
+            "Firebase Admin SDK is not configured (firebase_service_account_json/"
+            "firestore_project_id are REPLACE_ME) -- Google/Firebase sign-in is "
+            "unavailable in this environment until real Firebase credentials are "
+            "provisioned."
+        )
+    return firebase_core.get_firebase_app()
+
+
+async def exchange_firebase_token(
+    session: AsyncSession, *, id_token: str
+) -> tuple[User, bool]:
+    """FEAT-001: the ONLY entry point for consumer sign-in. Verifies a
+    Firebase ID token (already produced client-side by Google Sign-In,
+    Firebase email/password, or Firebase phone/OTP -- this service never
+    sees the underlying credential) via the Firebase Admin SDK, then
+    resolves it to a De-Duke `User` by `firebase_uid`, creating one on
+    first sign-in.
+
+    Deliberately does NOT return a session token itself -- callers (see
+    app/api/v1/auth.py's POST /firebase-exchange) still call
+    `issue_tokens()` separately, exactly like every other sign-in path in
+    this file. This is architecture.md's key decision: the Firebase ID
+    token is a one-time credential-collection proof, never the app's
+    ongoing session credential -- a backend-issued, backend-revocable
+    token is, for the same reasons `login_with_email` below already
+    required one (stateless Fargate tasks, role/verification claims a
+    Firebase ID token doesn't carry).
+
+    Returns `(user, is_new_user)` -- the bool is NOT derivable from `user`
+    alone by the caller (a returning user can still legitimately have
+    role "seeker", the same default a brand-new account gets, if they
+    haven't completed Role Selection yet) -- so it's threaded through
+    explicitly for the router to put on AuthTokenResponse.is_new_user,
+    which is what the mobile client actually branches on for FEAT-001 AC's
+    "a first-time sign-in ... routes to Role Selection; a returning
+    identity ... routes to Home Feed" -- not an inference from `role`.
+    """
+    from firebase_admin import auth as firebase_auth
+
+    app = _get_firebase_app()
+    # firebase_admin's verify_id_token is synchronous and makes a network
+    # call on a cache miss (fetching Google's current signing keys) --
+    # offloaded to a worker thread for the same reason hash_password/
+    # verify_password are below: a blocking call inside an `async def`
+    # stalls FastAPI's single event loop for every other in-flight
+    # request, not just this one (see login_with_email's identical note).
+    try:
+        decoded = await anyio.to_thread.run_sync(
+            partial(firebase_auth.verify_id_token, id_token, app=app)
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Your sign-in could not be verified. Please try again.",
+        ) from exc
+
+    firebase_uid: str = decoded["uid"]
+    email: str | None = decoded.get("email")
+    phone_number: str | None = decoded.get("phone_number")
+    full_name: str = decoded.get("name") or (email.split("@")[0] if email else "New User")
+
+    result = (
+        await session.execute(select(User).where(User.firebase_uid == firebase_uid))
+    ).scalars()
+    user = result.first()
+
+    if user is None:
+        # First-ever sign-in for this Firebase identity -- FEAT-001 AC:
+        # "a first-time sign-in via any of the three methods creates a new
+        # User record and routes to Role Selection." Defaults to seeker;
+        # FEAT-003 Role Selection changes it immediately after.
+        user = User(
+            full_name=full_name,
+            email=email,
+            phone_number=phone_number,
+            role=UserRole.SEEKER.value,
+            auth_provider="firebase",
+            firebase_uid=firebase_uid,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        await notify_user(
+            session, user_id=user.id, template=WELCOME, context={"full_name": user.full_name}
+        )
+        return user, True
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="This account has been deactivated."
+        )
+    return user, False
+
+
+async def login_with_email(session: AsyncSession, *, email: str, password: str) -> User:
+    """Staff/Admin-only (FEAT-033) -- see this module's docstring. Consumer
+    roles never reach this function; their accounts have no password_hash
+    (schema.md: null whenever auth_provider is "firebase"), so a consumer
+    email accidentally posted here always falls through to the generic
+    401 below rather than a confusing role-specific error."""
+    result = (await session.execute(select(User).where(User.email == email))).scalars()
+    user = result.first()
     # bcrypt hashing is CPU-bound and, at a realistic work factor, slow
     # enough (~100-300ms) to matter -- calling it synchronously inside an
     # `async def` blocks the whole event loop for that long, serializing
@@ -79,84 +187,11 @@ async def register_with_email(
     # enough to push p95 latency into the tens of seconds and fail nearly
     # every request, even though each individual bcrypt call is fast in
     # isolation. Offloaded to a worker thread (anyio.to_thread.run_sync,
-    # same pattern app/core/storage.py and app/services/sms_service.py
-    # already use for their own blocking I/O) at every call site in this
-    # file, not just login -- register/reset/accept-invite hit the same
-    # bcrypt cost and would reproduce the same stall under load.
-    user = User(
-        full_name=full_name,
-        email=email,
-        role=UserRole.SEEKER.value,
-        password_hash=await anyio.to_thread.run_sync(hash_password, password),
-    )
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    await notify_user(
-        session, user_id=user.id, template=WELCOME, context={"full_name": user.full_name}
-    )
-    return user
-
-
-async def request_phone_otp(session: AsyncSession, *, full_name: str, phone_number: str) -> None:
-    """Step 1 of phone sign-up: send an OTP. Does not create the user yet --
-    the account materializes on successful verify_phone_otp so a user who
-    never completes OTP verification never becomes an orphaned unverified row."""
-    existing = (
-        await session.execute(select(User).where(User.phone_number == phone_number))
-    ).scalars()
-    if existing.first() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this phone number already exists.",
-        )
-    otp = _generate_otp()
-    ttl_seconds = int(OTP_TTL.total_seconds())
-    await cache.set_with_ttl(_otp_key(phone_number), otp, ttl_seconds=ttl_seconds)
-    # Stash full_name alongside the OTP so verify_phone_otp can finish registration.
-    await cache.set_with_ttl(_otp_name_key(phone_number), full_name, ttl_seconds=ttl_seconds)
-    try:
-        await send_sms(
-            phone_number, f"Your De-Duke verification code is {otp}. It expires in 10 minutes."
-        )
-    except SmsDeliveryError as exc:
-        # Unlike email_service.notify_user, this must surface -- the user
-        # cannot complete sign-up at all if the code never arrives, so a
-        # silent 202 here would be a false positive (see sms_service.py's
-        # module docstring).
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Couldn't send the verification code. Please try again.",
-        ) from exc
-
-
-async def verify_phone_otp(session: AsyncSession, *, phone_number: str, otp_code: str) -> User:
-    """Validates via `peek` (not an atomic pop) -- an incorrect attempt must
-    not burn the code, so a user who mistypes it can still retry with the
-    correct one until OTP_TTL expires, matching the original in-memory
-    implementation's behavior."""
-    stored = await cache.peek(_otp_key(phone_number))
-    if stored is None or stored != otp_code:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP code."
-        )
-
-    full_name = await cache.pop(_otp_name_key(phone_number)) or "New User"
-    await cache.delete(_otp_key(phone_number))
-
-    user = User(full_name=full_name, phone_number=phone_number, role=UserRole.SEEKER.value)
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
-
-
-async def login_with_email(session: AsyncSession, *, email: str, password: str) -> User:
-    result = (await session.execute(select(User).where(User.email == email))).scalars()
-    user = result.first()
-    # See register_with_email's comment on why verify_password is offloaded
-    # to a thread here -- this is the hottest of these call sites (every
-    # login hits it), and the one the load-test smoke run actually caught.
+    # same pattern app/core/storage.py already uses for its own blocking
+    # I/O) at every hash_password/verify_password call site in this file
+    # and in agency_service.py/staff_account_service.py's own invite
+    # flows, not just login -- reset_password and accept_invite below
+    # follow this same pattern without repeating the full rationale.
     password_ok = (
         user is not None
         and user.password_hash is not None
@@ -172,42 +207,6 @@ async def login_with_email(session: AsyncSession, *, email: str, password: str) 
             status_code=status.HTTP_403_FORBIDDEN, detail="This account has been deactivated."
         )
     return user
-
-
-async def login_with_phone_otp(session: AsyncSession, *, phone_number: str, otp_code: str) -> User:
-    result = (
-        await session.execute(select(User).where(User.phone_number == phone_number))
-    ).scalars()
-    user = result.first()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No account found for that phone number."
-        )
-    stored = await cache.peek(_login_otp_key(phone_number))
-    if stored is None or stored != otp_code:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP code."
-        )
-    await cache.delete(_login_otp_key(phone_number))
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="This account has been deactivated."
-        )
-    return user
-
-
-async def request_login_otp(phone_number: str) -> None:
-    otp = _generate_otp()
-    await cache.set_with_ttl(
-        _login_otp_key(phone_number), otp, ttl_seconds=int(OTP_TTL.total_seconds())
-    )
-    try:
-        await send_sms(phone_number, f"Your De-Duke login code is {otp}. It expires in 10 minutes.")
-    except SmsDeliveryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Couldn't send the login code. Please try again.",
-        ) from exc
 
 
 async def issue_tokens(user: User) -> tuple[str, str]:
@@ -246,11 +245,16 @@ async def revoke_refresh_token(refresh_token: str) -> None:
 
 
 async def request_password_reset(session: AsyncSession, *, email: str) -> None:
-    """FEAT-001 AC: reset a forgotten password. Always succeeds silently for
-    unknown emails to avoid leaking account existence."""
+    """FEAT-033 AC: Staff/Admin reset a forgotten password (Admin Web
+    Console only -- consumer roles reset via Firebase's own "forgot
+    password" flow client-side, never through this endpoint per FEAT-001's
+    rewrite). Always succeeds silently for unknown emails AND for
+    auth_provider "firebase" accounts (same email might exist on a
+    consumer account) to avoid leaking either account existence or which
+    auth path a given email uses."""
     result = (await session.execute(select(User).where(User.email == email))).scalars()
     user = result.first()
-    if user is None:
+    if user is None or user.auth_provider != "password":
         return
     token = _generate_token()
     await cache.set_with_ttl(
