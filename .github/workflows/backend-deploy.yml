@@ -258,8 +258,21 @@ jobs:
       # Cadence, and architecture.md's Load Testing & Performance
       # Validation section). A failure here rolls back exactly like a
       # functional smoke-test failure.
+      #
+      # Skipped for `development`: smoke.js logs in as the seeded
+      # `load+<n>@synthetic.de-duke.internal` accounts (lib/client.js's
+      # loginSyntheticUser), which only ever exist in `staging` --
+      # apps/backend/scripts/seed_load_test_data.py hard-refuses to run
+      # against anything else (_require_staging_environment, checked via
+      # DB_PROXY_ENDPOINT's "staging-" prefix; see load_tests/README.md
+      # "Runs exclusively against the staging environment"). Running this
+      # step against `development` doesn't catch a real regression -- it
+      # deterministically fails every login with 401 (no such users exist
+      # there) and rolls back an otherwise-good deploy. Re-include
+      # `development` here only if a dev-specific seed path is ever added.
       - name: Performance smoke test (lightweight k6 subset)
         id: perf-smoke-test
+        if: matrix.environment != 'development'
         uses: grafana/k6-action@v0.3.1
         with:
           filename: load_tests/scenarios/smoke.js
