@@ -357,28 +357,88 @@ class AuthRepository {
     return _completeFirebaseFlow(user);
   }
 
-  /// Screen 1 Email method. Firebase itself resolves whether `email` is a
-  /// returning identity or brand-new -- there is deliberately no separate
-  /// "Sign Up" vs. "Log In" mode for this method (screens.md Data Flow
-  /// step 4): try sign-in first, and only create a new Firebase user on
-  /// `user-not-found`.
-  Future<AuthResult> signInOrRegisterWithEmail({
+  /// Screen 1 Email method, **Sign In** mode -- explicit, no create-account
+  /// fallback (see `registerWithEmail` for that). Firebase projects with
+  /// Email Enumeration Protection enabled (the default for projects
+  /// created after ~June 2023) collapse BOTH "no account for this email"
+  /// and "wrong password" into the same 'invalid-credential' code -- the
+  /// old, more specific 'user-not-found' is no longer reliably thrown.
+  /// Deliberately shown as one generic, non-account-confirming message
+  /// either way: distinguishing them here would leak which emails have
+  /// accounts, exactly what enumeration protection exists to prevent. The
+  /// message instead nudges toward the Sign Up tab, which is this
+  /// screen's actual resolution path for a "no account" case.
+  Future<AuthResult> signInWithEmail({
     required String email,
     required String password,
-  }) =>
-      _emailFlow(email: email, password: password, linking: false);
+  }) async {
+    try {
+      final credential = await _firebaseAuth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return await _completeFirebaseFlow(credential.user, linking: false);
+    } on fb_auth.FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+        throw AuthException(
+            "We couldn't sign you in with that email and password. New here? Switch to Sign Up.");
+      }
+      throw AuthException(_firebaseErrorMessage(e));
+    }
+  }
+
+  /// Screen 1 Email method, **Sign Up** mode -- explicit account creation,
+  /// no silent fall-through to sign-in. `email-already-in-use` is mapped
+  /// to a message pointing back at the Sign In tab rather than Firebase's
+  /// own generic wording.
+  ///
+  /// `fullName` is the Sign Up form's own Full Name field -- a fresh
+  /// email/password Firebase user has no `name` claim of its own (unlike
+  /// Google Sign-In, which populates it from the Google account), so the
+  /// backend's `/v1/auth/firebase-exchange` would otherwise default
+  /// `User.fullName` to the email's local-part. Applied via a best-effort
+  /// `PATCH /v1/user/profile` call AFTER the exchange succeeds: a failure
+  /// here must never undo the account that was just successfully created
+  /// (the user can still fix their name later from Account Settings).
+  Future<AuthResult> registerWithEmail({
+    required String email,
+    required String password,
+    required String fullName,
+  }) async {
+    try {
+      final credential = await _firebaseAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final result = await _completeFirebaseFlow(credential.user, linking: false);
+      if (fullName.trim().isNotEmpty) {
+        try {
+          await updateProfile(fullName: fullName.trim());
+        } catch (_) {
+          // Best-effort -- see docstring above.
+        }
+      }
+      return result;
+    } on fb_auth.FirebaseAuthException catch (e) {
+      if (e.code == 'email-already-in-use') {
+        throw AuthException(
+            'An account already exists for that email. Switch to Sign In instead.');
+      }
+      throw AuthException(_firebaseErrorMessage(e));
+    }
+  }
 
   /// Screen 21 "Link a sign-in method" -> Email/Password (FEAT-040).
+  /// Unlike the main Sign Up / Sign In screen's explicit `signInWithEmail`
+  /// / `registerWithEmail` above, linking keeps the OLD combined
+  /// try-sign-in-then-create-on-failure behavior: the user is proving they
+  /// can use SOME Firebase email/password credential (new or pre-existing)
+  /// to attach to their already-authenticated De-Duke session -- there's
+  /// no separate Sign Up vs. Sign In *intent* to honor here, just "prove
+  /// you own this credential."
   Future<AuthResult> linkEmailIdentity({
     required String email,
     required String password,
-  }) =>
-      _emailFlow(email: email, password: password, linking: true);
-
-  Future<AuthResult> _emailFlow({
-    required String email,
-    required String password,
-    required bool linking,
   }) async {
     try {
       fb_auth.UserCredential credential;
@@ -388,16 +448,23 @@ class AuthRepository {
           password: password,
         );
       } on fb_auth.FirebaseAuthException catch (e) {
-        if (e.code == 'user-not-found') {
-          credential = await _firebaseAuth.createUserWithEmailAndPassword(
-            email: email,
-            password: password,
-          );
+        if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+          try {
+            credential = await _firebaseAuth.createUserWithEmailAndPassword(
+              email: email,
+              password: password,
+            );
+          } on fb_auth.FirebaseAuthException catch (createError) {
+            if (createError.code == 'email-already-in-use') {
+              throw AuthException("That password's incorrect. Try again.");
+            }
+            throw AuthException(_firebaseErrorMessage(createError));
+          }
         } else {
           rethrow;
         }
       }
-      return await _completeFirebaseFlow(credential.user, linking: linking);
+      return await _completeFirebaseFlow(credential.user, linking: true);
     } on fb_auth.FirebaseAuthException catch (e) {
       throw AuthException(_firebaseErrorMessage(e));
     }
@@ -432,12 +499,24 @@ class AuthRepository {
   /// (FEAT-040) -- same live Firebase phone verification, but the eventual
   /// `verifyPhoneCode`/auto-verified result attaches to the caller's
   /// EXISTING session instead of starting a new one.
+  ///
+  /// `expectingNewUser` -- Screen 1's explicit Sign Up / Sign In mode
+  /// (non-null, `linking: false` only): unlike email/password, Firebase's
+  /// phone/OTP flow has no separate "create" vs. "sign in" primitive --
+  /// verifying a code always resolves to a session, new or existing, in
+  /// one step, before this repository ever learns which one it was. Pass
+  /// `true` when the user is on the Sign Up tab, `false` for Sign In; a
+  /// mismatch (e.g. Sign In tapped for a brand-new number) is caught by
+  /// `_enforcePhoneIntent` and surfaced as an `AuthException` instead of
+  /// silently succeeding into the "wrong" tab's flow. Leave null (the
+  /// default) for linking, where no such intent exists to enforce.
   Future<void> requestPhoneCode({
     required String phoneNumber,
     required void Function(String verificationId) onCodeSent,
     required void Function(AuthResult result) onAutoVerified,
     required void Function(AuthException error) onFailed,
     bool linking = false,
+    bool? expectingNewUser,
   }) async {
     await _firebaseAuth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
@@ -446,8 +525,13 @@ class AuthRepository {
         try {
           final userCredential =
               await _firebaseAuth.signInWithCredential(credential);
-          onAutoVerified(await _completeFirebaseFlow(userCredential.user,
-              linking: linking));
+          var result = await _completeFirebaseFlow(userCredential.user,
+              linking: linking);
+          if (!linking && expectingNewUser != null) {
+            result = await _enforcePhoneIntent(result,
+                expectingNewUser: expectingNewUser);
+          }
+          onAutoVerified(result);
         } on AuthException catch (e) {
           onFailed(e);
         } catch (_) {
@@ -463,11 +547,13 @@ class AuthRepository {
 
   /// Screen 1 Phone method, step 2 -- the user's manually entered 6-digit
   /// code for the `verificationId` `requestPhoneCode` handed back. Pass
-  /// the same `linking` value used on the matching `requestPhoneCode` call.
+  /// the same `linking`/`expectingNewUser` values used on the matching
+  /// `requestPhoneCode` call.
   Future<AuthResult> verifyPhoneCode({
     required String verificationId,
     required String smsCode,
     bool linking = false,
+    bool? expectingNewUser,
   }) async {
     try {
       final credential = fb_auth.PhoneAuthProvider.credential(
@@ -476,10 +562,39 @@ class AuthRepository {
       );
       final userCredential =
           await _firebaseAuth.signInWithCredential(credential);
-      return await _completeFirebaseFlow(userCredential.user, linking: linking);
+      final result =
+          await _completeFirebaseFlow(userCredential.user, linking: linking);
+      if (!linking && expectingNewUser != null) {
+        return await _enforcePhoneIntent(result,
+            expectingNewUser: expectingNewUser);
+      }
+      return result;
     } on fb_auth.FirebaseAuthException catch (e) {
       throw AuthException(_firebaseErrorMessage(e));
     }
+  }
+
+  /// Rolls back a phone sign-in that succeeded at the Firebase/backend
+  /// layer but didn't match Screen 1's explicit Sign Up / Sign In intent
+  /// (see `requestPhoneCode`'s `expectingNewUser` doc). Signs the user back
+  /// out (Firebase + local session) rather than leaving them silently
+  /// authenticated into the tab they didn't mean to use, and reports a
+  /// message pointing at the correct tab. Note: the backend `User` row
+  /// created by a "Sign In" attempt on a brand-new number is NOT deleted --
+  /// only the session is rolled back -- since it's an inert, role-less
+  /// account the user can still reach normally later via Sign In once
+  /// they've actually completed Sign Up for real.
+  Future<AuthResult> _enforcePhoneIntent(
+    AuthResult result, {
+    required bool expectingNewUser,
+  }) async {
+    if (result.isNewUser == expectingNewUser) return result;
+    await logout();
+    throw AuthException(
+      expectingNewUser
+          ? 'An account already exists for that phone number. Switch to Sign In instead.'
+          : "We couldn't find an account for that phone number. Switch to Sign Up instead.",
+    );
   }
 
   /// FEAT-040 -- Screen 21's "Unlink" action. Clears `firebaseUid` only;

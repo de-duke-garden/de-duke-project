@@ -4,11 +4,20 @@
 /// illustration originally specced above the wordmark was removed per
 /// later product feedback, kept simpler) with a floating, overlapping
 /// card underneath holding: "Continue with Google" (the single most
-/// prominent action), a divider, a Phone/Email method toggle, that
-/// method's fields, and a Continue button. Implements every documented
-/// state: Default, Google Sign-In In Progress, Phone: Entering Number,
-/// Phone: OTP Sent, OTP Expired, Email: Entering Details, Submitting,
-/// Validation Error, Auth Error, Account Deactivated, Offline.
+/// prominent action, unaffected by Sign Up / Sign In mode -- Google
+/// resolves new-vs-returning identity itself), a divider, an explicit
+/// Sign Up / Sign In mode toggle, a Phone/Email method toggle, that
+/// method's fields, and a mode-aware Continue button. Implements every
+/// documented state: Default, Google Sign-In In Progress, Phone: Entering
+/// Number, Phone: OTP Sent, OTP Expired, Email: Entering Details,
+/// Submitting, Validation Error, Auth Error, Account Deactivated, Offline.
+///
+/// Sign Up vs. Sign In is an explicit, user-picked mode (not inferred by
+/// "try login, fall back to create") for Email; a mismatched pick on
+/// Phone (e.g. Sign In tapped for a brand-new number) is caught after
+/// the fact by AuthRepository's `_enforcePhoneIntent`, since Firebase's
+/// OTP flow has no separate create/sign-in step to gate up front. Google
+/// keeps its original single-tap, mode-agnostic behavior throughout.
 library;
 
 import 'dart:async';
@@ -29,6 +38,12 @@ import '../../../core/widgets/tap_scale.dart';
 import '../data/auth_repository.dart';
 
 enum _Method { email, phone }
+
+/// Explicit Sign Up / Sign In intent, user-picked via `_ModeToggle` --
+/// replaces the old implicit "try login, create on failure" behavior for
+/// Email, and is enforced after the fact for Phone (see this file's
+/// module docstring and AuthRepository's `_enforcePhoneIntent`).
+enum _Mode { signUp, signIn }
 
 enum _Phase {
   idle,
@@ -52,6 +67,10 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   _Method _method = _Method.email;
+  // Sign In is the more common return-visit case, so it's the default;
+  // a brand-new user just taps the Sign Up segment before entering
+  // anything (screens.md Screen 1 Modernization Notes).
+  _Mode _mode = _Mode.signIn;
   _Phase _phase = _Phase.idle;
   String? _errorMessage;
 
@@ -65,6 +84,7 @@ class _AuthScreenState extends State<AuthScreen> {
   double _heroOpacity = 0;
 
   final _formKey = GlobalKey<FormState>();
+  final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -81,6 +101,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   void dispose() {
     _resendTimer?.cancel();
+    _fullNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _phoneController.dispose();
@@ -192,12 +213,24 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _handleEmailContinue() async {
     if (!_formKey.currentState!.validate()) return;
-    await _run(() => widget.repository.signInOrRegisterWithEmail(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        ));
+    await _run(() => _mode == _Mode.signUp
+        ? widget.repository.registerWithEmail(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+            fullName: _fullNameController.text.trim(),
+          )
+        : widget.repository.signInWithEmail(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          ));
   }
 
+  // Phone/OTP has no Sign Up/Sign In toggle of its own (the mode toggle is
+  // Email-only, per this screen's Modernization Notes) -- Firebase's phone
+  // verification flow is inherently unified anyway (see AuthRepository's
+  // module docstring), so it's left to behave as it always did: verifying
+  // a code resolves to a session, new or existing, without the user
+  // picking an explicit intent first.
   Future<void> _handlePhoneContinue() async {
     if (!_formKey.currentState!.validate()) return;
     if (_otpSent) {
@@ -266,9 +299,20 @@ class _AuthScreenState extends State<AuthScreen> {
         _phoneController.clear();
         _otpController.clear();
       } else {
+        _fullNameController.clear();
         _emailController.clear();
         _passwordController.clear();
       }
+    });
+  }
+
+  void _switchMode(_Mode mode) {
+    if (_mode == mode) return;
+    setState(() {
+      _mode = mode;
+      _phase = _Phase.idle;
+      _errorMessage = null;
+      if (mode == _Mode.signIn) _fullNameController.clear();
     });
   }
 
@@ -297,15 +341,18 @@ class _AuthScreenState extends State<AuthScreen> {
                       isDark: isDark,
                       phase: _phase,
                       errorMessage: _errorMessage,
+                      mode: _mode,
                       method: _method,
                       otpSent: _otpSent,
                       submitting: _submitting,
                       resendSecondsLeft: _resendSecondsLeft,
+                      fullNameController: _fullNameController,
                       emailController: _emailController,
                       passwordController: _passwordController,
                       phoneController: _phoneController,
                       otpController: _otpController,
                       onGoogle: _submitting ? null : _handleGoogle,
+                      onSwitchMode: _submitting ? null : _switchMode,
                       onSwitchMethod: _submitting ? null : _switchMethod,
                       onContinue: _submitting
                           ? null
@@ -404,15 +451,18 @@ class _AuthCard extends StatelessWidget {
     required this.isDark,
     required this.phase,
     required this.errorMessage,
+    required this.mode,
     required this.method,
     required this.otpSent,
     required this.submitting,
     required this.resendSecondsLeft,
+    required this.fullNameController,
     required this.emailController,
     required this.passwordController,
     required this.phoneController,
     required this.otpController,
     required this.onGoogle,
+    required this.onSwitchMode,
     required this.onSwitchMethod,
     required this.onContinue,
     required this.onResend,
@@ -423,15 +473,18 @@ class _AuthCard extends StatelessWidget {
   final bool isDark;
   final _Phase phase;
   final String? errorMessage;
+  final _Mode mode;
   final _Method method;
   final bool otpSent;
   final bool submitting;
   final int resendSecondsLeft;
+  final TextEditingController fullNameController;
   final TextEditingController emailController;
   final TextEditingController passwordController;
   final TextEditingController phoneController;
   final TextEditingController otpController;
   final VoidCallback? onGoogle;
+  final void Function(_Mode)? onSwitchMode;
   final void Function(_Method)? onSwitchMethod;
   final VoidCallback? onContinue;
   final VoidCallback? onResend;
@@ -473,7 +526,11 @@ class _AuthCard extends StatelessWidget {
               isDark: isDark,
               retryable: false,
             ),
-          // -- "Continue with Google" -- first and most prominent action.
+          // -- "Continue with Google" -- first and most prominent action,
+          // ahead of the Phone/Email method toggle. Mode-agnostic: Google
+          // OAuth resolves new-vs-returning identity on its own, so there's
+          // no Sign Up/Sign In toggle above it (see this file's module
+          // docstring).
           TapScale(
             emphasis: true,
             onTap: onGoogle,
@@ -497,11 +554,11 @@ class _AuthCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           // AnimatedSwitcher alone only crossfades -- the surrounding
           // Column still jumps straight to the new child's height the
-          // instant it swaps (e.g. Email's 2 fields -> Phone's 1 field),
-          // which is exactly the visible "jump" this wrapping AnimatedSize
-          // fixes: it animates the height change over the same duration/
-          // curve as the fade, so the card smoothly grows/shrinks instead
-          // of snapping.
+          // instant it swaps (e.g. Email's Sign Up fields -> Phone's single
+          // field), which is exactly the visible "jump" this wrapping
+          // AnimatedSize fixes: it animates the height change over the same
+          // duration/curve as the fade, so the card smoothly grows/shrinks
+          // instead of snapping.
           AnimatedSize(
             duration: AppDurations.normal,
             curve: AppCurves.easeOutSmooth,
@@ -510,12 +567,32 @@ class _AuthCard extends StatelessWidget {
               duration: AppDurations.normal,
               switchInCurve: AppCurves.easeOutSmooth,
               child: method == _Method.email
-                  ? _EmailFields(
+                  ? Column(
                       key: const ValueKey('email'),
-                      emailController: emailController,
-                      passwordController: passwordController,
-                      enabled: !submitting,
-                      onForgotPassword: onForgotPassword,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Sign Up / Sign In is Email-only -- Phone/OTP has
+                        // no separate create-vs-sign-in primitive to gate
+                        // on (see AuthRepository's module docstring), so
+                        // this toggle is hidden entirely when Phone is
+                        // selected rather than shown-but-inert.
+                        _ModeToggle(
+                            mode: mode, isDark: isDark, onSwitch: onSwitchMode),
+                        const SizedBox(height: AppSpacing.md),
+                        _EmailFields(
+                          mode: mode,
+                          fullNameController: fullNameController,
+                          emailController: emailController,
+                          passwordController: passwordController,
+                          enabled: !submitting,
+                          // Resetting a password only makes sense for an
+                          // account that already exists -- hidden entirely
+                          // in Sign Up mode rather than offered against an
+                          // email that may not even have an account yet.
+                          showForgotPassword: mode == _Mode.signIn,
+                          onForgotPassword: onForgotPassword,
+                        ),
+                      ],
                     )
                   : _PhoneFields(
                       key: ValueKey('phone-$otpSent'),
@@ -561,9 +638,39 @@ class _AuthCard extends StatelessWidget {
 
   String _continueLabel() {
     if (method == _Method.phone) {
+      // Firebase's OTP flow has no separate "create" step of its own to
+      // label distinctly (see this file's module docstring) -- the
+      // Send/Verify code labels stay the same regardless of mode.
       return otpSent ? 'Verify code' : 'Send code';
     }
-    return 'Continue';
+    return mode == _Mode.signUp ? 'Create account' : 'Sign in';
+  }
+}
+
+/// Explicit Sign Up / Sign In intent selector -- the primary toggle this
+/// screen's redesign added (see module docstring): everything below it,
+/// including "Continue with Google," reflects this choice, except Google
+/// itself doesn't need to branch on it (OAuth resolves new-vs-returning
+/// identity on its own).
+class _ModeToggle extends StatelessWidget {
+  const _ModeToggle({required this.mode, required this.isDark, this.onSwitch});
+
+  final _Mode mode;
+  final bool isDark;
+  final void Function(_Mode)? onSwitch;
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<_Mode>(
+      segments: const [
+        ButtonSegment(value: _Mode.signIn, label: Text('Sign In')),
+        ButtonSegment(value: _Mode.signUp, label: Text('Sign Up')),
+      ],
+      selected: {mode},
+      onSelectionChanged:
+          onSwitch == null ? null : (selection) => onSwitch!(selection.first),
+      showSelectedIcon: false,
+    );
   }
 }
 
@@ -625,22 +732,44 @@ class _MethodToggle extends StatelessWidget {
 
 class _EmailFields extends StatelessWidget {
   const _EmailFields({
-    super.key,
+    required this.mode,
+    required this.fullNameController,
     required this.emailController,
     required this.passwordController,
     required this.enabled,
+    this.showForgotPassword = true,
     this.onForgotPassword,
   });
 
+  final _Mode mode;
+  final TextEditingController fullNameController;
   final TextEditingController emailController;
   final TextEditingController passwordController;
   final bool enabled;
+  final bool showForgotPassword;
   final VoidCallback? onForgotPassword;
+
+  bool get _isSignUp => mode == _Mode.signUp;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // Only Sign Up needs a name to introduce a brand-new account with
+        // -- Sign In resolves an existing account, whose name is already
+        // on file.
+        if (_isSignUp) ...[
+          TextFormField(
+            controller: fullNameController,
+            decoration: const InputDecoration(labelText: 'Full name'),
+            textCapitalization: TextCapitalization.words,
+            enabled: enabled,
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Enter your full name'
+                : null,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
         TextFormField(
           controller: emailController,
           decoration: const InputDecoration(labelText: 'Email'),
@@ -659,16 +788,17 @@ class _EmailFields extends StatelessWidget {
               ? 'Password must be at least 6 characters'
               : null,
         ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TapScale(
-            onTap: onForgotPassword,
-            child: TextButton(
-              onPressed: onForgotPassword,
-              child: const Text('Forgot password?'),
+        if (showForgotPassword)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TapScale(
+              onTap: onForgotPassword,
+              child: TextButton(
+                onPressed: onForgotPassword,
+                child: const Text('Forgot password?'),
+              ),
             ),
           ),
-        ),
       ],
     );
   }

@@ -55,7 +55,7 @@ class FakeSessionStore extends SessionStore {
 }
 
 void main() {
-  group('AuthRepository.signInOrRegisterWithEmail', () {
+  group('AuthRepository.signInWithEmail', () {
     test(
         'exchanges the Firebase ID token for a De-Duke session and persists both tokens',
         () async {
@@ -79,7 +79,7 @@ void main() {
         ),
       );
 
-      final result = await built.repository.signInOrRegisterWithEmail(
+      final result = await built.repository.signInWithEmail(
           email: 'amaka@example.com', password: 'supersecret1');
 
       expect(result.userId, 'user-1');
@@ -90,36 +90,56 @@ void main() {
     });
 
     test(
-        'falls back to account creation on user-not-found, then exchanges normally',
+        'never silently creates an account -- maps user-not-found to a generic, non-account-confirming message',
         () async {
-      // MockFirebaseAuth's signInWithEmailAndPassword never throws by
-      // default (unlike a real unregistered email) -- this test instead
-      // verifies the fallback branch directly: createUserWithEmailAndPassword
-      // must still resolve to a successful exchange when it's the path taken.
-      final firebaseAuth = MockFirebaseAuth();
+      final firebaseAuth = MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1'));
+      whenCalling(Invocation.method(#signInWithEmailAndPassword, null))
+          .on(firebaseAuth)
+          .thenThrow(fb_auth.FirebaseAuthException(code: 'user-not-found'));
       final built = _buildRepository(
         firebaseAuth: firebaseAuth,
-        adapter: () => FakeHttpClientAdapter(
-          (options) => (
-            statusCode: 200,
-            body: {
-              'access_token': 'access-new',
-              'refresh_token': 'refresh-new',
-              'token_type': 'bearer',
-              'user_id': 'user-2',
-              'role': 'seeker',
-              'is_verified_host': false,
-              'is_new_user': true,
-            },
-          ),
-        ),
+        adapter: () =>
+            FakeHttpClientAdapter((options) => (statusCode: 200, body: {})),
       );
 
-      final result = await built.repository.signInOrRegisterWithEmail(
-          email: 'new@example.com', password: 'supersecret1');
+      await expectLater(
+        () => built.repository.signInWithEmail(
+            email: 'new@example.com', password: 'supersecret1'),
+        throwsA(isA<AuthException>().having(
+            (e) => e.message,
+            'message',
+            "We couldn't sign you in with that email and password. New here? Switch to Sign Up.")),
+      );
+    });
 
-      expect(result.isNewUser, isTrue);
-      expect(built.sessionStore.savedAccessToken, 'access-new');
+    test(
+        'maps invalid-credential (Email Enumeration Protection) to the same generic Sign In failure message',
+        () async {
+      // Firebase projects with Email Enumeration Protection enabled (the
+      // default for projects created after ~June 2023) collapse BOTH "no
+      // account for this email" and "wrong password" into the same
+      // 'invalid-credential' code -- 'user-not-found' is no longer
+      // reliably thrown. Explicit Sign In mode deliberately does NOT try
+      // to distinguish the two (that would leak which emails have
+      // accounts); it just points the user at Sign Up as the resolution.
+      final firebaseAuth = MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1'));
+      whenCalling(Invocation.method(#signInWithEmailAndPassword, null))
+          .on(firebaseAuth)
+          .thenThrow(fb_auth.FirebaseAuthException(code: 'invalid-credential'));
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () =>
+            FakeHttpClientAdapter((options) => (statusCode: 200, body: {})),
+      );
+
+      await expectLater(
+        () => built.repository.signInWithEmail(
+            email: 'brandnew@example.com', password: 'supersecret1'),
+        throwsA(isA<AuthException>().having(
+            (e) => e.message,
+            'message',
+            "We couldn't sign you in with that email and password. New here? Switch to Sign Up.")),
+      );
     });
 
     test('maps a wrong-password FirebaseAuthException to a specific message',
@@ -135,7 +155,7 @@ void main() {
       );
 
       await expectLater(
-        () => built.repository.signInOrRegisterWithEmail(
+        () => built.repository.signInWithEmail(
             email: 'amaka@example.com', password: 'wrong'),
         throwsA(isA<AuthException>().having((e) => e.message, 'message',
             "That password's incorrect. Try again.")),
@@ -157,7 +177,7 @@ void main() {
       );
 
       await expectLater(
-        () => built.repository.signInOrRegisterWithEmail(
+        () => built.repository.signInWithEmail(
             email: 'gone@example.com', password: 'supersecret1'),
         throwsA(isA<AuthException>().having(
             (e) => e.isAccountDeactivated, 'isAccountDeactivated', isTrue)),
@@ -173,10 +193,178 @@ void main() {
       );
 
       await expectLater(
-        () => built.repository.signInOrRegisterWithEmail(
+        () => built.repository.signInWithEmail(
             email: 'amaka@example.com', password: 'supersecret1'),
         throwsA(isA<AuthException>()
             .having((e) => e.message, 'message', 'offline')),
+      );
+    });
+  });
+
+  group('AuthRepository.registerWithEmail', () {
+    test('creates a new Firebase user and exchanges normally', () async {
+      final firebaseAuth = MockFirebaseAuth();
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () => FakeHttpClientAdapter(
+          (options) => (
+            statusCode: 200,
+            body: {
+              'access_token': 'access-new',
+              'refresh_token': 'refresh-new',
+              'token_type': 'bearer',
+              'user_id': 'user-2',
+              'role': 'seeker',
+              'is_verified_host': false,
+              'is_new_user': true,
+            },
+          ),
+        ),
+      );
+
+      final result = await built.repository.registerWithEmail(
+          email: 'new@example.com',
+          password: 'supersecret1',
+          fullName: 'Amaka Okafor');
+
+      expect(result.isNewUser, isTrue);
+      expect(built.sessionStore.savedAccessToken, 'access-new');
+    });
+
+    test(
+        'sends the Sign Up form\'s full name via a best-effort profile update after exchange',
+        () async {
+      final firebaseAuth = MockFirebaseAuth();
+      final requestPaths = <String>[];
+      String? capturedFullName;
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () => FakeHttpClientAdapter((options) {
+          requestPaths.add(options.path);
+          if (options.path == '/v1/user/profile') {
+            final fields = (options.data as FormData).fields;
+            capturedFullName = fields
+                .firstWhere((f) => f.key == 'full_name',
+                    orElse: () => const MapEntry('full_name', ''))
+                .value;
+            return (
+              statusCode: 200,
+              body: {
+                'user_id': 'user-2',
+                'full_name': capturedFullName,
+                'email': 'new@example.com',
+                'phone_number': null,
+                'auth_provider': 'firebase',
+                'is_firebase_linked': false,
+                'profile_photo_url': null,
+              },
+            );
+          }
+          return (
+            statusCode: 200,
+            body: {
+              'access_token': 'access-new',
+              'refresh_token': 'refresh-new',
+              'token_type': 'bearer',
+              'user_id': 'user-2',
+              'role': 'seeker',
+              'is_verified_host': false,
+              'is_new_user': true,
+            },
+          );
+        }),
+      );
+
+      await built.repository.registerWithEmail(
+          email: 'new@example.com',
+          password: 'supersecret1',
+          fullName: 'Amaka Okafor');
+
+      expect(requestPaths, contains('/v1/user/profile'));
+      expect(capturedFullName, 'Amaka Okafor');
+    });
+
+    test(
+        'maps email-already-in-use to a message pointing at Sign In, never silently logging the user in',
+        () async {
+      final firebaseAuth = MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1'));
+      whenCalling(Invocation.method(#createUserWithEmailAndPassword, null))
+          .on(firebaseAuth)
+          .thenThrow(
+              fb_auth.FirebaseAuthException(code: 'email-already-in-use'));
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () =>
+            FakeHttpClientAdapter((options) => (statusCode: 200, body: {})),
+      );
+
+      await expectLater(
+        () => built.repository.registerWithEmail(
+            email: 'amaka@example.com',
+            password: 'supersecret1',
+            fullName: 'Amaka Okafor'),
+        throwsA(isA<AuthException>().having(
+            (e) => e.message,
+            'message',
+            'An account already exists for that email. Switch to Sign In instead.')),
+      );
+    });
+  });
+
+  group('AuthRepository.linkEmailIdentity', () {
+    // FEAT-040 linking deliberately keeps the OLD combined
+    // try-sign-in-then-create-on-failure behavior (see the method's
+    // docstring) -- these tests exercise that fallback directly, now that
+    // the main Sign Up / Sign In screen no longer uses it.
+    test(
+        'falls back to account creation on invalid-credential (Email Enumeration Protection), then links normally',
+        () async {
+      final firebaseAuth = MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1'));
+      whenCalling(Invocation.method(#signInWithEmailAndPassword, null))
+          .on(firebaseAuth)
+          .thenThrow(fb_auth.FirebaseAuthException(code: 'invalid-credential'));
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () => FakeHttpClientAdapter(
+          (options) => (
+            statusCode: 200,
+            body: {
+              'user_id': 'user-3',
+              'role': 'seeker',
+              'is_verified_host': false,
+            },
+          ),
+        ),
+      );
+
+      final result = await built.repository.linkEmailIdentity(
+          email: 'brandnew@example.com', password: 'supersecret1');
+
+      expect(result.userId, 'user-3');
+    });
+
+    test(
+        'reports "password incorrect" when invalid-credential turns out to be a genuine existing account',
+        () async {
+      final firebaseAuth = MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1'));
+      whenCalling(Invocation.method(#signInWithEmailAndPassword, null))
+          .on(firebaseAuth)
+          .thenThrow(fb_auth.FirebaseAuthException(code: 'invalid-credential'));
+      whenCalling(Invocation.method(#createUserWithEmailAndPassword, null))
+          .on(firebaseAuth)
+          .thenThrow(
+              fb_auth.FirebaseAuthException(code: 'email-already-in-use'));
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () =>
+            FakeHttpClientAdapter((options) => (statusCode: 200, body: {})),
+      );
+
+      await expectLater(
+        () => built.repository.linkEmailIdentity(
+            email: 'amaka@example.com', password: 'wrong'),
+        throwsA(isA<AuthException>().having((e) => e.message, 'message',
+            "That password's incorrect. Try again.")),
       );
     });
   });
@@ -230,6 +418,113 @@ void main() {
       expect(result.userId, 'user-phone');
       expect(result.isNewUser, isTrue);
       expect(built.sessionStore.savedAccessToken, 'phone-access');
+    });
+
+    test(
+        'verifyPhoneCode succeeds when expectingNewUser matches the backend result',
+        () async {
+      final firebaseAuth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'uid-phone', phoneNumber: '+2348012345678'));
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () => FakeHttpClientAdapter(
+          (options) => (
+            statusCode: 200,
+            body: {
+              'access_token': 'phone-access',
+              'refresh_token': 'phone-refresh',
+              'token_type': 'bearer',
+              'user_id': 'user-phone',
+              'role': 'seeker',
+              'is_verified_host': false,
+              'is_new_user': true,
+            },
+          ),
+        ),
+      );
+
+      final result = await built.repository.verifyPhoneCode(
+        verificationId: 'verification-id-1',
+        smsCode: '123456',
+        expectingNewUser: true,
+      );
+
+      expect(result.userId, 'user-phone');
+    });
+
+    test(
+        'rolls back and points at Sign In when Sign Up was picked for a number that already has an account',
+        () async {
+      final firebaseAuth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'uid-phone', phoneNumber: '+2348012345678'));
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () => FakeHttpClientAdapter(
+          (options) => (
+            statusCode: 200,
+            body: {
+              'access_token': 'phone-access',
+              'refresh_token': 'phone-refresh',
+              'token_type': 'bearer',
+              'user_id': 'user-phone',
+              'role': 'seeker',
+              'is_verified_host': false,
+              'is_new_user': false,
+            },
+          ),
+        ),
+      );
+
+      await expectLater(
+        () => built.repository.verifyPhoneCode(
+          verificationId: 'verification-id-1',
+          smsCode: '123456',
+          expectingNewUser: true,
+        ),
+        throwsA(isA<AuthException>().having(
+            (e) => e.message,
+            'message',
+            'An account already exists for that phone number. Switch to Sign In instead.')),
+      );
+      // The mismatched session must not be left in place.
+      expect(built.sessionStore.cleared, isTrue);
+    });
+
+    test(
+        'rolls back and points at Sign Up when Sign In was picked for a brand-new number',
+        () async {
+      final firebaseAuth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'uid-phone', phoneNumber: '+2348012345678'));
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () => FakeHttpClientAdapter(
+          (options) => (
+            statusCode: 200,
+            body: {
+              'access_token': 'phone-access',
+              'refresh_token': 'phone-refresh',
+              'token_type': 'bearer',
+              'user_id': 'user-phone',
+              'role': 'seeker',
+              'is_verified_host': false,
+              'is_new_user': true,
+            },
+          ),
+        ),
+      );
+
+      await expectLater(
+        () => built.repository.verifyPhoneCode(
+          verificationId: 'verification-id-1',
+          smsCode: '123456',
+          expectingNewUser: false,
+        ),
+        throwsA(isA<AuthException>().having(
+            (e) => e.message,
+            'message',
+            "We couldn't find an account for that phone number. Switch to Sign Up instead.")),
+      );
+      expect(built.sessionStore.cleared, isTrue);
     });
 
     test('maps an invalid-verification-code error to a specific message',
