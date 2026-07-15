@@ -49,9 +49,17 @@ module "cache" {
   vpc_id                     = module.networking.vpc_id
   private_subnet_ids         = module.networking.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.backend_service.id]
-  # Multi-AZ automatic failover per architecture.md.
-  node_type          = "cache.r6g.large"
-  num_cache_clusters = 2
+  # TEMPORARY cost-minimization pass (all three environments, same date) --
+  # deliberately NOT Multi-AZ per architecture.md right now. Production is
+  # not live yet (production is commented out of the active deploy matrix
+  # in backend-deploy.yml / infra-terraform.yml, and this environment
+  # carries no real traffic pre-launch), so paying for Multi-AZ automatic
+  # failover before there's anything to fail over for is pure waste.
+  # MUST restore node_type = "cache.r6g.large", num_cache_clusters = 2
+  # before this environment is re-enabled in the deploy matrix / goes live
+  # -- see this file's own header comment on Staging mirroring Production.
+  node_type          = "cache.t4g.micro"
+  num_cache_clusters = 1
   tags               = local.common_tags
 }
 
@@ -61,13 +69,24 @@ module "rds" {
   vpc_id                     = module.networking.vpc_id
   private_subnet_ids         = module.networking.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.backend_service.id]
-  multi_az                   = true
-  read_replica_count         = 1
-  instance_class             = "db.r6g.xlarge"
-  replica_instance_class     = "db.r6g.xlarge"
-  allocated_storage_gb       = 500
-  deletion_protection        = true
-  tags                       = local.common_tags
+  # TEMPORARY cost-minimization pass, same rationale as module "cache"
+  # above -- multi_az/instance_class/allocated_storage_gb are all
+  # downsized below architecture.md's Scaling Strategy baseline
+  # ("Multi-AZ standby ... not optional", "read replicas from launch").
+  # read_replica_count was also already dropped to 0 for the same RDS
+  # manage_master_user_password limitation documented in
+  # staging/main.tf's identical comment.
+  # MUST restore multi_az = true, read_replica_count = 1, instance_class /
+  # replica_instance_class = "db.r6g.xlarge", allocated_storage_gb = 500
+  # before this environment goes live -- right now there is no failover
+  # capacity and no read-replica headroom.
+  multi_az               = false
+  read_replica_count     = 0
+  instance_class         = "db.t4g.micro"
+  replica_instance_class = "db.t4g.micro"
+  allocated_storage_gb   = 20
+  deletion_protection    = true
+  tags                   = local.common_tags
 }
 
 module "backend" {

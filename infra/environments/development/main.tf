@@ -40,8 +40,14 @@ module "cache" {
   vpc_id                     = module.networking.vpc_id
   private_subnet_ids         = module.networking.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.backend_service.id]
-  # Development is single-node (cheaper); staging/production use >1 for
-  # Multi-AZ automatic failover per architecture.md.
+  # Cost-minimization pass (all three environments, same date) -- smallest
+  # burstable node, single instance, no Multi-AZ failover. Pre-launch,
+  # traffic on every environment is near-zero, so paying for
+  # architecture.md's target-scale sizing here is pure waste. Upgrade back
+  # to a production-representative node_type/num_cache_clusters before the
+  # Phase 1 launch-gate load test run (load_tests/README.md) -- see that
+  # file's Cadence section.
+  node_type          = "cache.t4g.micro"
   num_cache_clusters = 1
   tags               = local.common_tags
 }
@@ -52,13 +58,15 @@ module "rds" {
   vpc_id                     = module.networking.vpc_id
   private_subnet_ids         = module.networking.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.backend_service.id]
-  # Development runs single-AZ, no replicas, smallest instance class to
-  # control cost -- staging/production override these per architecture.md.
-  multi_az            = false
-  read_replica_count  = 0
-  instance_class      = "db.t4g.medium"
-  deletion_protection = false
-  tags                = local.common_tags
+  # Development runs single-AZ, no replicas, smallest viable instance class
+  # and storage to control cost -- see module "cache" above's identical
+  # cost-minimization note. Upgrade before the launch-gate run.
+  multi_az             = false
+  read_replica_count   = 0
+  instance_class       = "db.t4g.micro"
+  allocated_storage_gb = 20
+  deletion_protection  = false
+  tags                 = local.common_tags
 }
 
 module "backend" {

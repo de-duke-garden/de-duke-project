@@ -62,10 +62,20 @@ module "cache" {
   vpc_id                     = module.networking.vpc_id
   private_subnet_ids         = module.networking.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.backend_service.id]
-  # Multi-AZ automatic failover, matching Production -- see load_tests/README.md
-  # Failover (chaos) test, which depends on this actually being Multi-AZ here.
-  node_type          = "cache.r6g.large"
-  num_cache_clusters = 2
+  # TEMPORARY cost-minimization pass (all three environments, same date) --
+  # deliberately NOT Multi-AZ / production-sized right now, which breaks
+  # this file's own "sized IDENTICALLY to Production" header requirement
+  # and load_tests/README.md's Failover (chaos) test precondition (that
+  # test depends on Staging actually being Multi-AZ). Pre-launch, this
+  # environment currently sees no real traffic and isn't in the active
+  # deploy matrix (staging is commented out in backend-deploy.yml /
+  # infra-terraform.yml), so paying for target-scale sizing is pure waste.
+  # MUST restore node_type = "cache.r6g.large", num_cache_clusters = 2
+  # (matching Production, below) before re-enabling staging in the deploy
+  # matrix or running the Phase 1 launch-gate load test suite -- see
+  # load_tests/README.md Cadence.
+  node_type          = "cache.t4g.micro"
+  num_cache_clusters = 1
   tags               = local.common_tags
 }
 
@@ -75,30 +85,37 @@ module "rds" {
   vpc_id                     = module.networking.vpc_id
   private_subnet_ids         = module.networking.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.backend_service.id]
-  # Matches Production's topology (Multi-AZ) -- read_replica_count is
-  # TEMPORARILY 0, not the originally-intended 1: RDS does not support read
-  # replicas on a Postgres instance using AWS-managed master password
-  # (manage_master_user_password, see modules/rds_postgres/main.tf), which
-  # this module uses by design. Discovered when the real `terraform apply`
-  # against this environment failed with "Creating read replicas for
-  # source instance with engine postgres where ManageMasterUserPassword is
-  # enabled is not supported." `development` never hit this because it
-  # already runs read_replica_count = 0.
+  # read_replica_count is TEMPORARILY 0, not the originally-intended 1: RDS
+  # does not support read replicas on a Postgres instance using AWS-managed
+  # master password (manage_master_user_password, see
+  # modules/rds_postgres/main.tf), which this module uses by design.
+  # Discovered when the real `terraform apply` against this environment
+  # failed with "Creating read replicas for source instance with engine
+  # postgres where ManageMasterUserPassword is enabled is not supported."
+  # `development` never hit this because it already runs
+  # read_replica_count = 0.
   #
-  # TODO before the real Phase 1 launch-gate run: switch
+  # multi_az/instance_class/allocated_storage_gb are ALSO TEMPORARILY
+  # downsized below Production's sizing (same cost-minimization pass as
+  # module "cache" above) -- this breaks the "sized IDENTICALLY to
+  # Production" requirement in this file's own header comment.
+  #
+  # TODO before the real Phase 1 launch-gate run: (1) switch
   # modules/rds_postgres to a self-managed master password (stored in
   # modules/secrets, same pattern as every other credential in this repo)
   # instead of manage_master_user_password, then restore
   # read_replica_count = 1 here so Priority Scenario 1 (Search & Discovery
   # under load, load_tests/README.md) actually exercises read-replica
-  # routing and replica lag as originally intended -- right now that
-  # scenario's replica-lag assertions are meaningless against a
-  # single-instance database.
-  multi_az               = true
+  # routing and replica lag as originally intended; (2) restore multi_az =
+  # true, instance_class/replica_instance_class = "db.r6g.xlarge",
+  # allocated_storage_gb = 500 to match Production -- right now every
+  # capacity-dependent load-test assertion here is meaningless against a
+  # single micro-instance database.
+  multi_az               = false
   read_replica_count     = 0
-  instance_class         = "db.r6g.xlarge"
-  replica_instance_class = "db.r6g.xlarge"
-  allocated_storage_gb   = 500
+  instance_class         = "db.t4g.micro"
+  replica_instance_class = "db.t4g.micro"
+  allocated_storage_gb   = 20
   # Deletion protection off (unlike Production) -- Staging's DB is
   # periodically wiped and reseeded with fresh synthetic data at target scale
   # (see load_tests/seed/).
