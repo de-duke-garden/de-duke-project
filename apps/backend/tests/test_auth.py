@@ -325,3 +325,265 @@ def test_update_notification_preferences_partial_update(client: TestClient) -> N
 def test_notification_preferences_requires_authentication(client: TestClient) -> None:
     response = client.get("/v1/auth/me/notification-preferences")
     assert response.status_code in (401, 403)
+
+
+# ---------------------------------------------------------------------------
+# FEAT-041: Self-Service Profile Editing (GET/PATCH /v1/user/profile)
+# ---------------------------------------------------------------------------
+
+
+def test_get_profile_returns_auth_provider_and_link_state(client: TestClient) -> None:
+    signin = _firebase_signin(client, uid="uid-profile-get", email="profile-get@example.com")
+    headers = {"Authorization": f"Bearer {signin.json()['access_token']}"}
+
+    response = client.get("/v1/user/profile", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["auth_provider"] == "firebase"
+    assert body["is_firebase_linked"] is True
+    assert body["full_name"] == "Amaka Okafor"
+
+
+def test_update_profile_full_name_works_for_firebase_provider(client: TestClient) -> None:
+    signin = _firebase_signin(client, uid="uid-rename", email="rename@example.com")
+    headers = {"Authorization": f"Bearer {signin.json()['access_token']}"}
+
+    response = client.patch(
+        "/v1/user/profile", json={"full_name": "New Name"}, headers=headers
+    )
+    assert response.status_code == 200
+    assert response.json()["full_name"] == "New Name"
+
+
+def test_update_profile_rejects_email_change_for_firebase_provider(client: TestClient) -> None:
+    signin = _firebase_signin(client, uid="uid-email-locked", email="locked@example.com")
+    headers = {"Authorization": f"Bearer {signin.json()['access_token']}"}
+
+    response = client.patch(
+        "/v1/user/profile", json={"email": "new-email@example.com"}, headers=headers
+    )
+    assert response.status_code == 403
+
+
+async def test_update_profile_email_editable_for_password_provider(
+    client: TestClient, session: AsyncSession
+) -> None:
+    staff = await _create_staff_user(session, email="staff-edit@example.com", password="pw123456")
+    token = client.post(
+        "/v1/auth/login", json={"email": staff.email, "password": "pw123456"}
+    ).json()["access_token"]
+
+    response = client.patch(
+        "/v1/user/profile",
+        json={"email": "staff-new-email@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["email"] == "staff-new-email@example.com"
+
+
+async def test_update_profile_email_conflict_rejected(
+    client: TestClient, session: AsyncSession
+) -> None:
+    await _create_staff_user(session, email="taken@example.com", password="pw123456")
+    staff2 = await _create_staff_user(session, email="staff2@example.com", password="pw123456")
+    token = client.post(
+        "/v1/auth/login", json={"email": staff2.email, "password": "pw123456"}
+    ).json()["access_token"]
+
+    response = client.patch(
+        "/v1/user/profile",
+        json={"email": "taken@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# FEAT-040: Linked Sign-In Methods
+# ---------------------------------------------------------------------------
+
+
+async def test_link_firebase_identity_succeeds_for_password_provider(
+    client: TestClient, session: AsyncSession
+) -> None:
+    staff = await _create_staff_user(
+        session, email="linkable@example.com", password="pw123456", role=UserRole.AGENCY
+    )
+    token = client.post(
+        "/v1/auth/login", json={"email": staff.email, "password": "pw123456"}
+    ).json()["access_token"]
+
+    with mock_firebase_verify(uid="uid-linked-google", email="linkable@gmail.com"):
+        response = client.post(
+            "/v1/auth/link-firebase-identity",
+            json={"id_token": "fake-token"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 200
+
+    profile = client.get(
+        "/v1/user/profile", headers={"Authorization": f"Bearer {token}"}
+    ).json()
+    assert profile["is_firebase_linked"] is True
+    assert profile["auth_provider"] == "password"  # unchanged -- linking is additive
+
+
+async def test_relinking_same_identity_is_a_no_op(
+    client: TestClient, session: AsyncSession
+) -> None:
+    staff = await _create_staff_user(
+        session, email="relink@example.com", password="pw123456", role=UserRole.AGENCY
+    )
+    token = client.post(
+        "/v1/auth/login", json={"email": staff.email, "password": "pw123456"}
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with mock_firebase_verify(uid="uid-relink", email="relink@gmail.com"):
+        first = client.post(
+            "/v1/auth/link-firebase-identity", json={"id_token": "fake-token"}, headers=headers
+        )
+        second = client.post(
+            "/v1/auth/link-firebase-identity", json={"id_token": "fake-token"}, headers=headers
+        )
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+
+async def test_link_firebase_identity_rejects_identity_linked_elsewhere(
+    client: TestClient, session: AsyncSession
+) -> None:
+    other = await _create_staff_user(
+        session, email="other@example.com", password="pw123456", role=UserRole.AGENCY
+    )
+    other_token = client.post(
+        "/v1/auth/login", json={"email": other.email, "password": "pw123456"}
+    ).json()["access_token"]
+    with mock_firebase_verify(uid="uid-taken", email="taken@gmail.com"):
+        client.post(
+            "/v1/auth/link-firebase-identity",
+            json={"id_token": "fake-token"},
+            headers={"Authorization": f"Bearer {other_token}"},
+        )
+
+    mine = await _create_staff_user(
+        session, email="mine@example.com", password="pw123456", role=UserRole.AGENCY
+    )
+    my_token = client.post(
+        "/v1/auth/login", json={"email": mine.email, "password": "pw123456"}
+    ).json()["access_token"]
+    with mock_firebase_verify(uid="uid-taken", email="taken@gmail.com"):
+        response = client.post(
+            "/v1/auth/link-firebase-identity",
+            json={"id_token": "fake-token"},
+            headers={"Authorization": f"Bearer {my_token}"},
+        )
+    assert response.status_code == 409
+
+
+def test_link_firebase_identity_rejected_for_firebase_provider_account(
+    client: TestClient,
+) -> None:
+    signin = _firebase_signin(client, uid="uid-already-firebase", email="already@example.com")
+    headers = {"Authorization": f"Bearer {signin.json()['access_token']}"}
+
+    with mock_firebase_verify(uid="uid-second-identity", email="second@example.com"):
+        response = client.post(
+            "/v1/auth/link-firebase-identity", json={"id_token": "fake-token"}, headers=headers
+        )
+    assert response.status_code == 400
+
+
+async def test_unlink_firebase_identity_clears_link_but_keeps_password(
+    client: TestClient, session: AsyncSession
+) -> None:
+    staff = await _create_staff_user(
+        session, email="unlink@example.com", password="pw123456", role=UserRole.AGENCY
+    )
+    token = client.post(
+        "/v1/auth/login", json={"email": staff.email, "password": "pw123456"}
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with mock_firebase_verify(uid="uid-to-unlink", email="unlink@gmail.com"):
+        client.post(
+            "/v1/auth/link-firebase-identity", json={"id_token": "fake-token"}, headers=headers
+        )
+
+    unlink_response = client.delete("/v1/auth/link-firebase-identity", headers=headers)
+    assert unlink_response.status_code == 204
+
+    profile = client.get("/v1/user/profile", headers=headers).json()
+    assert profile["is_firebase_linked"] is False
+
+    # Password sign-in still works -- unlinking never touches password_hash.
+    login_again = client.post(
+        "/v1/auth/login", json={"email": staff.email, "password": "pw123456"}
+    )
+    assert login_again.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# FEAT-041: Admin Web Console "My Account" -- change password
+# ---------------------------------------------------------------------------
+
+
+async def test_change_password_succeeds_and_revokes_other_sessions(
+    client: TestClient, session: AsyncSession
+) -> None:
+    staff = await _create_staff_user(session, email="changepw@example.com", password="oldpass123")
+    login = client.post(
+        "/v1/auth/login", json={"email": staff.email, "password": "oldpass123"}
+    ).json()
+    access_token = login["access_token"]
+    old_refresh_token = login["refresh_token"]
+
+    response = client.post(
+        "/v1/auth/change-password",
+        json={"current_password": "oldpass123", "new_password": "newpass456"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert response.status_code == 204
+
+    # Old password no longer works; new one does.
+    assert client.post(
+        "/v1/auth/login", json={"email": staff.email, "password": "oldpass123"}
+    ).status_code == 401
+    assert client.post(
+        "/v1/auth/login", json={"email": staff.email, "password": "newpass456"}
+    ).status_code == 200
+
+    # The refresh token issued before the password change is revoked.
+    refresh_response = client.post(
+        "/v1/auth/refresh", json={"refresh_token": old_refresh_token}
+    )
+    assert refresh_response.status_code == 401
+
+
+async def test_change_password_rejects_wrong_current_password(
+    client: TestClient, session: AsyncSession
+) -> None:
+    staff = await _create_staff_user(session, email="wrongpw@example.com", password="realpass123")
+    token = client.post(
+        "/v1/auth/login", json={"email": staff.email, "password": "realpass123"}
+    ).json()["access_token"]
+
+    response = client.post(
+        "/v1/auth/change-password",
+        json={"current_password": "notright", "new_password": "newpass456"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 401
+
+
+def test_change_password_rejected_for_firebase_provider_account(client: TestClient) -> None:
+    signin = _firebase_signin(client, uid="uid-no-password", email="nopassword@example.com")
+    headers = {"Authorization": f"Bearer {signin.json()['access_token']}"}
+
+    response = client.post(
+        "/v1/auth/change-password",
+        json={"current_password": "whatever", "new_password": "newpass456"},
+        headers=headers,
+    )
+    assert response.status_code == 400

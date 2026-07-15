@@ -10,9 +10,12 @@ from datetime import date
 
 import pytest
 
+from app.models.host_account import HostAccount
+from app.models.listing import Listing
 from app.services.listing_service import (
     dates_overlap,
     derive_status_for_new_listing,
+    listing_to_dict,
     make_location_point_wkt,
 )
 
@@ -36,6 +39,48 @@ class TestMakeLocationPointWkt:
     def test_produces_srid_4326_point_lng_lat_order(self) -> None:
         wkt = make_location_point_wkt(latitude=6.5244, longitude=3.3792)
         assert wkt == "SRID=4326;POINT(3.3792 6.5244)"
+
+
+class TestListingToDictHostFields:
+    """FEAT-042: Listing Detail's Host Profile card / Admin Chat Oversight
+    property context both need the owning host's bio/photo/type from
+    GET /listings/:id -- these fields don't touch the DB (in-memory model
+    instances only), so they're covered here rather than in an
+    integration test the PostGIS-only `listings` table can't run under
+    SQLite (see conftest.py's `_sqlite_safe_tables`)."""
+
+    def _listing(self) -> Listing:
+        return Listing(
+            host_account_id="host-1",
+            listing_type="shortlet",
+            title="Test Listing",
+            description="A place to stay.",
+            location_latitude=6.5,
+            location_longitude=3.3,
+            location_address_line="1 Test Close",
+            location_city="Lagos",
+            location_state="Lagos",
+        )
+
+    def test_includes_host_bio_photo_and_type_when_host_account_given(self) -> None:
+        host_account = HostAccount(
+            user_id="user-1",
+            host_type="owner",
+            host_photo_url="https://example.com/host.jpg",
+            bio="A friendly, verified host.",
+        )
+        out = listing_to_dict(self._listing(), images=[], host_account=host_account)
+        assert out["host_bio"] == "A friendly, verified host."
+        assert out["host_photo_url"] == "https://example.com/host.jpg"
+        assert out["host_type"] == "owner"
+
+    def test_host_fields_are_none_when_host_account_omitted(self) -> None:
+        """Defensive default -- shouldn't occur for a live listing (a
+        HostAccount is required to create one), but must never crash."""
+        out = listing_to_dict(self._listing(), images=[])
+        assert out["host_bio"] is None
+        assert out["host_photo_url"] is None
+        assert out["host_type"] is None
 
 
 class TestDatesOverlap:

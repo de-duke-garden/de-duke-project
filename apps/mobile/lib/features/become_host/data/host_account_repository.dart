@@ -94,4 +94,19 @@ class HostAccountRepository {
           _errorMessage(e, 'Could not submit your application.'));
     }
   }
+
+  /// FEAT-042 -- Host Dashboard's Edit Bio bottom sheet. Bio-only, no
+  /// photo/document resubmission; the backend blocks this (403) while the
+  /// most recent submission is `in_review`.
+  Future<HostAccountStatus> updateBio(String bio) async {
+    try {
+      final response = await _apiClient.dio.patch(
+        '/v1/host-accounts/me',
+        data: {'bio': bio},
+      );
+      return HostAccountStatus.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw HostAccountException(_errorMessage(e, 'Could not save your bio.'));
+    }
+  }
 }

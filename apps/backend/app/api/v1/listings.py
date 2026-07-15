@@ -103,12 +103,23 @@ async def _load_listing_bundle(session: AsyncSession, listing_id: str) -> dict:
             )
         ).scalar_one_or_none()
 
+    # FEAT-042: Host Profile card (mobile Listing Detail) + Admin Web
+    # Console Chat Oversight property context both need the owning host's
+    # bio/photo/type -- fetched here, once, alongside everything else this
+    # bundle already assembles.
+    host_account = (
+        await session.execute(
+            select(HostAccount).where(HostAccount.id == listing.host_account_id)
+        )
+    ).scalar_one_or_none()
+
     return listing_to_dict(
         listing,
         images,
         commercial=commercial,
         commercial_rooms=commercial_rooms,
         shortlet=shortlet,
+        host_account=host_account,
     )
 
 

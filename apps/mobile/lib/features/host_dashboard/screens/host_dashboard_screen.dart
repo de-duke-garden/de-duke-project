@@ -56,6 +56,33 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
     _load();
   }
 
+  /// FEAT-042 -- the verification badge/link opens the Edit Bio sheet for
+  /// a `verified`/`rejected` host (quick bio-only edit, independent of the
+  /// full resubmission flow), or routes to the existing Screen 3a status
+  /// view for `in_review` (bio not editable while a submission is
+  /// actively under review) -- unchanged behavior for that case.
+  void _handleVerificationBadgeTap() {
+    final status = _verification?.status;
+    if (status == 'verified' || status == 'rejected') {
+      _openEditBioSheet();
+    } else {
+      context.pushNamed(RouteNames.verification);
+    }
+  }
+
+  Future<void> _openEditBioSheet() async {
+    final updated = await showModalBottomSheet<HostAccountStatus>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _EditBioSheet(
+        initialBio: _verification?.bio ?? '',
+        repository: widget.hostAccountRepository,
+      ),
+    );
+    if (updated == null || !mounted) return;
+    setState(() => _verification = updated);
+  }
+
   Future<void> _load() async {
     setState(() => _state = _ScreenState.loading);
     try {
@@ -78,7 +105,8 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
       });
     } on HostDashboardException catch (e) {
       if (!mounted) return;
-      setState(() => _state = e.message == 'offline' ? _ScreenState.offline : _ScreenState.error);
+      setState(() => _state =
+          e.message == 'offline' ? _ScreenState.offline : _ScreenState.error);
     } catch (_) {
       if (!mounted) return;
       setState(() => _state = _ScreenState.error);
@@ -92,7 +120,8 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
         // Consistent tab-root AppBar treatment (mark + label) across Home,
         // Chat, Dashboard, Profile -- see TabAppBarTitle.
         title: const TabAppBarTitle('My Listings'),
-        automaticallyImplyLeading: false, // tab root (core/routing/app_shell.dart)
+        automaticallyImplyLeading:
+            false, // tab root (core/routing/app_shell.dart)
         actions: [
           if (_verification != null)
             Padding(
@@ -101,8 +130,10 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
                 child: BadgePop(
                   triggerKey: _verification!.status,
                   child: TextButton(
-                    onPressed: () => context.pushNamed(RouteNames.verification),
-                    child: Text(_verification!.status == 'verified' ? 'Verified Host' : 'Verify'),
+                    onPressed: _handleVerificationBadgeTap,
+                    child: Text(_verification!.status == 'verified'
+                        ? 'Verified Host'
+                        : 'Verify'),
                   ),
                 ),
               ),
@@ -169,13 +200,17 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
           children: [
             MaterialBanner(
               content: const Text("You're offline."),
-              actions: [TextButton(onPressed: _load, child: const Text('Retry'))],
+              actions: [
+                TextButton(onPressed: _load, child: const Text('Retry'))
+              ],
             ),
-            if (_listings.isNotEmpty) Expanded(child: _buildListingList(context)),
+            if (_listings.isNotEmpty)
+              Expanded(child: _buildListingList(context)),
           ],
         );
       case _ScreenState.loaded:
-        return RefreshIndicator(onRefresh: _load, child: _buildListingList(context));
+        return RefreshIndicator(
+            onRefresh: _load, child: _buildListingList(context));
     }
   }
 
@@ -242,11 +277,27 @@ class _StatusBadge extends StatelessWidget {
 
   ({Color color, IconData icon, String label}) _spec() {
     return switch (status) {
-      'active' => (color: AppColors.success, icon: Icons.check_circle, label: 'Active'),
+      'active' => (
+          color: AppColors.success,
+          icon: Icons.check_circle,
+          label: 'Active'
+        ),
       'banned' => (color: AppColors.error, icon: Icons.block, label: 'Banned'),
-      'under_review' => (color: AppColors.warning, icon: Icons.hourglass_top, label: 'Under Review'),
-      'unpublished' => (color: AppColors.warning, icon: Icons.visibility_off, label: 'Unpublished'),
-      'closed' => (color: AppColors.warning, icon: Icons.lock_outline, label: 'Closed'),
+      'under_review' => (
+          color: AppColors.warning,
+          icon: Icons.hourglass_top,
+          label: 'Under Review'
+        ),
+      'unpublished' => (
+          color: AppColors.warning,
+          icon: Icons.visibility_off,
+          label: 'Unpublished'
+        ),
+      'closed' => (
+          color: AppColors.warning,
+          icon: Icons.lock_outline,
+          label: 'Closed'
+        ),
       _ => (color: AppColors.warning, icon: Icons.info_outline, label: status),
     };
   }
@@ -257,7 +308,8 @@ class _StatusBadge extends StatelessWidget {
     return BadgePop(
       triggerKey: status,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+        padding:
+            const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
         decoration: BoxDecoration(
           color: spec.color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(AppRadii.full),
@@ -287,7 +339,8 @@ class _ListingStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       child: TapScale(
         onTap: onTap,
         child: _DashboardCard(
@@ -315,12 +368,14 @@ class _ListingStatusCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      if (listing.status == 'banned' && listing.statusReason != null)
+                      if (listing.status == 'banned' &&
+                          listing.statusReason != null)
                         Padding(
                           padding: const EdgeInsets.only(top: AppSpacing.xs),
                           child: Text(
                             listing.statusReason!,
-                            style: AppTypography.bodySmall.copyWith(color: AppColors.error),
+                            style: AppTypography.bodySmall
+                                .copyWith(color: AppColors.error),
                           ),
                         ),
                       if (listing.isStale)
@@ -331,12 +386,14 @@ class _ListingStatusCard extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.warning),
+                                const Icon(Icons.warning_amber_rounded,
+                                    size: 14, color: AppColors.warning),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     'No activity yet — consider updating photos or price',
-                                    style: AppTypography.bodySmall.copyWith(color: AppColors.warning),
+                                    style: AppTypography.bodySmall
+                                        .copyWith(color: AppColors.warning),
                                   ),
                                 ),
                               ],
@@ -355,6 +412,103 @@ class _ListingStatusCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// FEAT-042 -- the verification badge/link's Edit Bio bottom sheet for a
+/// `verified`/`rejected` host: a single `TextField` pre-filled with the
+/// current bio and a Save button, independent of the full Become a Host
+/// resubmission flow. Pops with the updated `HostAccountStatus` on
+/// success so the caller can refresh its own state.
+class _EditBioSheet extends StatefulWidget {
+  const _EditBioSheet({required this.initialBio, required this.repository});
+
+  final String initialBio;
+  final HostAccountRepository repository;
+
+  @override
+  State<_EditBioSheet> createState() => _EditBioSheetState();
+}
+
+class _EditBioSheetState extends State<_EditBioSheet> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialBio);
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  bool get _canSave =>
+      !_submitting &&
+      _controller.text.trim().isNotEmpty &&
+      _controller.text.trim() != widget.initialBio;
+
+  Future<void> _save() async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final updated =
+          await widget.repository.updateBio(_controller.text.trim());
+      if (!mounted) return;
+      Navigator.of(context).pop(updated);
+    } on HostAccountException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = e.message == 'offline'
+            ? "You're offline. Check your connection and try again."
+            : e.message;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: AppSpacing.md,
+        right: AppSpacing.md,
+        top: AppSpacing.md,
+        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Edit bio', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Text(_error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
+          TextField(
+            controller: _controller,
+            maxLines: 4,
+            enabled: !_submitting,
+            decoration: const InputDecoration(labelText: 'Bio'),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ElevatedButton(
+            onPressed: _canSave ? _save : null,
+            child: _submitting
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Save'),
+          ),
+        ],
       ),
     );
   }

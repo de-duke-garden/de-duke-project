@@ -1,14 +1,14 @@
 /// screens.md Screen 21: Account Settings.
 ///
-/// Profile fields (name/contact) are shown read-only -- schema.md/features.md
-/// do not define a GET/PATCH /user/profile endpoint anywhere in this
-/// codebase, so this screen does not fabricate an editable field that
-/// would silently no-op. Push (FEAT-022, GET/PATCH
-/// /v1/notifications/preferences) and email (FEAT-024, GET/PATCH
-/// /v1/auth/me/notification-preferences) notification preferences are both
-/// real now -- previously a single disabled "Coming soon" placeholder
-/// covering both. Log Out and Request Account Deletion are fully wired to
-/// real backend endpoints (FEAT-001, FEAT-030).
+/// Profile fields (FEAT-041, GET/PATCH /v1/user/profile): `fullName` is
+/// editable regardless of `authProvider`; `email`/`phoneNumber` are
+/// read-only for `firebase`-provider accounts (owned by Google/Firebase,
+/// per schema.md), `email` is additionally editable for `password`-
+/// provider accounts (agency team members, Staff/Admin). Security section
+/// (FEAT-040, Linked Sign-In Methods) lets a `password`-provider account
+/// attach/remove a Firebase-based sign-in path. Push (FEAT-022) and email
+/// (FEAT-024) notification preferences, Log Out, and Request Account
+/// Deletion (FEAT-030) are all real, wired to their respective endpoints.
 library;
 
 import 'package:flutter/material.dart';
@@ -23,6 +23,7 @@ import '../../../core/widgets/de_duke_logo.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../push_notifications/data/push_notification_repository.dart';
 import '../data/account_deletion_repository.dart';
+import 'link_sign_in_sheet.dart';
 
 enum _ScreenState { loading, loaded, error, offline }
 
@@ -45,8 +46,10 @@ class AccountSettingsScreen extends StatefulWidget {
 class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   _ScreenState _state = _ScreenState.loading;
   CurrentUser? _user;
+  UserProfile? _profile;
   String? _errorMessage;
   bool _actionInFlight = false;
+  bool _linkActionInFlight = false;
   Map<String, bool>? _pushPreferences;
   Map<String, bool>? _emailPreferences;
   // Screen 21 Modernization Notes: the "Saving" state's inline checkmark
@@ -66,6 +69,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     setState(() => _state = _ScreenState.loading);
     try {
       final user = await widget.authRepository.getCurrentUser();
+      final profile = await widget.authRepository.getProfile();
       // Best-effort, separate from the critical profile fetch above --
       // both preference sections are secondary to this screen's core
       // purpose, so a failure in either shouldn't block the rest of
@@ -73,7 +77,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       // a disabled state, per _buildLoaded below).
       Map<String, bool>? pushPreferences;
       try {
-        pushPreferences = await widget.pushNotificationRepository.getPreferences();
+        pushPreferences =
+            await widget.pushNotificationRepository.getPreferences();
       } catch (_) {
         pushPreferences = null;
       }
@@ -86,6 +91,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       if (!mounted) return;
       setState(() {
         _user = user;
+        _profile = profile;
         _pushPreferences = pushPreferences;
         _emailPreferences = emailPreferences;
         _state = _ScreenState.loaded;
@@ -109,8 +115,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     // same UX pattern as a toggle switch anywhere else in this app.
     setState(() => _pushPreferences = {...?_pushPreferences, category: value});
     try {
-      final updated =
-          await widget.pushNotificationRepository.updatePreferences({category: value});
+      final updated = await widget.pushNotificationRepository
+          .updatePreferences({category: value});
       if (!mounted) return;
       setState(() => _pushPreferences = updated);
       _flashSaved('push:$category');
@@ -125,9 +131,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
   Future<void> _toggleEmailPreference(String category, bool value) async {
     final previous = _emailPreferences;
-    setState(() => _emailPreferences = {...?_emailPreferences, category: value});
+    setState(
+        () => _emailPreferences = {...?_emailPreferences, category: value});
     try {
-      final updated = await widget.authRepository.updateEmailPreferences({category: value});
+      final updated =
+          await widget.authRepository.updateEmailPreferences({category: value});
       if (!mounted) return;
       setState(() => _emailPreferences = updated);
       _flashSaved('email:$category');
@@ -146,6 +154,123 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       if (!mounted || _justSavedKey != key) return;
       setState(() => _justSavedKey = null);
     });
+  }
+
+  /// FEAT-041 -- `fullName` is editable regardless of `authProvider`. A
+  /// simple text-entry dialog rather than an inline field: this screen's
+  /// other rows are read-only display/toggle, so a dialog keeps the edit
+  /// affordance unambiguous rather than making every ListTile look tappable.
+  Future<void> _editFullName() async {
+    final controller = TextEditingController(text: _profile?.fullName ?? '');
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit name'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Full name'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (newName == null || newName.isEmpty || newName == _profile?.fullName) {
+      return;
+    }
+    await _saveProfile(fullName: newName);
+  }
+
+  /// FEAT-041 -- `email` is editable only for `password`-provider accounts
+  /// (agency team members, Staff/Admin); the backend also rejects this
+  /// server-side for `firebase`-provider accounts regardless of what's
+  /// sent, but this screen doesn't even offer the affordance for them.
+  Future<void> _editEmail() async {
+    final controller = TextEditingController(text: _profile?.email ?? '');
+    final newEmail = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit email'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Email'),
+          keyboardType: TextInputType.emailAddress,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (newEmail == null || newEmail.isEmpty || newEmail == _profile?.email) {
+      return;
+    }
+    await _saveProfile(email: newEmail);
+  }
+
+  Future<void> _saveProfile({String? fullName, String? email}) async {
+    try {
+      final updated = await widget.authRepository
+          .updateProfile(fullName: fullName, email: email);
+      if (!mounted) return;
+      setState(() => _profile = updated);
+      _flashSaved('profile:${fullName != null ? 'name' : 'email'}');
+    } catch (e) {
+      if (!mounted) return;
+      final message =
+          e is AuthException ? e.message : "Couldn't save that -- try again.";
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  /// FEAT-040 -- opens the inline Google/Phone/Email flow (same methods
+  /// as Screen 1), then re-fetches the profile so the row reflects the
+  /// new linked state.
+  Future<void> _linkSignInMethod() async {
+    final linked =
+        await showLinkSignInSheet(context, repository: widget.authRepository);
+    if (linked != true || !mounted) return;
+    try {
+      final updated = await widget.authRepository.getProfile();
+      if (!mounted) return;
+      setState(() => _profile = updated);
+    } catch (_) {
+      // Best-effort refresh -- the link itself already succeeded.
+    }
+  }
+
+  Future<void> _unlinkSignInMethod() async {
+    setState(() => _linkActionInFlight = true);
+    try {
+      await widget.authRepository.unlinkFirebaseIdentity();
+      final updated = await widget.authRepository.getProfile();
+      if (!mounted) return;
+      setState(() {
+        _profile = updated;
+        _linkActionInFlight = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _linkActionInFlight = false);
+      final message =
+          e is AuthException ? e.message : "Couldn't unlink -- try again.";
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   Future<void> _confirmLogout() async {
@@ -205,9 +330,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       await widget.authRepository.logout();
       if (!mounted) return;
       context.goNamed(
-      RouteNames.auth,
-      queryParameters: const {'mode': 'login'},
-    );
+        RouteNames.auth,
+        queryParameters: const {'mode': 'login'},
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -262,7 +387,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         // Consistent tab-root AppBar treatment (mark + label) across Home,
         // Chat, Dashboard, Profile -- see TabAppBarTitle.
         title: const TabAppBarTitle('Settings'),
-        automaticallyImplyLeading: false, // tab root (core/routing/app_shell.dart)
+        automaticallyImplyLeading:
+            false, // tab root (core/routing/app_shell.dart)
       ),
       body: switch (_state) {
         _ScreenState.loading => const _SkeletonList(),
@@ -280,6 +406,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
   Widget _buildLoaded(BuildContext context) {
     final user = _user!;
+    final profile = _profile;
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
@@ -287,17 +414,59 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         Card(
           child: Column(
             children: [
+              // fullName -- editable regardless of authProvider (FEAT-041).
               ListTile(
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(user.fullName)),
+                leading: const Icon(Icons.person_outline),
+                title: Text(profile?.fullName ?? user.fullName),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedOpacity(
+                      opacity: _justSavedKey == 'profile:name' ? 1 : 0,
+                      duration: AppDurations.fast,
+                      child: const Icon(Icons.check_circle,
+                          size: 18, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    const Icon(Icons.edit_outlined, size: 18),
+                  ],
+                ),
+                onTap: _editFullName,
+              ),
+              // email -- read-only for firebase-provider accounts (owned
+              // by Google/Firebase), editable for password-provider ones.
               if (user.email != null)
                 ListTile(
-                    leading: const Icon(Icons.email_outlined),
-                    title: Text(user.email!)),
+                  leading: const Icon(Icons.email_outlined),
+                  title: Text(user.email!),
+                  subtitle: profile?.isFirebaseProvider == true
+                      ? const Text('Managed by Google/Firebase')
+                      : null,
+                  trailing: profile?.isPasswordProvider == true
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AnimatedOpacity(
+                              opacity: _justSavedKey == 'profile:email' ? 1 : 0,
+                              duration: AppDurations.fast,
+                              child: const Icon(Icons.check_circle,
+                                  size: 18, color: AppColors.primary),
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            const Icon(Icons.edit_outlined, size: 18),
+                          ],
+                        )
+                      : null,
+                  onTap:
+                      profile?.isPasswordProvider == true ? _editEmail : null,
+                ),
               if (user.phoneNumber != null)
                 ListTile(
                     leading: const Icon(Icons.phone_outlined),
-                    title: Text(user.phoneNumber!)),
+                    title: Text(user.phoneNumber!),
+                    subtitle: profile?.isFirebaseProvider == true
+                        ? const Text('Managed by Google/Firebase')
+                        : null),
               if (user.isVerifiedHost)
                 const ListTile(
                   leading: Icon(Icons.verified, color: Colors.green),
@@ -307,6 +476,47 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
+        // FEAT-040 -- Linked Sign-In Methods. Only shown for
+        // password-provider accounts (agency team members, Staff/Admin) --
+        // a firebase-provider account has no password-provider row to
+        // reconcile, so linking doesn't apply to it.
+        if (profile?.isPasswordProvider == true) ...[
+          _SectionHeader('Security'),
+          Card(
+            child: AnimatedSize(
+              duration: AppDurations.fast,
+              curve: AppCurves.easeOutSmooth,
+              child: BadgePop(
+                triggerKey: profile!.isFirebaseLinked,
+                child: ListTile(
+                  key: ValueKey('linked-${profile.isFirebaseLinked}'),
+                  leading: Icon(
+                      profile.isFirebaseLinked ? Icons.link : Icons.link_off),
+                  title: const Text('Linked sign-in methods'),
+                  subtitle: Text(_linkActionInFlight
+                      ? (profile.isFirebaseLinked
+                          ? 'Unlinking...'
+                          : 'Linking...')
+                      : (profile.isFirebaseLinked ? 'Linked' : 'Not linked')),
+                  trailing: _linkActionInFlight
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : TextButton(
+                          onPressed: profile.isFirebaseLinked
+                              ? _unlinkSignInMethod
+                              : _linkSignInMethod,
+                          child: Text(profile.isFirebaseLinked
+                              ? 'Unlink'
+                              : 'Link a sign-in method'),
+                        ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
         _SectionHeader('Role'),
         Card(
           child: Column(
@@ -314,12 +524,14 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               ListTile(
                 leading: const Icon(Icons.badge_outlined),
                 title: Text(_roleLabel(user.role)),
-                trailing: (user.role == 'individual_host' || user.role == 'agency')
-                    ? TextButton(
-                        onPressed: () => context.pushNamed(RouteNames.verification),
-                        child: const Text('Verification status'),
-                      )
-                    : null,
+                trailing:
+                    (user.role == 'individual_host' || user.role == 'agency')
+                        ? TextButton(
+                            onPressed: () =>
+                                context.pushNamed(RouteNames.verification),
+                            child: const Text('Verification status'),
+                          )
+                        : null,
               ),
               // FEAT-003 AC: "Role can be changed later in account
               // settings." Reuses RoleSelectionScreen -- its Data Flow's
@@ -365,8 +577,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                         subtitle: 'Listing status changes',
                         value: _pushPreferences!['listings'] ?? true,
                         justSaved: _justSavedKey == 'push:listings',
-                        onChanged: (v) =>
-                            _togglePushPreference('listings', v),
+                        onChanged: (v) => _togglePushPreference('listings', v),
                       ),
                       _PreferenceSwitchRow(
                         icon: Icons.chat_bubble_outline,
@@ -382,8 +593,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                         subtitle: 'Bookings and payment confirmations',
                         value: _pushPreferences!['payments'] ?? true,
                         justSaved: _justSavedKey == 'push:payments',
-                        onChanged: (v) =>
-                            _togglePushPreference('payments', v),
+                        onChanged: (v) => _togglePushPreference('payments', v),
                       ),
                     ],
                   ),
@@ -418,8 +628,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                             'Welcome, password reset, deletion confirmation',
                         value: _emailPreferences!['account'] ?? true,
                         justSaved: _justSavedKey == 'email:account',
-                        onChanged: (v) =>
-                            _toggleEmailPreference('account', v),
+                        onChanged: (v) => _toggleEmailPreference('account', v),
                       ),
                       _PreferenceSwitchRow(
                         icon: Icons.verified_outlined,
@@ -433,12 +642,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                       _PreferenceSwitchRow(
                         icon: Icons.payments_outlined,
                         title: 'Payments',
-                        subtitle:
-                            'Booking, payment, and payout confirmations',
+                        subtitle: 'Booking, payment, and payout confirmations',
                         value: _emailPreferences!['payments'] ?? true,
                         justSaved: _justSavedKey == 'email:payments',
-                        onChanged: (v) =>
-                            _toggleEmailPreference('payments', v),
+                        onChanged: (v) => _toggleEmailPreference('payments', v),
                       ),
                     ],
                   ),
@@ -558,8 +765,7 @@ class _PreferenceSwitchRow extends StatelessWidget {
           AnimatedOpacity(
             opacity: justSaved ? 1 : 0,
             duration: AppDurations.fast,
-            child: Icon(Icons.check_circle,
-                size: 18, color: AppColors.primary),
+            child: Icon(Icons.check_circle, size: 18, color: AppColors.primary),
           ),
           const SizedBox(width: AppSpacing.xs),
           BadgePop(

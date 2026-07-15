@@ -25,10 +25,14 @@ from app.api.v1 import (
     staff_accounts,
     support,
     transactions,
+    user,
 )
 
 router = APIRouter(prefix="/v1")
 router.include_router(auth.router, prefix="/auth", tags=["auth"])
+# FEAT-041 -- separate /user prefix (not /auth/me) matching screens.md
+# Screen 21's long-documented GET/PATCH /user/profile contract.
+router.include_router(user.router, prefix="/user", tags=["user"])
 router.include_router(host_accounts.router, prefix="/host-accounts", tags=["host-accounts"])
 router.include_router(
     account_deletion.router, prefix="/account-deletion", tags=["account-deletion"]

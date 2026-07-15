@@ -4,12 +4,13 @@
 /// Service's /v1/auth session endpoints. Screens depend on this, never on
 /// FirebaseAuth/GoogleSignIn/Dio directly.
 ///
-/// Every sign-in method funnels through `_exchangeFirebaseUser`,
-/// which is the ONLY place that ever calls the backend for consumer
-/// auth (POST /v1/auth/firebase-exchange) -- see architecture.md's
-/// Authentication & Authorization: the Firebase ID token is a one-time
-/// credential-collection proof, exchanged immediately for a backend-issued
-/// session token, never used as the app's ongoing session credential
+/// Every sign-in AND account-linking method funnels through
+/// `_completeFirebaseFlow`, which is the ONLY place that ever calls the
+/// backend with a Firebase ID token (POST /v1/auth/firebase-exchange for
+/// sign-in, POST /v1/auth/link-firebase-identity for linking an existing
+/// session, FEAT-040) -- see architecture.md's Authentication &
+/// Authorization: the Firebase ID token is a one-time credential-
+/// collection proof, never used as the app's ongoing session credential
 /// itself.
 library;
 
@@ -41,9 +42,10 @@ class AuthResult {
   final bool isNewUser;
 }
 
-/// GET /v1/auth/me -- current user's identity, for screens (e.g. Account
-/// Settings) that need to display profile info without a dedicated
-/// GET /user/profile endpoint (not yet built).
+/// GET /v1/auth/me -- current user's identity, for role/verification
+/// checks (e.g. the app shell's bottom-nav tab selection). Distinct from
+/// [UserProfile] below (GET/PATCH /v1/user/profile, FEAT-041), which is
+/// Account Settings' own profile-editing data source.
 class CurrentUser {
   const CurrentUser({
     required this.userId,
@@ -71,6 +73,42 @@ class CurrentUser {
         phoneNumber: json['phone_number'] as String?,
         isVerifiedHost: json['is_verified_host'] as bool,
         isActive: json['is_active'] as bool,
+      );
+}
+
+/// GET/PATCH /v1/user/profile -- FEAT-041 (Self-Service Profile Editing).
+/// Carries `authProvider`/`isFirebaseLinked` too, which Account Settings
+/// needs to decide which fields are editable (FEAT-041) and what the
+/// Linked Sign-In Methods section shows (FEAT-040).
+class UserProfile {
+  const UserProfile({
+    required this.userId,
+    required this.fullName,
+    required this.email,
+    required this.phoneNumber,
+    required this.authProvider,
+    required this.isFirebaseLinked,
+  });
+
+  final String userId;
+  final String fullName;
+  final String? email;
+  final String? phoneNumber;
+
+  /// "firebase" | "password" -- see schema.md's User.authProvider.
+  final String authProvider;
+  final bool isFirebaseLinked;
+
+  bool get isFirebaseProvider => authProvider == 'firebase';
+  bool get isPasswordProvider => authProvider == 'password';
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
+        userId: json['user_id'] as String,
+        fullName: json['full_name'] as String,
+        email: json['email'] as String?,
+        phoneNumber: json['phone_number'] as String?,
+        authProvider: json['auth_provider'] as String,
+        isFirebaseLinked: json['is_firebase_linked'] as bool,
       );
 }
 
@@ -162,12 +200,18 @@ class AuthRepository {
 
   /// The single entry point for every consumer sign-in method below --
   /// takes the already-signed-in Firebase `User`, fetches its ID token,
-  /// and exchanges it with the Backend API Service for a De-Duke session
-  /// (see this file's module docstring). Split out from `UserCredential`
-  /// (rather than each caller passing the credential object) specifically
-  /// so `retryPendingExchange` below can re-invoke this same logic against
+  /// and either exchanges it for a NEW De-Duke session
+  /// (`linking: false`, `POST /v1/auth/firebase-exchange`) or attaches it
+  /// to the CALLER'S EXISTING session (`linking: true`,
+  /// `POST /v1/auth/link-firebase-identity`, FEAT-040) -- see this file's
+  /// module docstring. Split out from `UserCredential` (rather than each
+  /// caller passing the credential object) specifically so
+  /// `retryPendingExchange` below can re-invoke this same logic against
   /// `_firebaseAuth.currentUser` without needing a fresh `UserCredential`.
-  Future<AuthResult> _exchangeFirebaseUser(fb_auth.User? user) async {
+  Future<AuthResult> _completeFirebaseFlow(
+    fb_auth.User? user, {
+    bool linking = false,
+  }) async {
     final idToken = await user?.getIdToken();
     if (idToken == null) {
       throw AuthException(
@@ -175,10 +219,22 @@ class AuthRepository {
     }
     try {
       final response = await _apiClient.dio.post(
-        '/v1/auth/firebase-exchange',
+        linking
+            ? '/v1/auth/link-firebase-identity'
+            : '/v1/auth/firebase-exchange',
         data: {'id_token': idToken},
       );
       final body = response.data as Map<String, dynamic>;
+      if (linking) {
+        // link-firebase-identity attaches to the caller's EXISTING
+        // session (CurrentUserResponse shape -- no tokens to persist,
+        // unlike firebase-exchange's AuthTokenResponse).
+        return AuthResult(
+          userId: body['user_id'] as String,
+          role: body['role'] as String,
+          isVerifiedHost: body['is_verified_host'] as bool,
+        );
+      }
       await _persistSession(body);
       return AuthResult(
         userId: body['user_id'] as String,
@@ -193,7 +249,9 @@ class AuthRepository {
           e,
           deactivated
               ? 'This account has been deactivated. Contact support.'
-              : 'Your sign-in could not be verified. Please try again.',
+              : linking
+                  ? 'Could not link that sign-in method. Please try again.'
+                  : 'Your sign-in could not be verified. Please try again.',
         ),
         isAccountDeactivated: deactivated,
       );
@@ -203,7 +261,14 @@ class AuthRepository {
   /// Screen 1 "Continue with Google" -- hands off to the native system
   /// account picker (not an in-app form), then exchanges the resulting
   /// Firebase ID token for a De-Duke session.
-  Future<AuthResult> signInWithGoogle() async {
+  Future<AuthResult> signInWithGoogle() => _signInWithGoogle(linking: false);
+
+  /// Screen 21 "Link a sign-in method" -> Google (FEAT-040) -- identical
+  /// Google sign-in flow, but attaches the result to the caller's
+  /// EXISTING session instead of starting a new one.
+  Future<AuthResult> linkGoogleIdentity() => _signInWithGoogle(linking: true);
+
+  Future<AuthResult> _signInWithGoogle({required bool linking}) async {
     final googleUser = await _googleSignIn.signIn();
     if (googleUser == null) {
       // User dismissed the picker -- screens.md's Edge Cases: this is not
@@ -218,7 +283,7 @@ class AuthRepository {
       );
       final userCredential =
           await _firebaseAuth.signInWithCredential(credential);
-      return await _exchangeFirebaseUser(userCredential.user);
+      return await _completeFirebaseFlow(userCredential.user, linking: linking);
     } on fb_auth.FirebaseAuthException catch (e) {
       throw AuthException(_firebaseErrorMessage(e));
     }
@@ -238,7 +303,7 @@ class AuthRepository {
   Future<AuthResult?> retryPendingExchange() async {
     final user = _firebaseAuth.currentUser;
     if (user == null) return null;
-    return _exchangeFirebaseUser(user);
+    return _completeFirebaseFlow(user);
   }
 
   /// Screen 1 Email method. Firebase itself resolves whether `email` is a
@@ -249,6 +314,20 @@ class AuthRepository {
   Future<AuthResult> signInOrRegisterWithEmail({
     required String email,
     required String password,
+  }) =>
+      _emailFlow(email: email, password: password, linking: false);
+
+  /// Screen 21 "Link a sign-in method" -> Email/Password (FEAT-040).
+  Future<AuthResult> linkEmailIdentity({
+    required String email,
+    required String password,
+  }) =>
+      _emailFlow(email: email, password: password, linking: true);
+
+  Future<AuthResult> _emailFlow({
+    required String email,
+    required String password,
+    required bool linking,
   }) async {
     try {
       fb_auth.UserCredential credential;
@@ -267,7 +346,7 @@ class AuthRepository {
           rethrow;
         }
       }
-      return await _exchangeFirebaseUser(credential.user);
+      return await _completeFirebaseFlow(credential.user, linking: linking);
     } on fb_auth.FirebaseAuthException catch (e) {
       throw AuthException(_firebaseErrorMessage(e));
     }
@@ -298,11 +377,16 @@ class AuthRepository {
   ///     success.
   ///   - `onFailed`: e.g. invalid-phone-number, before any code was even
   ///     sent.
+  /// `linking: true` for Screen 21's "Link a sign-in method" -> Phone
+  /// (FEAT-040) -- same live Firebase phone verification, but the eventual
+  /// `verifyPhoneCode`/auto-verified result attaches to the caller's
+  /// EXISTING session instead of starting a new one.
   Future<void> requestPhoneCode({
     required String phoneNumber,
     required void Function(String verificationId) onCodeSent,
     required void Function(AuthResult result) onAutoVerified,
     required void Function(AuthException error) onFailed,
+    bool linking = false,
   }) async {
     await _firebaseAuth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
@@ -311,7 +395,8 @@ class AuthRepository {
         try {
           final userCredential =
               await _firebaseAuth.signInWithCredential(credential);
-          onAutoVerified(await _exchangeFirebaseUser(userCredential.user));
+          onAutoVerified(await _completeFirebaseFlow(userCredential.user,
+              linking: linking));
         } on AuthException catch (e) {
           onFailed(e);
         } catch (_) {
@@ -326,10 +411,12 @@ class AuthRepository {
   }
 
   /// Screen 1 Phone method, step 2 -- the user's manually entered 6-digit
-  /// code for the `verificationId` `requestPhoneCode` handed back.
+  /// code for the `verificationId` `requestPhoneCode` handed back. Pass
+  /// the same `linking` value used on the matching `requestPhoneCode` call.
   Future<AuthResult> verifyPhoneCode({
     required String verificationId,
     required String smsCode,
+    bool linking = false,
   }) async {
     try {
       final credential = fb_auth.PhoneAuthProvider.credential(
@@ -338,9 +425,20 @@ class AuthRepository {
       );
       final userCredential =
           await _firebaseAuth.signInWithCredential(credential);
-      return await _exchangeFirebaseUser(userCredential.user);
+      return await _completeFirebaseFlow(userCredential.user, linking: linking);
     } on fb_auth.FirebaseAuthException catch (e) {
       throw AuthException(_firebaseErrorMessage(e));
+    }
+  }
+
+  /// FEAT-040 -- Screen 21's "Unlink" action. Clears `firebaseUid` only;
+  /// the account's password remains fully functional.
+  Future<void> unlinkFirebaseIdentity() async {
+    try {
+      await _apiClient.dio.delete('/v1/auth/link-firebase-identity');
+    } on DioException catch (e) {
+      throw AuthException(
+          _errorMessage(e, 'Could not unlink that sign-in method.'));
     }
   }
 
@@ -388,6 +486,38 @@ class AuthRepository {
       return CurrentUser.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw AuthException(_errorMessage(e, 'Could not load your profile.'));
+    }
+  }
+
+  /// FEAT-041 -- Account Settings' Profile fields section, plus the
+  /// Linked Sign-In Methods section's current-state row (FEAT-040).
+  Future<UserProfile> getProfile() async {
+    try {
+      final response = await _apiClient.dio.get('/v1/user/profile');
+      return UserProfile.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw AuthException(_errorMessage(e, 'Could not load your profile.'));
+    }
+  }
+
+  /// Partial update -- only non-null fields are sent. `email` is rejected
+  /// server-side (403) for `firebase`-provider accounts regardless of
+  /// what's sent here -- see UpdateProfileRequest's backend docstring;
+  /// the Account Settings screen shouldn't offer an editable email field
+  /// for those accounts in the first place, but this call is not the only
+  /// place that invariant is enforced.
+  Future<UserProfile> updateProfile({String? fullName, String? email}) async {
+    try {
+      final response = await _apiClient.dio.patch(
+        '/v1/user/profile',
+        data: {
+          if (fullName != null) 'full_name': fullName,
+          if (email != null) 'email': email,
+        },
+      );
+      return UserProfile.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw AuthException(_errorMessage(e, 'Could not save your profile.'));
     }
   }
 

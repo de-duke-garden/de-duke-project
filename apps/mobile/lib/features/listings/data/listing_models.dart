@@ -183,6 +183,9 @@ class Listing {
     this.images = const [],
     this.commercial,
     this.shortlet,
+    this.hostBio,
+    this.hostPhotoUrl,
+    this.hostType,
   });
 
   final String id;
@@ -207,6 +210,12 @@ class Listing {
   final List<ListingImage> images;
   final CommercialListingDetails? commercial;
   final ShortletListingDetails? shortlet;
+  // FEAT-042: Host Profile card fields -- null only if the host account
+  // row is somehow missing (defensive; shouldn't occur for a live
+  // listing, since a HostAccount is required to create one at all).
+  final String? hostBio;
+  final String? hostPhotoUrl;
+  final String? hostType;
 
   bool get isVerifiedActive => status == 'active';
 
@@ -238,5 +247,8 @@ class Listing {
             ? ShortletListingDetails.fromJson(
                 json['shortlet'] as Map<String, dynamic>)
             : null,
+        hostBio: json['host_bio'] as String?,
+        hostPhotoUrl: json['host_photo_url'] as String?,
+        hostType: json['host_type'] as String?,
       );
 }

@@ -247,6 +247,22 @@ async def login_with_email(session: AsyncSession, *, email: str, password: str) 
     return user
 
 
+def _user_refresh_set_key(user_id: str) -> str:
+    """Redis SET of every refresh token currently issued to this user --
+    the reverse index `_refresh_key` alone doesn't provide (that maps
+    token -> user_id, one-directional). Needed so `change_password` (FEAT-041)
+    can revoke every *other* active session at once, not just the one
+    refresh token a single request happens to present (that's already
+    what `revoke_refresh_token`/logout does). The set's own TTL is
+    refreshed to REFRESH_TOKEN_TTL on every add so it never outlives the
+    tokens it tracks by more than one token's worth of drift; an
+    individual token's own key can still expire independently without
+    this set being cleaned up member-by-member -- revoking an
+    already-expired token via this set is simply a harmless no-op.
+    """
+    return f"auth:refresh-tokens-by-user:{user_id}"
+
+
 async def issue_tokens(user: User) -> tuple[str, str]:
     """Returns (access_token, refresh_token). Refresh tokens are opaque
     random strings tracked server-side (see refresh_session()), not JWTs,
@@ -254,10 +270,32 @@ async def issue_tokens(user: User) -> tuple[str, str]:
     JWT."""
     access_token = create_access_token(user_id=user.id, role=UserRole(user.role))
     refresh_token = _generate_token()
-    await cache.set_with_ttl(
-        _refresh_key(refresh_token), user.id, ttl_seconds=int(REFRESH_TOKEN_TTL.total_seconds())
-    )
+    ttl_seconds = int(REFRESH_TOKEN_TTL.total_seconds())
+    await cache.set_with_ttl(_refresh_key(refresh_token), user.id, ttl_seconds=ttl_seconds)
+    redis = cache.get_redis_client()
+    await redis.sadd(_user_refresh_set_key(user.id), refresh_token)
+    await redis.expire(_user_refresh_set_key(user.id), ttl_seconds)
     return access_token, refresh_token
+
+
+async def _revoke_all_refresh_tokens(user_id: str) -> None:
+    """FEAT-041 AC: changing a password "invalidates other active sessions."
+    Revokes every refresh token this user currently holds (across every
+    device/session), via the reverse index `issue_tokens` maintains --
+    the same underlying revocation primitive `revoke_refresh_token`
+    already uses for a single token at logout, just applied to all of
+    them at once. Each already-authenticated request's own access token
+    (JWT, stateless) still works until its own natural expiry -- this
+    codebase has no JWT blocklist, consistent with how every other
+    session-affecting action here (e.g. staff deactivation) already only
+    ever revokes the refresh-token layer, not in-flight access tokens.
+    """
+    redis = cache.get_redis_client()
+    key = _user_refresh_set_key(user_id)
+    tokens = await redis.smembers(key)
+    if tokens:
+        await redis.delete(*(_refresh_key(t) for t in tokens))
+    await redis.delete(key)
 
 
 async def refresh_session(session: AsyncSession, *, refresh_token: str) -> tuple[User, str, str]:
@@ -374,6 +412,166 @@ async def accept_invite(
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def get_profile(session: AsyncSession, *, user_id: str) -> User:
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
+    return user
+
+
+async def update_profile(
+    session: AsyncSession,
+    *,
+    user_id: str,
+    full_name: str | None = None,
+    email: str | None = None,
+) -> User:
+    """FEAT-041 AC: `fullName` is editable regardless of `authProvider`.
+    `email` is only accepted for `authProvider` "password" accounts (Staff/
+    Admin, agency team members) -- for "firebase" accounts, email is owned
+    by Firebase (Google account email, or the Firebase email/password
+    identity itself), so this rejects the attempt server-side rather than
+    trusting the client to have hidden the field. `phoneNumber` is not
+    editable through this endpoint for either provider (schema.md:
+    Firebase-owned for "firebase" accounts, unused today by "password"
+    accounts).
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
+
+    if email is not None and user.auth_provider == "firebase":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your email is managed by Google/Firebase and can't be changed here.",
+        )
+
+    if full_name is not None:
+        user.full_name = full_name
+    if email is not None:
+        existing = (
+            await session.execute(select(User).where(User.email == email, User.id != user_id))
+        ).scalars().first()
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="That email is already in use by another account.",
+            )
+        user.email = email
+
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def link_firebase_identity(session: AsyncSession, *, user_id: str, id_token: str) -> User:
+    """FEAT-040: attaches a Firebase identity to an existing `password`-
+    provider account (an agency team member invited via FEAT-012, or in
+    principle Staff/Admin). Requires proof of control of BOTH sides at
+    once: the caller is already authenticated by their existing De-Duke
+    bearer session (`user_id`, resolved by the router's `get_current_user`
+    dependency), and must additionally present a freshly-verified Firebase
+    ID token proving they currently control that Firebase identity.
+
+    Deliberately never touches `authProvider` or `passwordHash` -- linking
+    is strictly additive (see schema.md's User.authProvider/firebaseUid/
+    passwordHash docstrings): the password remains a permanent fallback
+    sign-in method after linking.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
+    if user.auth_provider != "password":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your account already uses Google/Firebase sign-in.",
+        )
+
+    from firebase_admin import auth as firebase_auth
+
+    app = _get_firebase_app()
+    try:
+        decoded = await anyio.to_thread.run_sync(
+            partial(firebase_auth.verify_id_token, id_token, app=app)
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="That sign-in could not be verified. Please try again.",
+        ) from exc
+
+    firebase_uid: str = decoded["uid"]
+
+    if user.firebase_uid == firebase_uid:
+        # Re-linking the same identity to the same account -- FEAT-040 AC:
+        # "a harmless no-op, clearly shown as Already linked," not an error.
+        return user
+
+    conflict = (
+        await session.execute(select(User).where(User.firebase_uid == firebase_uid))
+    ).scalars().first()
+    if conflict is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This sign-in method is already linked to a different De-Duke account.",
+        )
+
+    user.firebase_uid = firebase_uid
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def unlink_firebase_identity(session: AsyncSession, *, user_id: str) -> User:
+    """FEAT-040 AC: unlinking clears `firebaseUid` only -- the account's
+    password remains fully functional, since `passwordHash` was never
+    touched by linking in the first place."""
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
+
+    user.firebase_uid = None
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def change_password(
+    session: AsyncSession, *, user_id: str, current_password: str, new_password: str
+) -> None:
+    """FEAT-041 AC: the Admin Web Console's "My Account" screen's own
+    logged-in password change -- distinct from request_password_reset/
+    reset_password above (that flow is for a user who is locked out and
+    NOT currently authenticated). Requires the caller's current password
+    (not just an active session) before accepting a new one, and
+    invalidates every other active session on success (see
+    `_revoke_all_refresh_tokens`)."""
+    user = await session.get(User, user_id)
+    if user is None or user.auth_provider != "password" or user.password_hash is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password change is not available for this account.",
+        )
+
+    if not await anyio.to_thread.run_sync(verify_password, current_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Your current password is incorrect.",
+        )
+
+    user.password_hash = await anyio.to_thread.run_sync(hash_password, new_password)
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+    await session.commit()
+    await _revoke_all_refresh_tokens(user_id)
 
 
 async def get_notification_preferences(session: AsyncSession, *, user_id: str) -> dict[str, bool]:

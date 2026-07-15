@@ -219,9 +219,18 @@ def listing_to_dict(
     commercial: CommercialListing | None = None,
     commercial_rooms: list[CommercialListingRoom] | None = None,
     shortlet: ShortletListing | None = None,
+    host_account: Any | None = None,
 ) -> dict[str, Any]:
     """Assembles the API response dict for a Listing + its subtype row +
-    images, matching ListingOut."""
+    images, matching ListingOut.
+
+    `host_account` (FEAT-042) is the owning HostAccount row, optional so
+    every existing call site that doesn't have it handy yet doesn't break
+    -- when provided, its bio/photo/type populate the Host Profile card on
+    Listing Detail (mobile) and the Admin Web Console's Chat Oversight
+    property context panel, closing the long-documented-but-never-built
+    "shown on their listings" intent for HostAccount.bio (schema.md).
+    """
     out: dict[str, Any] = {
         "id": listing.id,
         "host_account_id": listing.host_account_id,
@@ -239,6 +248,9 @@ def listing_to_dict(
         "view_count": listing.view_count,
         "inquiry_count": listing.inquiry_count,
         "owner_client_name": listing.owner_client_name,
+        "host_bio": host_account.bio if host_account is not None else None,
+        "host_photo_url": host_account.host_photo_url if host_account is not None else None,
+        "host_type": host_account.host_type if host_account is not None else None,
         "images": [
             {
                 "id": img.id,

@@ -235,3 +235,92 @@ def test_admin_queue_lists_in_review_submissions(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert len(response.json()["items"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# FEAT-042: Host Bio Editing (PATCH /v1/host-accounts/me)
+# ---------------------------------------------------------------------------
+
+
+def _submit_owner(client: TestClient, token: str, bio: str = "Original bio") -> str:
+    submission = {
+        "host_type": "owner",
+        "bio": bio,
+        "profile_photo_temp_key": "photo.jpg",
+        "documents": [],
+    }
+    response = client.post(
+        "/v1/host-accounts",
+        headers={"Authorization": f"Bearer {token}"},
+        data={"submission": json.dumps(submission)},
+        files=[("files", ("photo.jpg", io.BytesIO(b"img"), "image/jpeg"))],
+    )
+    return response.json()["id"]
+
+
+def test_update_bio_blocked_while_in_review(client: TestClient) -> None:
+    """AC: bio can't be edited through the quick-edit path while the most
+    recent submission is `in_review` -- staff are actively evaluating it."""
+    token, _ = _register_and_login(client, "bio-in-review@example.com")
+    _submit_owner(client, token)
+
+    response = client.patch(
+        "/v1/host-accounts/me",
+        json={"bio": "Updated bio"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 403
+
+
+def test_update_bio_succeeds_once_verified(client: TestClient) -> None:
+    """AC: a `verified` host can edit bio via PATCH /host-accounts/me,
+    without re-submitting photo or documents."""
+    token, _ = _register_and_login(client, "bio-verified@example.com")
+    host_account_id = _submit_owner(client, token)
+
+    staff_token = _staff_token()
+    client.patch(
+        f"/v1/host-accounts/admin/{host_account_id}/status",
+        headers={"Authorization": f"Bearer {staff_token}"},
+        json={"decision": "verified"},
+    )
+
+    response = client.patch(
+        "/v1/host-accounts/me",
+        json={"bio": "Updated bio after verification"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["bio"] == "Updated bio after verification"
+
+
+def test_update_bio_succeeds_when_rejected(client: TestClient) -> None:
+    """AC: a `rejected` host can also quick-edit their bio (a full
+    resubmission is only needed for anything beyond the bio)."""
+    token, _ = _register_and_login(client, "bio-rejected@example.com")
+    host_account_id = _submit_owner(client, token)
+
+    staff_token = _staff_token()
+    client.patch(
+        f"/v1/host-accounts/admin/{host_account_id}/status",
+        headers={"Authorization": f"Bearer {staff_token}"},
+        json={"decision": "rejected", "reason": "Blurry photo"},
+    )
+
+    response = client.patch(
+        "/v1/host-accounts/me",
+        json={"bio": "Fixed bio"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["bio"] == "Fixed bio"
+
+
+def test_update_bio_requires_existing_submission(client: TestClient) -> None:
+    token, _ = _register_and_login(client, "bio-none@example.com")
+    response = client.patch(
+        "/v1/host-accounts/me",
+        json={"bio": "No submission yet"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 404

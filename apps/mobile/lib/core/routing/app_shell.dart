@@ -18,9 +18,11 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/data/auth_repository.dart';
+import '../theme/app_colors.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({
@@ -102,35 +104,56 @@ class _AppShellState extends State<AppShell> {
         ? _visibleBranches.indexOf(currentBranchIndex)
         : 0;
 
-    return Scaffold(
-      body: widget.navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedVisibleIndex,
-        onDestinationSelected: (visibleIndex) {
-          final branchIndex = _visibleBranches[visibleIndex];
-          widget.navigationShell.goBranch(
-            branchIndex,
-            // Tapping the already-active tab resets that tab's own stack
-            // back to its root -- standard bottom-nav behavior (e.g.
-            // tapping Home again while deep in Home's own pushed screens
-            // returns to Home Feed itself).
-            initialLocation: branchIndex == currentBranchIndex,
-          );
-        },
-        destinations: [
-          const NavigationDestination(
-              icon: Icon(Icons.home_outlined), label: 'Home'),
-          const NavigationDestination(
-              icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
-          if (_showsHostDashboardTab)
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Explicit, rather than the Material 3 default (a tonal "elevated
+    // surface" color derived from the ColorScheme, subtly different from
+    // flat AppColors.surface) -- fixed to a known value so the Android
+    // system navigation bar below can be set to this EXACT color rather
+    // than guessing at M3's elevation math, closing the visible seam
+    // between the two on these 4 tab-root screens specifically. Screens
+    // pushed outside this shell (Listing Detail, Chat Thread, Checkout,
+    // etc. -- no bottom nav bar of their own) keep the app-wide default
+    // AnnotatedRegion set in main.dart instead.
+    final navBarColor = isDark ? AppColors.surfaceDark : AppColors.surface;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        systemNavigationBarColor: navBarColor,
+        systemNavigationBarIconBrightness:
+            isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+      child: Scaffold(
+        body: widget.navigationShell,
+        bottomNavigationBar: NavigationBar(
+          backgroundColor: navBarColor,
+          selectedIndex: selectedVisibleIndex,
+          onDestinationSelected: (visibleIndex) {
+            final branchIndex = _visibleBranches[visibleIndex];
+            widget.navigationShell.goBranch(
+              branchIndex,
+              // Tapping the already-active tab resets that tab's own stack
+              // back to its root -- standard bottom-nav behavior (e.g.
+              // tapping Home again while deep in Home's own pushed screens
+              // returns to Home Feed itself).
+              initialLocation: branchIndex == currentBranchIndex,
+            );
+          },
+          destinations: [
             const NavigationDestination(
-                icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
-          if (_showsAgencyDashboardTab)
+                icon: Icon(Icons.home_outlined), label: 'Home'),
             const NavigationDestination(
-                icon: Icon(Icons.apartment_outlined), label: 'Agency'),
-          const NavigationDestination(
-              icon: Icon(Icons.person_outline), label: 'Profile'),
-        ],
+                icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
+            if (_showsHostDashboardTab)
+              const NavigationDestination(
+                  icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
+            if (_showsAgencyDashboardTab)
+              const NavigationDestination(
+                  icon: Icon(Icons.apartment_outlined), label: 'Agency'),
+            const NavigationDestination(
+                icon: Icon(Icons.person_outline), label: 'Profile'),
+          ],
+        ),
       ),
     );
   }

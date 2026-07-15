@@ -168,6 +168,26 @@ export function AdminNav({
           <p className="mb-sm text-xs text-text-secondary dark:text-text-secondary-dark">
             {session.role === "deduke_admin" ? "Admin" : "Staff"}
           </p>
+          {/* Screen 31b (FEAT-041): self-service account management --
+              deliberately here in the account-footer area, not the main
+              module link list above, since it's an account-level concern
+              (own profile/password) rather than an operational module.
+              There is no separate Navbar component in this console yet
+              (see AdminNav's own docstring), so this footer is the
+              closest structural equivalent to "reachable from the Navbar,
+              not the Sidebar" from screens.md. */}
+          <Link
+            href="/my-account"
+            data-active={pathname === "/my-account"}
+            onClick={onCloseMobile}
+            className={`mb-sm block rounded-md px-sm py-xs text-sm font-medium transition-colors duration-150 ease-out-smooth ${
+              pathname === "/my-account"
+                ? "bg-primary-light text-primary dark:bg-primary-light-dark dark:text-primary-dark"
+                : "text-text-secondary hover:bg-surface-secondary hover:text-text-primary dark:text-text-secondary-dark dark:hover:bg-surface-secondary-dark dark:hover:text-text-primary-dark"
+            }`}
+          >
+            My Account
+          </Link>
           <LogoutButton />
         </div>
       </aside>

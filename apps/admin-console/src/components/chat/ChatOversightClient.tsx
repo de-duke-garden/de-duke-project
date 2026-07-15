@@ -34,6 +34,11 @@ interface ListingSummary {
   addressLine: string;
   city: string;
   state: string;
+  // FEAT-042 -- the same host context a seeker sees on the mobile Listing
+  // Detail screen's Host Profile card, surfaced here so staff have it
+  // while mediating a conversation without leaving to open the full
+  // Listing Detail (Admin View).
+  hostBio: string | null;
 }
 
 async function requestChatToken(): Promise<string> {
@@ -64,6 +69,7 @@ async function fetchListingSummary(listingId: string): Promise<ListingSummary | 
     addressLine: (data.location_address_line as string) ?? "",
     city: (data.location_city as string) ?? "",
     state: (data.location_state as string) ?? "",
+    hostBio: (data.host_bio as string | null) ?? null,
   };
 }
 
@@ -424,6 +430,15 @@ export function ChatOversightClient({ currentUserId }: { currentUserId: string }
                       .filter(Boolean)
                       .join(", ")}
                   </dd>
+                  {/* FEAT-042 -- host bio spans both columns (a longer,
+                      prose field, unlike the short type/price/status/
+                      location facts above it). */}
+                  {selectedListing.hostBio && (
+                    <>
+                      <dt className="col-span-2 mt-xs">Host bio</dt>
+                      <dd className="col-span-2">{selectedListing.hostBio}</dd>
+                    </>
+                  )}
                 </dl>
               )}
 

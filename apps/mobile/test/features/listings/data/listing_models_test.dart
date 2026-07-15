@@ -94,5 +94,52 @@ void main() {
       expect(listing.commercial!.propertySubtype, 'office');
       expect(listing.shortlet, isNull);
     });
+
+    test('parses host bio/photo/type when present (FEAT-042)', () {
+      final listing = Listing.fromJson({
+        'id': 'listing-1',
+        'host_account_id': 'ha-1',
+        'listing_type': 'commercial',
+        'title': 'Office space',
+        'description': 'Open plan office',
+        'location_latitude': 6.5244,
+        'location_longitude': 3.3792,
+        'location_address_line': '1 Admiralty Way',
+        'location_city': 'Lagos',
+        'location_state': 'Lagos',
+        'amenities': <String>[],
+        'status': 'active',
+        'view_count': 10,
+        'host_bio': 'A friendly, verified host.',
+        'host_photo_url': 'https://example.com/host.jpg',
+        'host_type': 'owner',
+      });
+
+      expect(listing.hostBio, 'A friendly, verified host.');
+      expect(listing.hostPhotoUrl, 'https://example.com/host.jpg');
+      expect(listing.hostType, 'owner');
+    });
+
+    test('defaults host fields to null when absent from an older payload', () {
+      final listing = Listing.fromJson({
+        'id': 'listing-1',
+        'host_account_id': 'ha-1',
+        'listing_type': 'commercial',
+        'title': 'Office space',
+        'description': 'Open plan office',
+        'location_latitude': 6.5244,
+        'location_longitude': 3.3792,
+        'location_address_line': '1 Admiralty Way',
+        'location_city': 'Lagos',
+        'location_state': 'Lagos',
+        'amenities': <String>[],
+        'status': 'active',
+        'view_count': 10,
+      });
+
+      expect(listing.hostBio, isNull);
+      expect(listing.hostPhotoUrl, isNull);
+      expect(listing.hostType, isNull);
+    });
   });
 }

@@ -69,6 +69,53 @@ class CurrentUserResponse(BaseModel):
     is_active: bool
 
 
+class UserProfileResponse(BaseModel):
+    """GET/PATCH /v1/user/profile -- FEAT-041 (Self-Service Profile
+    Editing). Distinct from CurrentUserResponse (GET /v1/auth/me, which
+    exists for server-side session validation) -- this is the mobile
+    Account Settings/Admin Web Console "My Account" screen's own profile
+    data source, and additionally surfaces `auth_provider` and whether a
+    Firebase identity is linked, which those screens need to decide which
+    fields are editable (FEAT-041) and what to show in the Linked
+    Sign-In Methods section (FEAT-040)."""
+
+    user_id: str
+    full_name: str
+    email: str | None
+    phone_number: str | None
+    auth_provider: str
+    is_firebase_linked: bool
+
+
+class UpdateProfileRequest(BaseModel):
+    """All fields optional -- a partial update, matching this codebase's
+    other PATCH endpoints (e.g. UpdateNotificationPreferencesRequest).
+    `email` is rejected server-side for `authProvider` "firebase" accounts
+    regardless of whether it's sent -- see auth_service.update_profile."""
+
+    full_name: str | None = Field(default=None, min_length=1, max_length=200)
+    email: EmailStr | None = None
+
+
+class LinkFirebaseIdentityRequest(BaseModel):
+    """FEAT-040 -- id_token is the Firebase ID token from a live client-side
+    Firebase sign-in (same SDK flow as Screen 1), submitted here
+    authenticated by the caller's EXISTING De-Duke bearer session, not by
+    the Firebase token itself -- proof of control of both sides at once."""
+
+    id_token: str = Field(min_length=1)
+
+
+class ChangePasswordRequest(BaseModel):
+    """FEAT-041 -- Admin Web Console "My Account" screen's logged-in
+    password change. Distinct from ForgotPasswordRequest/
+    ResetPasswordRequest above (that flow is for a user who is locked out
+    and NOT currently authenticated)."""
+
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class NotificationPreferencesResponse(BaseModel):
     """FEAT-024 AC: "User can manage email notification preferences per
     category in settings, separate from push preferences." One bool per

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.security import CurrentUser, UserRole, get_current_user, require_roles
 from app.schemas.host_account import (
+    HostAccountBioUpdateRequest,
     HostAccountDetailResponse,
     HostAccountQueueItem,
     HostAccountReviewAction,
@@ -75,6 +76,21 @@ async def submit_host_account(
 
     host_account = await verification_service.submit_host_account(
         session, user_id=current_user.user_id, payload=payload, files_by_temp_key=files_by_temp_key
+    )
+    return _to_status_response(host_account)
+
+
+@router.patch("/me", response_model=HostAccountStatusResponse)
+async def update_my_bio(
+    payload: HostAccountBioUpdateRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> HostAccountStatusResponse:
+    """FEAT-042 -- Host Dashboard's Edit Bio bottom sheet. Bio-only, no
+    photo/document resubmission; blocked while the most recent submission
+    is `in_review` (see verification_service.update_bio)."""
+    host_account = await verification_service.update_bio(
+        session, user_id=current_user.user_id, bio=payload.bio
     )
     return _to_status_response(host_account)
 

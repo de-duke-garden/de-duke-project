@@ -15,9 +15,11 @@ from app.models.user import User
 from app.schemas.auth import (
     AcceptInviteRequest,
     AuthTokenResponse,
+    ChangePasswordRequest,
     CurrentUserResponse,
     FirebaseExchangeRequest,
     ForgotPasswordRequest,
+    LinkFirebaseIdentityRequest,
     LoginRequest,
     NotificationPreferencesResponse,
     RefreshRequest,
@@ -176,6 +178,57 @@ async def accept_invite(
         user_id=user.id,
         role=user.role,
         is_verified_host=user.is_verified_host,
+    )
+
+
+@router.post("/link-firebase-identity", response_model=CurrentUserResponse)
+async def link_firebase_identity(
+    payload: LinkFirebaseIdentityRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> CurrentUserResponse:
+    """FEAT-040 -- Account Settings' "Link a sign-in method" action.
+    Authenticated by the caller's existing De-Duke bearer session
+    (`current_user`), not by `payload.id_token` -- that token only proves
+    control of the Firebase side; the session proves control of the
+    De-Duke side. Both are required together."""
+    user = await auth_service.link_firebase_identity(
+        session, user_id=current_user.user_id, id_token=payload.id_token
+    )
+    return CurrentUserResponse(
+        user_id=user.id,
+        role=user.role,
+        full_name=user.full_name,
+        email=user.email,
+        phone_number=user.phone_number,
+        is_verified_host=user.is_verified_host,
+        is_active=user.is_active,
+    )
+
+
+@router.delete("/link-firebase-identity", status_code=status.HTTP_204_NO_CONTENT)
+async def unlink_firebase_identity(
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """FEAT-040 -- Account Settings' "Unlink" action."""
+    await auth_service.unlink_firebase_identity(session, user_id=current_user.user_id)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """FEAT-041 -- Admin Web Console "My Account" screen. Distinct from
+    /forgot-password + /reset-password above (that pair is for a user who
+    is locked out and not currently authenticated)."""
+    await auth_service.change_password(
+        session,
+        user_id=current_user.user_id,
+        current_password=payload.current_password,
+        new_password=payload.new_password,
     )
 
 

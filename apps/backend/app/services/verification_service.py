@@ -59,6 +59,37 @@ async def get_own_submission(session: AsyncSession, *, user_id: str) -> HostAcco
     return result.scalars().first()
 
 
+async def update_bio(session: AsyncSession, *, user_id: str, bio: str) -> HostAccount:
+    """FEAT-042 AC: a host whose most recent submission is `verified` or
+    `rejected` can edit their bio via `PATCH /host-accounts/me`, without
+    re-submitting photo or documents -- independent of the full
+    resubmission-after-rejection flow (Screen 3a "Resubmit"). Deliberately
+    blocked while `in_review`: staff are actively evaluating exactly what
+    was submitted, and letting the bio change underneath an active review
+    risks staff reviewing stale/mismatched content."""
+    host_account = await get_own_submission(session, user_id=user_id)
+    if host_account is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="You don't have a host account submission yet.",
+        )
+    if host_account.status == "in_review":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Your bio can't be edited while your submission is under review "
+                "-- it's part of what staff are currently evaluating."
+            ),
+        )
+
+    host_account.bio = bio
+    host_account.updated_at = datetime.now(UTC)
+    session.add(host_account)
+    await session.commit()
+    await session.refresh(host_account)
+    return host_account
+
+
 async def submit_host_account(
     session: AsyncSession,
     *,

@@ -157,6 +157,14 @@ class ListingOut(BaseModel):
     view_count: int
     inquiry_count: int
     owner_client_name: str | None = None
+    # FEAT-042: the owning host's bio/photo/type, closing schema.md's
+    # long-documented-but-never-built "shown on their listings" intent for
+    # HostAccount.bio. None only if the host account row is somehow
+    # missing (defensive -- shouldn't occur for a live listing, since a
+    # HostAccount is required to create one at all).
+    host_bio: str | None = None
+    host_photo_url: str | None = None
+    host_type: str | None = None
     images: list[ListingImageOut] = Field(default_factory=list)
     commercial: dict | None = None
     shortlet: dict | None = None

@@ -22,12 +22,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/enum_display.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/listing_card.dart';
 import '../../../core/widgets/skeleton_loader.dart';
+import '../../become_host/data/host_account_models.dart';
 import '../../chat/data/chat_repository.dart';
 import '../../reporting/data/report_repository.dart';
 import '../../reporting/screens/report_sheet.dart';
@@ -533,6 +535,23 @@ class _ListingBodyState extends State<_ListingBody> {
             ),
           ],
         ],
+        // FEAT-042: Host Profile card -- closes the long-documented-but-
+        // never-built "shown on their listings" intent for
+        // HostAccount.bio (schema.md). Omitted entirely (not shown empty)
+        // if the host hasn't set a bio at all -- shouldn't occur for a
+        // live listing (bio is required at Become a Host submission),
+        // but defensive.
+        if (listing.hostBio != null && listing.hostBio!.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.lg),
+          Text('Host', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          _HostProfileCard(
+            photoUrl: listing.hostPhotoUrl,
+            hostType: listing.hostType,
+            bio: listing.hostBio!,
+            isVerified: listing.isVerifiedActive,
+          ),
+        ],
       ],
     );
   }
@@ -557,6 +576,104 @@ class _VerifiedBadge extends StatelessWidget {
           SizedBox(width: 4),
           Text('Verified',
               style: TextStyle(color: AppColors.verified, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+}
+
+/// FEAT-042 Host Profile card -- host photo (avatar-styled per
+/// branding.md's Avatar fallback rule if unset), Verified Host badge +
+/// plain-language host type, and the host's bio (2-3 lines, expandable
+/// "Read more" for longer bios). Closes schema.md's long-documented-but-
+/// never-built "shown on their listings" intent for HostAccount.bio.
+class _HostProfileCard extends StatefulWidget {
+  const _HostProfileCard({
+    required this.photoUrl,
+    required this.hostType,
+    required this.bio,
+    required this.isVerified,
+  });
+
+  final String? photoUrl;
+  final String? hostType;
+  final String bio;
+  final bool isVerified;
+
+  @override
+  State<_HostProfileCard> createState() => _HostProfileCardState();
+}
+
+class _HostProfileCardState extends State<_HostProfileCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hostTypeLabel = widget.hostType != null
+        ? hostTypeFromApiValue(widget.hostType!).label
+        : null;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: AppColors.primaryLight,
+                backgroundImage: widget.photoUrl != null
+                    ? NetworkImage(widget.photoUrl!)
+                    : null,
+                child: widget.photoUrl == null
+                    ? const Icon(Icons.person_outline, color: AppColors.primary)
+                    : null,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.isVerified) const _VerifiedBadge(),
+                    if (hostTypeLabel != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(hostTypeLabel,
+                            style: const TextStyle(
+                                color: AppColors.textSecondary)),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          AnimatedSize(
+            duration: AppDurations.fast,
+            curve: AppCurves.easeOutSmooth,
+            alignment: Alignment.topLeft,
+            child: Text(
+              widget.bio,
+              maxLines: _expanded ? null : 3,
+              overflow:
+                  _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+            ),
+          ),
+          if (widget.bio.length > 120)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => setState(() => _expanded = !_expanded),
+                child: Text(_expanded ? 'Show less' : 'Read more'),
+              ),
+            ),
         ],
       ),
     );
