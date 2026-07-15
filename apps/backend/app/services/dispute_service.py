@@ -171,7 +171,8 @@ async def resolve_dispute(
                 exc,
             )
             raise DisputeError(
-                "Refund could not be processed by Paystack. The dispute remains open -- try again shortly."
+                "Refund could not be processed by Paystack. The dispute remains open -- "
+                "try again shortly."
             ) from exc
 
         transaction.status = "refunded"

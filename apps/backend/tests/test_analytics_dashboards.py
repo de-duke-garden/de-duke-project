@@ -21,7 +21,6 @@ from app.core.db import get_session
 from app.core.security import UserRole, create_access_token, hash_password
 from app.main import app
 from app.models.host_account import HostAccount
-from app.models.listing import Listing
 from app.models.ops import Dispute
 from app.models.transaction import Transaction
 from app.models.user import User

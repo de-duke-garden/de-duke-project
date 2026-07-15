@@ -34,6 +34,7 @@ from typing import Any
 
 import anyio
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -144,6 +145,43 @@ async def exchange_firebase_token(
     user = result.first()
 
     if user is None:
+        # Guards against a real collision this file's `email`/`phone_number`
+        # unique constraints would otherwise only catch via an unhandled
+        # IntegrityError on commit: a Firebase identity signing in for the
+        # first time (no firebase_uid on file yet) might still share an
+        # email/phone with an EXISTING row created through a different
+        # path -- most concretely, an Agency-invited team member or
+        # Staff/Admin account (auth_provider "password", see this module's
+        # docstring), which Firebase's identity store has no knowledge of.
+        # Deliberately rejected, not auto-linked: silently adopting an
+        # external Google/Firebase identity onto an existing
+        # backend-managed account would let that provider grant access to
+        # whatever the pre-existing account already has (e.g. an internal
+        # invite), which is a real security decision, not something to
+        # infer from "the email matches." A future account-linking flow
+        # (e.g. requiring the user to prove they hold the existing
+        # account's password first) can revisit this -- for now, fail
+        # clearly instead of crashing on the constraint violation.
+        conflict_filters = []
+        if email:
+            conflict_filters.append(User.email == email)
+        if phone_number:
+            conflict_filters.append(User.phone_number == phone_number)
+
+        if conflict_filters:
+            existing = (
+                await session.execute(select(User).where(or_(*conflict_filters)))
+            ).scalars().first()
+            if existing is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "An account already exists for that email or phone number "
+                        "under a different sign-in method. Contact support to link "
+                        "your accounts."
+                    ),
+                )
+
         # First-ever sign-in for this Firebase identity -- FEAT-001 AC:
         # "a first-time sign-in via any of the three methods creates a new
         # User record and routes to Role Selection." Defaults to seeker;

@@ -129,7 +129,9 @@ async def dispute_stats(session: AsyncSession) -> dict[str, Any]:
     ships."""
     open_count = (
         await session.execute(
-            select(func.count()).select_from(Dispute).where(Dispute.status.in_(("open", "under_review")))
+            select(func.count())
+            .select_from(Dispute)
+            .where(Dispute.status.in_(("open", "under_review")))
         )
     ).scalar_one()
 

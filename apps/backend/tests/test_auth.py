@@ -107,6 +107,45 @@ async def test_firebase_exchange_raises_when_unconfigured(session: AsyncSession)
         await auth_service.exchange_firebase_token(session, id_token="x")
 
 
+async def test_firebase_exchange_rejects_email_collision_with_password_account(
+    client: TestClient, session: AsyncSession
+) -> None:
+    """A first-time Firebase sign-in must not silently collide with an
+    existing auth_provider="password" row sharing the same email (e.g. an
+    Agency-invited team member, or Staff/Admin) -- User.email is unique,
+    so without this guard the INSERT would raise an unhandled
+    IntegrityError (500) instead of a clean, specific error."""
+    await _create_staff_user(session, email="shared@example.com", password="supersecret1")
+
+    response = _firebase_signin(client, uid="uid-new-firebase-identity", email="shared@example.com")
+
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"].lower()
+
+
+async def test_firebase_exchange_rejects_phone_collision_with_password_account(
+    client: TestClient, session: AsyncSession
+) -> None:
+    """Same guard, for phone_number -- also unique on User."""
+    user = User(
+        full_name="Agency Team Member",
+        email="teammate@agency.example.com",
+        phone_number="+2348099999999",
+        role="agency",
+        auth_provider="password",
+        password_hash=hash_password("invite-token-hash"),
+        is_active=True,
+    )
+    session.add(user)
+    await session.commit()
+
+    response = _firebase_signin(
+        client, uid="uid-new-phone-identity", phone_number="+2348099999999"
+    )
+
+    assert response.status_code == 409
+
+
 async def test_firebase_exchange_deactivated_account_blocked(
     client: TestClient, session: AsyncSession
 ) -> None:

@@ -58,7 +58,7 @@ from app.models.transaction import Transaction  # noqa: E402
 from app.models.user import User  # noqa: E402
 from app.services.listing_service import make_location_point_wkt  # noqa: E402
 
-SYNTHETIC_PASSWORD = "LoadTest-Synthetic-Only-1!"  # matches load_tests/lib/client.js's loginSyntheticUser
+SYNTHETIC_PASSWORD = "LoadTest-Synthetic-Only-1!"  # matches lib/client.js's loginSyntheticUser
 BATCH_SIZE = 2000
 
 # This task has no writable, retrievable filesystem from the outside (it's
@@ -242,7 +242,9 @@ async def seed_listings(session, count: int, host_account_ids: list[str]) -> lis
     return listing_ids
 
 
-async def seed_contended_listings(session, host_account_ids: list[str], count: int = 20) -> list[str]:
+async def seed_contended_listings(
+    session, host_account_ids: list[str], count: int = 20
+) -> list[str]:
     """A small pool of listings deliberately reused by
     booking_hold_contention.js so many concurrent VUs race for the SAME
     slot -- distinct from the bulk `listings` pool above, which is spread
