@@ -3,6 +3,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
 
@@ -51,6 +52,22 @@ class HostAccountRepository {
   /// contract: a JSON `submission` part plus one `files` multipart entry
   /// per document, each with its filename set to its declared temp_key so
   /// the backend can match it without index-encoded field names.
+  ///
+  /// Reading the picked local files (`MultipartFile.fromFile`) used to
+  /// happen OUTSIDE this method's try/catch, so a stale/unreadable local
+  /// path (e.g. the OS reclaiming `image_picker`'s cache file between
+  /// picking a photo and tapping Submit, or -- on some Android
+  /// versions/OEM galleries -- a content:// URI `dart:io File` can't read
+  /// directly) threw a raw, un-typed exception straight past this
+  /// repository, past `document_submission_screen.dart`'s
+  /// `e is HostAccountException` check, and surfaced as that screen's
+  /// generic fallback message -- indistinguishable from an actual network
+  /// failure, and with NO request ever reaching the Backend API Service
+  /// (confirmed against production CloudWatch logs: zero
+  /// `POST /v1/host-accounts` entries across 30 days despite reported
+  /// failures). Wrapping the whole method fixes that: local file failures
+  /// now get their own specific, actionable `HostAccountException` instead
+  /// of being indistinguishable from "the server rejected this."
   Future<HostAccountStatus> submit({
     required HostType hostType,
     required String bio,
@@ -73,14 +90,32 @@ class HostAccountRepository {
       if (refPhoneNo != null) 'ref_phone_no': refPhoneNo,
     };
 
-    final formMap = <String, dynamic>{
-      'submission': jsonEncode(submission),
-      'files': [
+    final List<MultipartFile> files;
+    try {
+      files = [
         await MultipartFile.fromFile(profilePhotoLocalPath,
             filename: profilePhotoTempKey),
         for (final doc in documents)
           await MultipartFile.fromFile(doc.localPath, filename: doc.tempKey),
-      ],
+      ];
+    } catch (e, stackTrace) {
+      // No crash-reporting SDK is wired into this app yet -- log to the
+      // device/`flutter run` console (visible via `flutter logs` /
+      // Logcat/Console.app even in a release build) so this is at least
+      // diagnosable without a backend request ever having been attempted.
+      developer.log(
+        'HostAccountRepository.submit: failed to read a picked local file',
+        name: 'host_account_repository',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw HostAccountException(
+          'One of your selected photos could not be read. Please reselect it and try again.');
+    }
+
+    final formMap = <String, dynamic>{
+      'submission': jsonEncode(submission),
+      'files': files,
     };
 
     try {
@@ -104,12 +139,26 @@ class HostAccountRepository {
     String? bio,
     String? photoLocalPath,
   }) async {
+    MultipartFile? photo;
+    if (photoLocalPath != null) {
+      try {
+        photo = await MultipartFile.fromFile(photoLocalPath);
+      } catch (e, stackTrace) {
+        developer.log(
+          'HostAccountRepository.updateProfile: failed to read the picked local photo',
+          name: 'host_account_repository',
+          error: e,
+          stackTrace: stackTrace,
+        );
+        throw HostAccountException(
+            'That photo could not be read. Please reselect it and try again.');
+      }
+    }
+    final formMap = <String, dynamic>{
+      if (bio != null) 'bio': bio,
+      if (photo != null) 'photo': photo,
+    };
     try {
-      final formMap = <String, dynamic>{
-        if (bio != null) 'bio': bio,
-        if (photoLocalPath != null)
-          'photo': await MultipartFile.fromFile(photoLocalPath),
-      };
       final response = await _apiClient.dio.patch(
         '/v1/host-accounts/me',
         data: FormData.fromMap(formMap),

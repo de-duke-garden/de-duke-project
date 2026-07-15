@@ -77,6 +77,35 @@ app.add_middleware(RequestIdMiddleware)
 app.include_router(v1_router)
 
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Safety net for exceptions that escape every route/service without
+    being raised as an `HTTPException` (e.g. app/core/storage.py's
+    `build_media_url` raising a bare `RuntimeError` on a misconfigured
+    `MEDIA_CDN_DOMAIN`).
+
+    Without this handler, Starlette's default `ServerErrorMiddleware`
+    returns a **plain-text** "Internal Server Error" body for such
+    exceptions -- not JSON. Every client in this codebase (mobile app's
+    `_errorMessage` helpers, admin console) only recognizes a JSON
+    `{"detail": ...}` shape and silently falls back to its own generic
+    per-call message otherwise, which is how a real backend misconfiguration
+    here previously surfaced to a user as an unhelpful, un-actionable
+    "Could not submit your application." with zero diagnostic trail.
+
+    Logs the full exception (traceback + this request's X-Request-ID, via
+    RequestIdMiddleware/logging_config's RequestIdFilter, and to Sentry if
+    configured) before returning a sanitized, constant message -- an
+    unhandled exception's raw `str(exc)` is never safe to hand back to a
+    client (may leak internals), so this deliberately does NOT forward it.
+    """
+    logger.exception("unhandled_exception_handler: unhandled exception during request", exc_info=exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Something went wrong. Please try again."},
+    )
+
+
 @app.get("/health/live", tags=["health"])
 async def liveness() -> dict[str, str]:
     """Liveness check -- is the process running (architecture.md Health Checks)."""
