@@ -59,6 +59,30 @@ async def issue_chat_token(
     )
 
 
+@router.post("/sync-claims", status_code=status.HTTP_204_NO_CONTENT)
+async def sync_chat_claims(
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """FEAT-001/FEAT-010 reconciliation -- called by the mobile client's
+    ChatRepository.ensureSignedIn() every time chat is entered. A
+    consumer's real Firebase Authentication session (Google/email/phone)
+    doubles as their Firestore identity, but that session never carries
+    the `deduke_user_id`/`role` custom claims firestore.rules requires
+    until this sets them (see svc.sync_consumer_claims's docstring for
+    the full "why"). Idempotent and cheap -- safe to call on every chat
+    entry, which is also what makes it self-healing after a role change
+    (FEAT-003) without requiring the user to sign out and back in.
+    """
+    try:
+        await svc.sync_consumer_claims(session, user_id=current_user.user_id)
+    except svc.ChatServiceUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+
 @router.post(
     "/conversations", response_model=ChatConversationOut, status_code=status.HTTP_201_CREATED
 )

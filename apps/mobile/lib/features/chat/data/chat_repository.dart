@@ -28,14 +28,40 @@ class ChatRepository {
   final FirebaseFirestore _firestore;
   final fb_auth.FirebaseAuth _firebaseAuth;
 
-  /// Fetches a scoped custom token from the backend and exchanges it for a
-  /// Firestore/Firebase Auth session. Must be called before any of the
-  /// stream/send methods below -- Firestore security rules
-  /// (apps/backend/firestore.rules) reject unauthenticated requests.
+  /// Must be called before any of the stream/send methods below --
+  /// Firestore security rules (apps/backend/firestore.rules) reject
+  /// unauthenticated requests, and (for the common case below) requests
+  /// missing the `deduke_user_id`/`role` custom claims those rules key
+  /// off of.
+  ///
+  /// Post-FEAT-001, the mobile app's only users are consumer roles
+  /// (Seeker, Individual Host, Agency, Corporate), and they're already
+  /// signed into a REAL Firebase Authentication session (Google/email/
+  /// phone) by the time they're logged into De-Duke at all -- there's no
+  /// separate chat-specific identity to sign into. What that real
+  /// session is still missing is the `deduke_user_id`/`role` custom
+  /// claims firestore.rules requires (a brand-new sign-in never carried
+  /// them, and a role change, FEAT-003, can make them stale) -- so this
+  /// asks the backend to (re)apply them via `POST /v1/chat/sync-claims`
+  /// every time chat is entered (cheap, idempotent, self-healing), then
+  /// force-refreshes the cached ID token: Firebase's SDK doesn't pick up
+  /// a custom-claims change until the token is reminted, which otherwise
+  /// wouldn't happen on its own for up to an hour.
+  ///
+  /// The `currentUser == null` branch is a defensive fallback only --
+  /// shouldn't be reachable in practice (a consumer can't be logged into
+  /// De-Duke without an active Firebase session), kept for the case
+  /// where the Firebase SDK's local session was somehow cleared out from
+  /// under the (still-valid) De-Duke session.
   Future<void> ensureSignedIn() async {
-    if (_firebaseAuth.currentUser != null) return;
-    final tokenResult = await _chatApi.fetchChatToken();
-    await _firebaseAuth.signInWithCustomToken(tokenResult.firebaseCustomToken);
+    if (_firebaseAuth.currentUser == null) {
+      final tokenResult = await _chatApi.fetchChatToken();
+      await _firebaseAuth
+          .signInWithCustomToken(tokenResult.firebaseCustomToken);
+      return;
+    }
+    await _chatApi.syncChatClaims();
+    await _firebaseAuth.currentUser?.getIdToken(true);
   }
 
   Future<String> startConversation({required String listingId}) {
@@ -72,7 +98,9 @@ class ChatRepository {
         .orderBy('sentAt', descending: true)
         .limit(1)
         .snapshots()
-        .map((snap) => snap.docs.isEmpty ? null : ChatMessage.fromFirestore(snap.docs.first));
+        .map((snap) => snap.docs.isEmpty
+            ? null
+            : ChatMessage.fromFirestore(snap.docs.first));
   }
 
   /// Conversations visible to the current user -- Firestore security rules

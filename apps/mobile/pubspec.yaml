@@ -79,9 +79,9 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/images/de-duke-launch.png"
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/de-duke-launch.png"
+  image_path: "assets/images/de-duke-icon.png"
+  adaptive_icon_background: "#EBEBEB"
+  adaptive_icon_foreground: "assets/images/de-duke-icon.png"
   min_sdk_android: 21
 
 # flutter_native_splash config -- native splash screen per branding.md's
@@ -93,12 +93,12 @@ flutter_launcher_icons:
 # AGENTS.md follow-up note for a possible pre-rendered composite image if a
 # closer native-splash match to the full lockup is wanted later.
 flutter_native_splash:
-  color: "#FFFFFF"
-  image: assets/images/de-duke-launch.png
+  color: "#EBEBEB"
+  image: assets/images/de-duke-splash.png
   color_dark: "#101613"
-  image_dark: assets/images/de-duke-launch.png
+  image_dark: assets/images/de-duke-splash.png
   android_12:
-    color: "#FFFFFF"
-    image: assets/images/de-duke-launch.png
+    color: "#EBEBEB"
+    image: assets/images/de-duke-splash.png
     color_dark: "#101613"
-    image_dark: assets/images/de-duke-launch.png
+    image_dark: assets/images/de-duke-splash.png

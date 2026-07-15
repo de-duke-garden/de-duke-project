@@ -11,11 +11,27 @@
 // described in schema.md's ChatConversation/ChatMessage entities and
 // architecture.md's Chat Data Store section.
 //
-// Auth model: every client authenticates against Firestore using a custom
-// token minted by POST /v1/chat/token (app/services/chat_service.py). That
-// token carries a `role` claim: "client" | "property_management" |
-// "deduke_staff" -- mapped server-side from User.role, never trusted from
-// the client directly.
+// Auth model, per-role:
+//   - De-Duke Staff/Admin (Admin Web Console only) authenticate against
+//     Firestore using a custom token minted by POST /v1/chat/token
+//     (app/services/chat_service.py::issue_custom_token). That token's
+//     `uid` IS the De-Duke `User.id` directly, and carries a `role`
+//     claim: "deduke_staff" (mapped server-side from User.role, never
+//     trusted from the client).
+//   - Consumer roles (Seeker, Individual Host, Agency, Corporate --
+//     mobile app only) authenticate with their REAL Firebase
+//     Authentication session (Google/email/phone, FEAT-001) -- there is
+//     no separate custom-token identity for them. That session's own
+//     `request.auth.uid` is Firebase's identity (Google's, etc.), NOT
+//     this user's De-Duke `User.id` -- which is what every
+//     `clientId`/`propertyManagementId`/`userId`/`senderId` field below
+//     actually stores. The backend bridges this by setting a
+//     `deduke_user_id` custom claim (plus `role`: "client" |
+//     "property_management") on that same Firebase account via
+//     POST /v1/chat/sync-claims (app/services/chat_service.py::
+//     sync_consumer_claims), called by the mobile client every time chat
+//     is entered. Every participant check below reads `deduke_user_id`,
+//     never `request.auth.uid` directly, for exactly this reason.
 
 rules_version = '2';
 
@@ -30,6 +46,15 @@ service cloud.firestore {
       return request.auth.token.role;
     }
 
+    // The De-Duke User.id this Firestore session maps to -- for Staff/
+    // Admin, this equals request.auth.uid directly (their custom token's
+    // uid IS user.id); for consumer roles, it's the deduke_user_id
+    // custom claim POST /v1/chat/sync-claims sets on their real Firebase
+    // Authentication account (see this file's header comment).
+    function dedukeUserId() {
+      return request.auth.token.deduke_user_id;
+    }
+
     function isStaff() {
       // deduke_staff and deduke_admin both map to the "deduke_staff" claim
       // in chat_service.chat_role_for -- staff get full read/write across
@@ -40,8 +65,8 @@ service cloud.firestore {
 
     function isParticipant(conversation) {
       return isSignedIn() && (
-        request.auth.uid == conversation.data.clientId ||
-        request.auth.uid == conversation.data.propertyManagementId
+        dedukeUserId() == conversation.data.clientId ||
+        dedukeUserId() == conversation.data.propertyManagementId
       );
     }
 
@@ -77,7 +102,7 @@ service cloud.firestore {
         // or by staff (moderation notes / joining an escalated thread).
         allow create: if isStaff() || (
           isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId))) &&
-          request.resource.data.senderId == request.auth.uid
+          request.resource.data.senderId == dedukeUserId()
         );
 
         // Messages are immutable once sent, except for delivery/read status
@@ -98,7 +123,7 @@ service cloud.firestore {
     // /conversations exactly: backend-created only, messages immutable
     // except delivery-status transitions.
     function isSupportOwner(conversation) {
-      return isSignedIn() && request.auth.uid == conversation.data.userId;
+      return isSignedIn() && dedukeUserId() == conversation.data.userId;
     }
 
     match /support_conversations/{conversationId} {
@@ -127,7 +152,7 @@ service cloud.firestore {
 
         allow create: if isStaff() || (
           isSupportOwner(get(/databases/$(database)/documents/support_conversations/$(conversationId))) &&
-          request.resource.data.senderId == request.auth.uid
+          request.resource.data.senderId == dedukeUserId()
         );
 
         allow update: if (isStaff() || isSupportOwner(get(/databases/$(database)/documents/support_conversations/$(conversationId)))) &&

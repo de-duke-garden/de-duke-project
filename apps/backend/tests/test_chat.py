@@ -283,3 +283,93 @@ def test_start_conversation_endpoint_success(client: TestClient) -> None:
     assert body["id"] == "conv-1"
     assert body["assigned_staff_id"] is None
     assert body["property_management_id"] == "host-user-1"
+
+
+# ---------------------------------------------------------------------------
+# FEAT-001/FEAT-010 reconciliation: sync_consumer_claims / POST /chat/sync-claims
+# ---------------------------------------------------------------------------
+
+
+async def test_sync_consumer_claims_sets_deduke_user_id_and_role_on_firebase_account(
+    session,
+) -> None:
+    """A consumer's real Firebase Authentication session carries neither
+    the De-Duke User.id (its own uid is Firebase's, e.g. Google's) nor a
+    role claim -- this bridges both onto that same Firebase account so
+    firestore.rules' isParticipant()/isStaff() can be satisfied."""
+    from app.models.user import User
+
+    user = User(
+        full_name="Amaka Seeker",
+        email="amaka-claims@example.com",
+        role="seeker",
+        auth_provider="firebase",
+        firebase_uid="firebase-uid-amaka",
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    fake_app = object()
+    with (
+        patch.object(svc, "_is_configured", return_value=True),
+        patch.object(svc, "_get_firebase_app", return_value=fake_app),
+        patch("firebase_admin.auth.set_custom_user_claims") as mock_set_claims,
+    ):
+        await svc.sync_consumer_claims(session, user_id=user.id)
+
+    mock_set_claims.assert_called_once_with(
+        "firebase-uid-amaka",
+        {"deduke_user_id": user.id, "role": "client"},
+        app=fake_app,
+    )
+
+
+async def test_sync_consumer_claims_is_a_no_op_for_password_provider_account(session) -> None:
+    """Staff/Admin (and any password-provider account) have no
+    firebase_uid -- nothing to sync, and no error either, since the
+    mobile app (this function's only caller) never has a Staff/Admin
+    session to begin with."""
+    from app.models.user import User
+
+    user = User(
+        full_name="Staff Member",
+        email="staff-claims@example.com",
+        role="deduke_staff",
+        auth_provider="password",
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    with patch("firebase_admin.auth.set_custom_user_claims") as mock_set_claims:
+        await svc.sync_consumer_claims(session, user_id=user.id)
+
+    mock_set_claims.assert_not_called()
+
+
+async def test_sync_consumer_claims_no_op_when_user_not_found(session) -> None:
+    with patch("firebase_admin.auth.set_custom_user_claims") as mock_set_claims:
+        await svc.sync_consumer_claims(session, user_id="does-not-exist")
+
+    mock_set_claims.assert_not_called()
+
+
+def test_sync_chat_claims_endpoint_returns_204(client: TestClient) -> None:
+    _override_current_user(UserRole.SEEKER)
+
+    with patch.object(svc, "sync_consumer_claims", AsyncMock(return_value=None)):
+        response = client.post("/v1/chat/sync-claims")
+
+    assert response.status_code == 204
+
+
+def test_sync_chat_claims_endpoint_returns_503_when_unconfigured(client: TestClient) -> None:
+    _override_current_user(UserRole.SEEKER)
+
+    with patch.object(
+        svc, "sync_consumer_claims", AsyncMock(side_effect=svc.ChatServiceUnavailableError("nope"))
+    ):
+        response = client.post("/v1/chat/sync-claims")
+
+    assert response.status_code == 503

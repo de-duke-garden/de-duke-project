@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+import anyio
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -118,6 +119,54 @@ def issue_custom_token(
         claims["conversation_ids"] = conversation_ids
     token = firebase_auth.create_custom_token(uid, claims, app=app)
     return token.decode("utf-8") if isinstance(token, bytes) else token
+
+
+async def sync_consumer_claims(session: AsyncSession, *, user_id: str) -> None:
+    """FEAT-001/FEAT-010 reconciliation: a consumer's REAL Firebase
+    Authentication session (Google/email/phone, FEAT-001) doubles as
+    their Firestore identity -- the backend never mints a separate
+    custom-token identity for them (see this module's docstring on the
+    two touchpoints, and `issue_custom_token` above, which remains
+    Staff/Admin-only). But that real session's `uid` is Firebase's own
+    (Google's, etc.), NOT this user's De-Duke `User.id` -- and it carries
+    no `role` claim at all -- while `firestore.rules` (isParticipant,
+    isSupportOwner) and every `clientId`/`propertyManagementId`/`userId`/
+    `senderId` field in Firestore are keyed on the De-Duke `User.id`.
+    Firestore's security rules therefore can't be satisfied by
+    `request.auth.uid` for these accounts at all; they need a
+    `deduke_user_id` custom claim mapping the Firebase identity to the
+    De-Duke one, plus the `role` claim `isStaff()`/`chat_role_for` expect.
+
+    Sets both claims on `user.firebase_uid` via the Firebase Admin SDK.
+    Called by the mobile client (`POST /v1/chat/sync-claims`, via
+    ChatRepository.ensureSignedIn()) every time chat is entered -- cheap
+    and idempotent, so it self-heals both a brand-new sign-in (which
+    never carried these claims to begin with) and a stale claim after a
+    role change (FEAT-003) without requiring the user to sign out and
+    back in. A no-op for a `password`-provider account (Staff/Admin, who
+    never reach this -- the mobile app has no Staff/Admin session at
+    all) or a `firebase`-provider account with no `firebase_uid` yet
+    (shouldn't occur, but defensive).
+    """
+    user = await session.get(User, user_id)
+    if user is None or user.firebase_uid is None:
+        return
+
+    from firebase_admin import auth as firebase_auth
+
+    app = _get_firebase_app()
+    claims: dict[str, Any] = {
+        "deduke_user_id": user.id,
+        "role": chat_role_for(UserRole(user.role)),
+    }
+    # set_custom_user_claims makes a real network call to Firebase's
+    # Identity Toolkit API (unlike create_custom_token above, which just
+    # signs a JWT locally) -- offloaded to a worker thread for the same
+    # reason auth_service.exchange_firebase_token offloads verify_id_token:
+    # a blocking call inside an `async def` stalls the whole event loop.
+    await anyio.to_thread.run_sync(
+        lambda: firebase_auth.set_custom_user_claims(user.firebase_uid, claims, app=app)
+    )
 
 
 async def resolve_property_management_id(session: AsyncSession, listing_id: str) -> str:

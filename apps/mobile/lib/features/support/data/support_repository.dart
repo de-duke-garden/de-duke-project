@@ -61,14 +61,21 @@ class SupportRepository {
   final FirebaseFirestore _firestore;
   final fb_auth.FirebaseAuth _firebaseAuth;
 
-  /// Support conversations use the exact same Firebase custom token as
-  /// regular chat (same `role` claim, just a different Firestore
-  /// collection gated by its own firestore.rules match block) -- so this
-  /// reuses ChatApi.fetchChatToken rather than duplicating token issuance.
+  /// Support conversations are gated by the exact same
+  /// `deduke_user_id`/`role` custom claims as regular chat (just a
+  /// different Firestore collection/match block in firestore.rules) --
+  /// so this reuses ChatApi.syncChatClaims/fetchChatToken rather than
+  /// duplicating the FEAT-001/FEAT-010 reconciliation logic. See
+  /// ChatRepository.ensureSignedIn's docstring for the full "why".
   Future<void> ensureSignedIn() async {
-    if (_firebaseAuth.currentUser != null) return;
-    final tokenResult = await _chatApi.fetchChatToken();
-    await _firebaseAuth.signInWithCustomToken(tokenResult.firebaseCustomToken);
+    if (_firebaseAuth.currentUser == null) {
+      final tokenResult = await _chatApi.fetchChatToken();
+      await _firebaseAuth
+          .signInWithCustomToken(tokenResult.firebaseCustomToken);
+      return;
+    }
+    await _chatApi.syncChatClaims();
+    await _firebaseAuth.currentUser?.getIdToken(true);
   }
 
   /// Idempotent -- returns the caller's existing conversation id if one
@@ -83,7 +90,8 @@ class SupportRepository {
         .collection('support_conversations')
         .doc(conversationId)
         .snapshots()
-        .map((doc) => doc.exists ? SupportConversation.fromFirestore(doc) : null);
+        .map((doc) =>
+            doc.exists ? SupportConversation.fromFirestore(doc) : null);
   }
 
   Stream<List<ChatMessage>> watchMessages(String conversationId) {

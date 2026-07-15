@@ -29,11 +29,26 @@ class ChatApi {
   final ApiClient _apiClient;
 
   /// POST /v1/chat/token -- exchanged (client-side, via FirebaseAuth) for a
-  /// Firestore session, scoped by the `role` custom claim.
+  /// Firestore session, scoped by the `role` custom claim. Legacy/
+  /// defensive-fallback path only, post-FEAT-001 -- consumer accounts
+  /// (the only ones the mobile app ever has) are already Firebase-
+  /// authenticated for real by the time they reach chat; see
+  /// [syncChatClaims] for the actual FEAT-001/FEAT-010 reconciliation
+  /// path ChatRepository.ensureSignedIn() uses instead.
   Future<ChatTokenResult> fetchChatToken() async {
     final response =
         await _apiClient.dio.post<Map<String, dynamic>>('/v1/chat/token');
     return ChatTokenResult.fromJson(response.data!);
+  }
+
+  /// POST /v1/chat/sync-claims -- FEAT-001/FEAT-010 reconciliation. Asks
+  /// the backend to (re)apply the `deduke_user_id`/`role` custom claims
+  /// firestore.rules requires onto the caller's OWN, already-signed-in
+  /// Firebase Authentication account (see app/services/chat_service.py's
+  /// sync_consumer_claims docstring for the full "why"). Idempotent --
+  /// safe to call every time chat is entered.
+  Future<void> syncChatClaims() {
+    return _apiClient.dio.post('/v1/chat/sync-claims');
   }
 
   /// POST /v1/chat/conversations -- server-side creation only; the returned
