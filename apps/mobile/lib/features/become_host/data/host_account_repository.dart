@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../../core/api/api_client.dart';
 import 'host_account_models.dart';
@@ -90,6 +91,8 @@ class HostAccountRepository {
       if (refPhoneNo != null) 'ref_phone_no': refPhoneNo,
     };
 
+    debugPrint('host_account_repository: submit() starting, reading ${1 + documents.length} local file(s)');
+
     final List<MultipartFile> files;
     try {
       files = [
@@ -99,19 +102,26 @@ class HostAccountRepository {
           await MultipartFile.fromFile(doc.localPath, filename: doc.tempKey),
       ];
     } catch (e, stackTrace) {
-      // No crash-reporting SDK is wired into this app yet -- log to the
-      // device/`flutter run` console (visible via `flutter logs` /
-      // Logcat/Console.app even in a release build) so this is at least
-      // diagnosable without a backend request ever having been attempted.
+      // No crash-reporting SDK is wired into this app yet. Logged via BOTH
+      // dart:developer.log (posts to the VM service's Logging stream --
+      // visible in DevTools, but NOT auto-printed by `flutter attach`/`run`
+      // consoles) and debugPrint (goes through the Dart print zone, which
+      // IS surfaced by `flutter attach`/`run` AND appears in `adb logcat`
+      // under the "flutter" tag even for a standalone-launched debug
+      // build) so this is diagnosable however the device is being
+      // inspected.
       developer.log(
         'HostAccountRepository.submit: failed to read a picked local file',
         name: 'host_account_repository',
         error: e,
         stackTrace: stackTrace,
       );
+      debugPrint('host_account_repository: submit() failed reading a local file: $e\n$stackTrace');
       throw HostAccountException(
           'One of your selected photos could not be read. Please reselect it and try again.');
     }
+
+    debugPrint('host_account_repository: submit() local files read OK, POSTing to /v1/host-accounts');
 
     final formMap = <String, dynamic>{
       'submission': jsonEncode(submission),
@@ -123,8 +133,10 @@ class HostAccountRepository {
         '/v1/host-accounts',
         data: FormData.fromMap(formMap),
       );
+      debugPrint('host_account_repository: submit() succeeded');
       return HostAccountStatus.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
+      debugPrint('host_account_repository: submit() DioException: ${e.type} ${e.message} response=${e.response?.statusCode} ${e.response?.data}');
       throw HostAccountException(
           _errorMessage(e, 'Could not submit your application.'));
     }
