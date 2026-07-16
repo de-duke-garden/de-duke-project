@@ -36,10 +36,15 @@ import '../../reporting/screens/report_sheet.dart';
 // `ListingImage` collides with the widget of the same name from
 // listing_card.dart -- this import is only used for `Listing`,
 // `CommercialListingDetails`, `ShortletListingDetails`, so hide it here
-// rather than prefixing every reference in the file.
+// rather than prefixing every reference in the file. The model class is
+// still needed (for _ListingImageCarousel's `List<ListingImage>` param
+// below), so it's imported a second time, prefixed, purely to disambiguate
+// that one type -- Dart allows importing the same library twice under
+// different show/hide/as combinations.
 import '../../share_summary/data/share_repository.dart';
 import '../../share_summary/screens/share_summary_sheet.dart';
 import '../data/listing_models.dart' hide ListingImage;
+import '../data/listing_models.dart' as listing_models show ListingImage;
 import '../data/listing_repository.dart';
 
 enum _LoadState { loading, loaded, empty, error, offline }
@@ -370,24 +375,20 @@ class _ListingBodyState extends State<_ListingBody> {
         : shortlet != null
             ? '₦${shortlet.nightlyPrice.toStringAsFixed(0)} / night'
             : '';
-    final primaryImageUrl =
-        listing.images.isNotEmpty ? listing.images.first.imageUrl : null;
-
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadii.md),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            // Same `'listing-image-<id>'` heroTag as the originating
-            // Listing/Featured card -- the shared-element transition
-            // (branding.md `shared-element-transition`) flies the tapped
-            // card's image into this carousel's first frame.
-            child: ListingImage(
-                imageUrl: primaryImageUrl, heroTag: widget.heroTag),
-          ),
-        ),
+        // A listing can have multiple photos (FEAT-004/005 AC: "Host can
+        // upload multiple photos, reorder them, and mark one as the
+        // primary/cover image") -- this screen previously only ever
+        // rendered `listing.images.first` in a static, non-swipeable
+        // frame, with no way to see the rest. _ListingImageCarousel below
+        // makes every photo reachable via a swipeable PageView + dot
+        // indicator; the FIRST page still carries the same
+        // `'listing-image-<id>'` heroTag as the originating Listing/
+        // Featured card, so the shared-element transition (branding.md
+        // `shared-element-transition`) is unaffected.
+        _ListingImageCarousel(images: listing.images, heroTag: widget.heroTag),
         const SizedBox(height: AppSpacing.md),
         AnimatedOpacity(
           opacity: _bodyVisible ? 1 : 0,
@@ -553,6 +554,235 @@ class _ListingBodyState extends State<_ListingBody> {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Screen 6's photo gallery -- FEAT-004/005 AC: a listing can have
+/// multiple photos, all of which must be viewable, not just the primary/
+/// cover one. A swipeable `PageView` (one `ListingImage` per photo) with a
+/// dot page indicator; degrades to the previous single static frame when
+/// there's 0 or 1 photo (no indicator needed, and no `PageController`
+/// listener churn for the common single-photo case).
+class _ListingImageCarousel extends StatefulWidget {
+  const _ListingImageCarousel({required this.images, required this.heroTag});
+
+  final List<listing_models.ListingImage> images;
+  final String heroTag;
+
+  @override
+  State<_ListingImageCarousel> createState() => _ListingImageCarouselState();
+}
+
+class _ListingImageCarouselState extends State<_ListingImageCarousel> {
+  final _pageController = PageController();
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  /// Opens `_FullScreenImageViewer` starting at `initialIndex`, unless
+  /// there are no photos at all (the placeholder isn't tappable -- nothing
+  /// to zoom into).
+  void _openFullScreen(int initialIndex) {
+    if (widget.images.isEmpty) return;
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierColor: Colors.black,
+        transitionDuration: AppDurations.fast,
+        pageBuilder: (context, animation, secondaryAnimation) => FadeTransition(
+          opacity: animation,
+          child: _FullScreenImageViewer(
+            images: widget.images,
+            initialIndex: initialIndex,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.images.length <= 1) {
+      // Single (or zero) photo -- no PageView/indicator needed; still
+      // carries the heroTag for the shared-element transition exactly as
+      // before this carousel existed.
+      return GestureDetector(
+        onTap: () => _openFullScreen(0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: ListingImage(
+              imageUrl: widget.images.isNotEmpty ? widget.images.first.imageUrl : null,
+              heroTag: widget.heroTag,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadii.md),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: _pageController,
+              itemCount: widget.images.length,
+              onPageChanged: (index) => setState(() => _page = index),
+              itemBuilder: (context, index) => GestureDetector(
+                onTap: () => _openFullScreen(index),
+                child: ListingImage(
+                  imageUrl: widget.images[index].imageUrl,
+                  // Only the first page carries the heroTag -- a Hero
+                  // widget requires a globally unique tag per active route,
+                  // and the originating card's shared-element transition
+                  // only ever animates into this carousel's first frame.
+                  heroTag: index == 0 ? widget.heroTag : null,
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: AppSpacing.sm,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < widget.images.length; i++)
+                    AnimatedContainer(
+                      duration: AppDurations.fast,
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: i == _page ? 8 : 6,
+                      height: i == _page ? 8 : 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: (i == _page
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.5)),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x33000000),
+                            blurRadius: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Photo count chip (e.g. "2/5") -- an additional, more precise
+            // affordance alongside the dots for galleries with several
+            // photos, where individual dots become harder to distinguish.
+            Positioned(
+              top: AppSpacing.sm,
+              right: AppSpacing.sm,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(AppRadii.full),
+                ),
+                child: Text(
+                  '${_page + 1}/${widget.images.length}',
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-screen photo viewer, opened by tapping any image in
+/// `_ListingImageCarousel` -- pinch/double-tap-to-zoom per photo
+/// (`InteractiveViewer`) and swipeable between every photo on the listing,
+/// starting at whichever one was tapped. Black background, a close button,
+/// and the same "n/total" counter chip as the inline carousel so position
+/// is never ambiguous.
+class _FullScreenImageViewer extends StatefulWidget {
+  const _FullScreenImageViewer({
+    required this.images,
+    required this.initialIndex,
+  });
+
+  final List<listing_models.ListingImage> images;
+  final int initialIndex;
+
+  @override
+  State<_FullScreenImageViewer> createState() => _FullScreenImageViewerState();
+}
+
+class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
+  late final PageController _pageController =
+      PageController(initialPage: widget.initialIndex);
+  late int _page = widget.initialIndex;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: _pageController,
+              itemCount: widget.images.length,
+              onPageChanged: (index) => setState(() => _page = index),
+              itemBuilder: (context, index) => InteractiveViewer(
+                minScale: 1,
+                maxScale: 4,
+                child: Center(
+                  child: ListingImage(imageUrl: widget.images[index].imageUrl),
+                ),
+              ),
+            ),
+            Positioned(
+              top: AppSpacing.sm,
+              left: AppSpacing.sm,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close, color: Colors.white),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+            if (widget.images.length > 1)
+              Positioned(
+                top: AppSpacing.sm,
+                right: AppSpacing.sm,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(AppRadii.full),
+                  ),
+                  child: Text(
+                    '${_page + 1}/${widget.images.length}',
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
