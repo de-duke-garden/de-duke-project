@@ -11,6 +11,8 @@
 /// Deletion (FEAT-030) are all real, wired to their respective endpoints.
 library;
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -51,7 +53,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   String? _errorMessage;
   bool _actionInFlight = false;
   bool _linkActionInFlight = false;
-  bool _avatarUploading = false;
   Map<String, bool>? _pushPreferences;
   Map<String, bool>? _emailPreferences;
   // Screen 21 Modernization Notes: the "Saving" state's inline checkmark
@@ -158,36 +159,28 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     });
   }
 
-  /// FEAT-041 -- `fullName` is editable regardless of `authProvider`. A
-  /// simple text-entry dialog rather than an inline field: this screen's
-  /// other rows are read-only display/toggle, so a dialog keeps the edit
-  /// affordance unambiguous rather than making every ListTile look tappable.
-  Future<void> _editFullName() async {
-    final controller = TextEditingController(text: _profile?.fullName ?? '');
-    final newName = await showDialog<String>(
+  /// FEAT-041 -- avatar and `fullName` are edited together in one bottom
+  /// sheet (mirrors host_dashboard_screen.dart's Edit Host Profile sheet)
+  /// rather than as two separately-tappable zones on the same row: the row
+  /// itself has exactly one tap target, opening `_EditProfileSheet`, which
+  /// then exposes tap-to-replace-photo and the name field as independent
+  /// controls WITHIN the sheet. Both fields save via a single
+  /// `PATCH /v1/user/profile` call (unlike the Host Profile sheet, which
+  /// hits two separate endpoints for bio/photo vs. fullName) since photo
+  /// and fullName both live on `User` here.
+  Future<void> _openEditProfileSheet() async {
+    final result = await showModalBottomSheet<UserProfile>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit name'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: 'Full name'),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
+      isScrollControlled: true,
+      builder: (context) => _EditProfileSheet(
+        initialFullName: _profile?.fullName ?? _user?.fullName ?? '',
+        initialPhotoUrl: _profile?.profilePhotoUrl,
+        authRepository: widget.authRepository,
       ),
     );
-    if (newName == null || newName.isEmpty || newName == _profile?.fullName) {
-      return;
-    }
-    await _saveProfile(fullName: newName);
+    if (result == null || !mounted) return;
+    setState(() => _profile = result);
+    _flashSaved('profile:combined');
   }
 
   /// FEAT-041 -- `email` is editable only for `password`-provider accounts
@@ -232,69 +225,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       _flashSaved('profile:${fullName != null ? 'name' : 'email'}');
     } catch (e) {
       if (!mounted) return;
-      final message =
-          e is AuthException ? e.message : "Couldn't save that -- try again.";
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
-    }
-  }
-
-  /// FEAT-041 -- personal avatar, editable for EVERY account type (unlike
-  /// `email`, this isn't gated by `authProvider`). Offers "Remove photo"
-  /// only when one is already set.
-  Future<void> _editAvatar() async {
-    final hasPhoto = _profile?.profilePhotoUrl != null;
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Change photo'),
-              onTap: () => Navigator.of(context).pop('change'),
-            ),
-            if (hasPhoto)
-              ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: const Text('Remove photo'),
-                onTap: () => Navigator.of(context).pop('remove'),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (action == null || !mounted) return;
-
-    if (action == 'remove') {
-      await _saveAvatar(clearProfilePhoto: true);
-      return;
-    }
-    final path = await pickImageFromCameraOrGallery(context);
-    if (path == null || !mounted) return;
-    await _saveAvatar(profilePhotoLocalPath: path);
-  }
-
-  Future<void> _saveAvatar({
-    String? profilePhotoLocalPath,
-    bool clearProfilePhoto = false,
-  }) async {
-    setState(() => _avatarUploading = true);
-    try {
-      final updated = await widget.authRepository.updateProfile(
-        profilePhotoLocalPath: profilePhotoLocalPath,
-        clearProfilePhoto: clearProfilePhoto,
-      );
-      if (!mounted) return;
-      setState(() {
-        _profile = updated;
-        _avatarUploading = false;
-      });
-      _flashSaved('profile:avatar');
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _avatarUploading = false);
       final message =
           e is AuthException ? e.message : "Couldn't save that -- try again.";
       ScaffoldMessenger.of(context)
@@ -479,56 +409,33 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         Card(
           child: Column(
             children: [
-              // profilePhotoUrl -- editable for EVERY account type
-              // regardless of authProvider (FEAT-041), distinct from
-              // FEAT-042's HostAccount.hostPhotoUrl.
+              // Profile photo + full name share one row, with exactly ONE
+              // tap target (the whole row) -- tapping it opens
+              // _EditProfileSheet, which then exposes tap-to-replace-photo
+              // and the name field as their own independent controls WITHIN
+              // the sheet, mirroring host_dashboard_screen.dart's Edit Host
+              // Profile sheet pattern. profilePhotoUrl is editable for
+              // EVERY account type regardless of authProvider (FEAT-041),
+              // distinct from FEAT-042's HostAccount.hostPhotoUrl; fullName
+              // is likewise editable regardless of authProvider.
               ListTile(
-                leading: GestureDetector(
-                  onTap: _avatarUploading ? null : _editAvatar,
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: AppColors.primaryLight,
-                        backgroundImage: profile?.profilePhotoUrl != null
-                            ? NetworkImage(profile!.profilePhotoUrl!)
-                            : null,
-                        child: profile?.profilePhotoUrl == null
-                            ? const Icon(Icons.person_outline,
-                                color: AppColors.primary)
-                            : null,
-                      ),
-                      const CircleAvatar(
-                        radius: 10,
-                        child: Icon(Icons.camera_alt_outlined, size: 12),
-                      ),
-                    ],
-                  ),
+                leading: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.primaryLight,
+                  backgroundImage: profile?.profilePhotoUrl != null
+                      ? NetworkImage(profile!.profilePhotoUrl!)
+                      : null,
+                  child: profile?.profilePhotoUrl == null
+                      ? const Icon(Icons.person_outline,
+                          color: AppColors.primary)
+                      : null,
                 ),
-                title: const Text('Profile photo'),
-                trailing: _avatarUploading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : AnimatedOpacity(
-                        opacity: _justSavedKey == 'profile:avatar' ? 1 : 0,
-                        duration: AppDurations.fast,
-                        child: const Icon(Icons.check_circle,
-                            size: 18, color: AppColors.primary),
-                      ),
-                onTap: _avatarUploading ? null : _editAvatar,
-              ),
-              // fullName -- editable regardless of authProvider (FEAT-041).
-              ListTile(
-                leading: const Icon(Icons.person_outline),
                 title: Text(profile?.fullName ?? user.fullName),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     AnimatedOpacity(
-                      opacity: _justSavedKey == 'profile:name' ? 1 : 0,
+                      opacity: _justSavedKey == 'profile:combined' ? 1 : 0,
                       duration: AppDurations.fast,
                       child: const Icon(Icons.check_circle,
                           size: 18, color: AppColors.primary),
@@ -537,7 +444,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     const Icon(Icons.edit_outlined, size: 18),
                   ],
                 ),
-                onTap: _editFullName,
+                onTap: _openEditProfileSheet,
               ),
               // email -- read-only for firebase-provider accounts (owned
               // by Google/Firebase), editable for password-provider ones.
@@ -917,6 +824,177 @@ class _SkeletonList extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// FEAT-041 -- the Profile row's Edit Profile bottom sheet: avatar
+/// (tap-to-replace, with a "Remove photo" action once one is set) and
+/// fullName, edited together but saved via ONE `PATCH /v1/user/profile`
+/// call (unlike host_dashboard_screen.dart's Edit Host Profile sheet,
+/// which needs two separate endpoint calls since bio/photo live on
+/// `HostAccount` there while fullName lives on `User` -- here, both photo
+/// and fullName already live on `User`, so `AuthRepository.updateProfile`
+/// covers both in a single request).
+class _EditProfileSheet extends StatefulWidget {
+  const _EditProfileSheet({
+    required this.initialFullName,
+    required this.initialPhotoUrl,
+    required this.authRepository,
+  });
+
+  final String initialFullName;
+  final String? initialPhotoUrl;
+  final AuthRepository authRepository;
+
+  @override
+  State<_EditProfileSheet> createState() => _EditProfileSheetState();
+}
+
+class _EditProfileSheetState extends State<_EditProfileSheet> {
+  late final TextEditingController _nameController =
+      TextEditingController(text: widget.initialFullName);
+  String? _newPhotoLocalPath;
+  bool _removePhoto = false;
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  bool get _nameChanged =>
+      _nameController.text.trim().isNotEmpty &&
+      _nameController.text.trim() != widget.initialFullName;
+  bool get _photoChanged => _newPhotoLocalPath != null || _removePhoto;
+
+  bool get _canSave => !_submitting && (_nameChanged || _photoChanged);
+
+  Future<void> _pickPhoto() async {
+    final path = await pickImageFromCameraOrGallery(context);
+    if (path == null || !mounted) return;
+    setState(() {
+      _newPhotoLocalPath = path;
+      _removePhoto = false;
+    });
+  }
+
+  void _clearPhoto() {
+    setState(() {
+      _newPhotoLocalPath = null;
+      _removePhoto = true;
+    });
+  }
+
+  ImageProvider? get _avatarImage {
+    if (_newPhotoLocalPath != null) return FileImage(File(_newPhotoLocalPath!));
+    if (_removePhoto) return null;
+    if (widget.initialPhotoUrl != null) {
+      return NetworkImage(widget.initialPhotoUrl!);
+    }
+    return null;
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final updated = await widget.authRepository.updateProfile(
+        fullName: _nameChanged ? _nameController.text.trim() : null,
+        profilePhotoLocalPath: _newPhotoLocalPath,
+        clearProfilePhoto: _removePhoto,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(updated);
+    } catch (e) {
+      if (!mounted) return;
+      final message = e is AuthException
+          ? (e.message == 'offline'
+              ? "You're offline. Check your connection and try again."
+              : e.message)
+          : "Couldn't save that -- try again.";
+      setState(() {
+        _submitting = false;
+        _error = message;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarImage = _avatarImage;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: AppSpacing.md,
+        right: AppSpacing.md,
+        top: AppSpacing.md,
+        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Edit profile', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.md),
+          Center(
+            child: GestureDetector(
+              onTap: _submitting ? null : _pickPhoto,
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundColor: AppColors.primaryLight,
+                    backgroundImage: avatarImage,
+                    child: avatarImage == null
+                        ? const Icon(Icons.person_outline,
+                            color: AppColors.primary, size: 32)
+                        : null,
+                  ),
+                  const CircleAvatar(
+                    radius: 14,
+                    child: Icon(Icons.camera_alt_outlined, size: 16),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (avatarImage != null)
+            Center(
+              child: TextButton(
+                onPressed: _submitting ? null : _clearPhoto,
+                child: const Text('Remove photo'),
+              ),
+            ),
+          const SizedBox(height: AppSpacing.md),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: Text(_error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
+          TextField(
+            controller: _nameController,
+            enabled: !_submitting,
+            decoration: const InputDecoration(labelText: 'Full name'),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ElevatedButton(
+            onPressed: _canSave ? _save : null,
+            child: _submitting
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Save'),
+          ),
+        ],
       ),
     );
   }
