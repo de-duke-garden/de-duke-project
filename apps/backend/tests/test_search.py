@@ -176,6 +176,18 @@ class TestSearchIntegration:
     async def test_search_returns_listings_within_radius(self) -> None:
         raise NotImplementedError
 
+    async def test_search_result_includes_primary_image_url(self) -> None:
+        """Regression coverage gap: `primary_image_url` was hardcoded to
+        None in search_service.search_listings (never actually joined
+        against ListingImage despite a "populated by a follow-up join if
+        needed" comment), so every Home Feed/Search Results card rendered
+        the placeholder regardless of whether the listing had photos. Fixed
+        via a batched ListingImage query (mirrors
+        listing_service.list_host_listings' primary_image_by_listing) --
+        needs a real DB to assert against actual ListingImage rows; add
+        here once a live Postgres instance is wired into CI."""
+        raise NotImplementedError
+
 
 class TestSemanticBlend:
     """FEAT-031 AC: "Semantic ranking is combined with, not a replacement

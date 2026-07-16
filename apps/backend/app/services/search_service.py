@@ -73,7 +73,7 @@ from sqlalchemy.orm import aliased
 from app.core import cache
 from app.core.config import get_settings
 from app.models.host_account import HostAccount
-from app.models.listing import CommercialListing, Listing, ShortletListing
+from app.models.listing import CommercialListing, Listing, ListingImage, ShortletListing
 from app.schemas.search import (
     ListingSearchResult,
     ListingTypeFilter,
@@ -384,6 +384,23 @@ async def search_listings(
     results: list[ListingSearchResult] = []
     distance_km_by_id: dict[str, float] = {}
 
+    # `primary_image_url` was previously hardcoded to None here with a
+    # "populated by a follow-up join if needed" TODO that was never
+    # actually done -- every listing card on Home Feed/Search Results
+    # (this endpoint's only two callers) rendered the house-silhouette
+    # placeholder regardless of whether the listing had photos. Batched
+    # (one query for the whole page, not N+1 per row), same pattern as
+    # listing_service.list_host_listings' primary_image_by_listing.
+    primary_image_by_listing: dict[str, str] = {}
+    if rows:
+        listing_ids_for_images = [row[0].id for row in rows]
+        images_result = await session.execute(
+            select(ListingImage.listing_id, ListingImage.image_url)
+            .where(ListingImage.listing_id.in_(listing_ids_for_images))
+            .where(ListingImage.is_primary == True)  # noqa: E712 -- SQLAlchemy column comparison, not a Python bool check
+        )
+        primary_image_by_listing = dict(images_result.all())
+
     if filters.latitude is not None and filters.longitude is not None and rows:
         # Distance is computed inline per-row below via a Python haversine
         # fallback is avoided -- instead we re-select distances in bulk to
@@ -427,7 +444,7 @@ async def search_listings(
                 bedrooms=shortlet.bedrooms if shortlet else None,
                 amenities=listing.amenities or [],
                 is_verified_host=bool(host_account and host_account.status == "verified"),
-                primary_image_url=None,  # populated by a follow-up join on ListingImage if needed
+                primary_image_url=primary_image_by_listing.get(listing.id),
                 created_at=listing.created_at.isoformat(),
                 bathrooms=bathrooms_value,
             )
