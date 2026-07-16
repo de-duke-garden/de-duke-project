@@ -6,15 +6,17 @@ CRUD round-trips, `is_listing_available` against real rows) are marked
 skipped below with a reason, per AGENTS.md guidance not to fake a DB.
 """
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
 from app.models.host_account import HostAccount
 from app.models.listing import Listing
 from app.services.listing_service import (
+    STALE_LISTING_THRESHOLD_DAYS,
     dates_overlap,
     derive_status_for_new_listing,
+    is_listing_stale,
     listing_to_dict,
     make_location_point_wkt,
 )
@@ -81,6 +83,81 @@ class TestListingToDictHostFields:
         assert out["host_bio"] is None
         assert out["host_photo_url"] is None
         assert out["host_type"] is None
+
+
+class TestIsListingStale:
+    """FEAT-017 -- production hit "can't compare offset-naive and
+    offset-aware datetimes" here (real Postgres in the development
+    environment, GET /v1/host/listings 500ing right after a host created
+    their first listing) despite `Listing.created_at` being declared
+    `sa_type=DateTime(timezone=True)`. These tests cover both the intended
+    staleness logic and the naive-datetime defensive normalization that
+    fixed the incident."""
+
+    def _listing(
+        self, *, view_count: int = 0, inquiry_count: int = 0, created_at: datetime
+    ) -> Listing:
+        return Listing(
+            host_account_id="host-1",
+            listing_type="shortlet",
+            title="Test Listing",
+            description="A place to stay.",
+            location_latitude=6.5,
+            location_longitude=3.3,
+            location_address_line="1 Test Close",
+            location_city="Lagos",
+            location_state="Lagos",
+            view_count=view_count,
+            inquiry_count=inquiry_count,
+            created_at=created_at,
+        )
+
+    def test_fresh_listing_with_no_activity_is_not_stale(self) -> None:
+        now = datetime.now(UTC)
+        listing = self._listing(created_at=now)
+        assert is_listing_stale(listing, now=now) is False
+
+    def test_old_listing_with_no_activity_is_stale(self) -> None:
+        now = datetime.now(UTC)
+        listing = self._listing(
+            created_at=now - timedelta(days=STALE_LISTING_THRESHOLD_DAYS + 1)
+        )
+        assert is_listing_stale(listing, now=now) is True
+
+    @pytest.mark.parametrize("view_count,inquiry_count", [(1, 0), (0, 1), (2, 3)])
+    def test_old_listing_with_any_activity_is_not_stale(
+        self, view_count: int, inquiry_count: int
+    ) -> None:
+        now = datetime.now(UTC)
+        listing = self._listing(
+            view_count=view_count,
+            inquiry_count=inquiry_count,
+            created_at=now - timedelta(days=STALE_LISTING_THRESHOLD_DAYS + 1),
+        )
+        assert is_listing_stale(listing, now=now) is False
+
+    def test_handles_naive_created_at_without_raising(self) -> None:
+        """Regression test for the actual production incident: a naive
+        (no tzinfo) `created_at` must not raise TypeError when compared
+        against the tz-aware cutoff -- it's normalized to UTC first."""
+        now = datetime.now(UTC)
+        # Naive-but-actually-UTC (mirrors what a driver stripping tzinfo off
+        # an otherwise-correct UTC value would produce) -- NOT
+        # `datetime.now()`, which is naive LOCAL time and would make this
+        # test's pass/fail depend on the machine's timezone offset from UTC.
+        old_naive = now.replace(tzinfo=None) - timedelta(
+            days=STALE_LISTING_THRESHOLD_DAYS + 1
+        )
+        assert old_naive.tzinfo is None
+        listing = self._listing(created_at=old_naive)
+        assert is_listing_stale(listing, now=now) is True
+
+    def test_handles_naive_created_at_when_not_yet_stale(self) -> None:
+        now = datetime.now(UTC)
+        fresh_naive = now.replace(tzinfo=None)
+        assert fresh_naive.tzinfo is None
+        listing = self._listing(created_at=fresh_naive)
+        assert is_listing_stale(listing, now=now) is False
 
 
 class TestDatesOverlap:

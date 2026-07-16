@@ -211,8 +211,20 @@ async def get_transaction_for_owner(
 
 
 def is_hold_active(txn: Transaction) -> bool:
+    # `hold_expires_at` is declared `sa_type=DateTime(timezone=True)`
+    # (app/models/transaction.py) and expected to always round-trip
+    # tz-aware via Postgres/asyncpg -- but the structurally identical
+    # comparison in listing_service.py's list_host_listings threw "can't
+    # compare offset-naive and offset-aware datetimes" in production
+    # against real Postgres, contradicting that assumption (see that
+    # function's own comment for the incident). Normalized defensively
+    # here too, since a raised TypeError from FEAT-032's booking hold check
+    # is a P0 payment-flow failure, not just a dashboard display glitch.
+    hold_expires_at = txn.hold_expires_at
+    if hold_expires_at is not None and hold_expires_at.tzinfo is None:
+        hold_expires_at = hold_expires_at.replace(tzinfo=UTC)
     return (
         txn.status in ("held", "pending_payment")
-        and txn.hold_expires_at is not None
-        and txn.hold_expires_at > datetime.now(UTC)
+        and hold_expires_at is not None
+        and hold_expires_at > datetime.now(UTC)
     )

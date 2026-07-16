@@ -324,6 +324,35 @@ async def increment_view_count(session: AsyncSession, listing_id: str) -> None:
 STALE_LISTING_THRESHOLD_DAYS = 14
 
 
+def is_listing_stale(listing: Listing, *, now: datetime) -> bool:
+    """FEAT-017 AC: "Dashboard flags listings with zero activity after a set
+    period." Pure/no I/O -- split out from list_host_listings below so it's
+    unit-testable without a live DB session, same as booking_service.py's
+    is_hold_active.
+
+    `listing.created_at` is declared `sa_type=DateTime(timezone=True)`
+    (app/models/listing.py) and Postgres/asyncpg is expected to always
+    round-trip that tz-aware -- but a bare `<` between it and a tz-aware
+    cutoff threw "can't compare offset-naive and offset-aware datetimes" in
+    production (development environment, real RDS Postgres, not the SQLite
+    test harness this exact class of issue was previously attributed to --
+    see ops_analytics_service.py's `_as_aware` and share_service.py's
+    identical guard), for every newly-created listing (0 views, 0
+    inquiries) reaching this check. Normalized defensively here rather than
+    trusting the driver, matching this codebase's own established pattern
+    for this exact class of bug.
+    """
+    if listing.view_count != 0 or listing.inquiry_count != 0:
+        return False
+    created_at = (
+        listing.created_at
+        if listing.created_at.tzinfo is not None
+        else listing.created_at.replace(tzinfo=UTC)
+    )
+    stale_cutoff = now - timedelta(days=STALE_LISTING_THRESHOLD_DAYS)
+    return created_at < stale_cutoff
+
+
 async def list_host_listings(
     session: AsyncSession, *, host_account_id: str
 ) -> list[dict[str, Any]]:
@@ -351,15 +380,9 @@ async def list_host_listings(
     }
 
     now = datetime.now(UTC)
-    stale_cutoff = now - timedelta(days=STALE_LISTING_THRESHOLD_DAYS)
 
     items = []
     for listing in listings:
-        is_stale = (
-            listing.view_count == 0
-            and listing.inquiry_count == 0
-            and listing.created_at < stale_cutoff
-        )
         items.append(
             {
                 "id": listing.id,
@@ -370,7 +393,7 @@ async def list_host_listings(
                 "view_count": listing.view_count,
                 "inquiry_count": listing.inquiry_count,
                 "primary_image_url": primary_image_by_listing.get(listing.id),
-                "is_stale": is_stale,
+                "is_stale": is_listing_stale(listing, now=now),
             }
         )
     return items
