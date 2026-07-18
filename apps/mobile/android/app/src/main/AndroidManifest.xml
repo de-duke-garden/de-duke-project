@@ -16,6 +16,17 @@
          settings screens only expose an all-or-nothing toggle. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Required on Android 13+ (API 33, this app's targetSdk per
+         flutter.targetSdkVersion) for ANY notification to display,
+         including FCM push (FEAT-022) -- without this declared, the OS
+         silently drops every notification post-delivery even though FCM
+         itself reports a successful send (confirmed: backend
+         send_each_for_multicast returns success_count=1 for a registered
+         token, yet nothing appears on-device). firebase_messaging's
+         FirebaseMessaging.requestPermission() call in
+         push_notification_service.dart needs this manifest entry to
+         actually surface the runtime prompt/grant. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="De-Duke"

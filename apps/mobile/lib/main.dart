@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/routing/app_keys.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
@@ -55,6 +56,12 @@ class DeDukeApp extends StatelessWidget {
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
       routerConfig: appRouter,
+      // Lets push_notification_service.dart's foreground FCM handler show
+      // a MaterialBanner from outside the widget tree (see app_keys.dart) --
+      // FCM only auto-displays a system notification for backgrounded/
+      // terminated apps; a foregrounded app gets nothing on its own, so
+      // this is the in-app equivalent for that case.
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       // Android's system navigation bar (the OS-level back/home/recent-apps
       // chrome) otherwise stays at the platform default -- solid black --
       // regardless of the app's own theme, which reads as a jarring, un-

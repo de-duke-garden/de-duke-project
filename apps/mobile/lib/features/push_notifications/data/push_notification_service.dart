@@ -9,8 +9,12 @@ library;
 import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
+import '../../../core/routing/app_keys.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 import 'push_notification_repository.dart';
 
 /// Must be a top-level (or static) function per firebase_messaging's own
@@ -35,6 +39,11 @@ class PushNotificationService {
   final FirebaseMessaging _messaging;
   StreamSubscription<String>? _tokenRefreshSubscription;
   bool _initialized = false;
+
+  /// Auto-dismisses the previous foreground banner if a new push arrives
+  /// before the timer fires -- prevents a pile-up of pending dismiss
+  /// timers each independently calling hideCurrentMaterialBanner.
+  Timer? _bannerDismissTimer;
 
   /// Requests notification permission, registers the current device's FCM
   /// token with the backend, and subscribes to token-refresh events (a
@@ -90,15 +99,69 @@ class PushNotificationService {
 
   /// FCM does not show a system notification for foreground messages on
   /// its own (that's the whole reason `onMessage` exists, vs. relying on
-  /// OS-level display like background/terminated messages get) -- for now
-  /// this just logs; in-app foreground notification UI (a toast/banner) is
-  /// a follow-up, not blocking FEAT-022's stated AC ("push notification
-  /// ... when app is backgrounded").
+  /// OS-level display like background/terminated messages get) -- shows an
+  /// in-app MaterialBanner via `rootScaffoldMessengerKey` (see
+  /// app_keys.dart) so a foregrounded session still surfaces the push,
+  /// closing the gap FEAT-022's "app is backgrounded" AC otherwise left: a
+  /// user actively in the app previously saw nothing at all for a push
+  /// that arrived while they were looking right at it.
   void _onForegroundMessage(RemoteMessage message) {
     debugPrint('push_notification_service: foreground message: ${message.messageId}');
+
+    final title = message.notification?.title;
+    final body = message.notification?.body;
+    if (title == null && body == null) return; // data-only message, nothing to show
+
+    final messenger = rootScaffoldMessengerKey.currentState;
+    if (messenger == null) return; // app not yet attached to the widget tree
+
+    _bannerDismissTimer?.cancel();
+    messenger
+      ..clearMaterialBanners()
+      ..showMaterialBanner(
+        MaterialBanner(
+          backgroundColor: AppColors.surface,
+          leading: const Icon(Icons.notifications_active_outlined,
+              color: AppColors.primary),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (title != null)
+                Text(title,
+                    style: AppTypography.h3, maxLines: 1, overflow: TextOverflow.ellipsis),
+              if (body != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Text(body,
+                      style: AppTypography.bodySmall
+                          .copyWith(color: AppColors.textSecondary),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => rootScaffoldMessengerKey.currentState
+                  ?.hideCurrentMaterialBanner(),
+              child: const Text('Dismiss'),
+            ),
+          ],
+        ),
+      );
+
+    // Not a persistent banner -- push copy is transient status, not
+    // something the user should have to manually clear every time (same
+    // reasoning as a system notification tray entry auto-clearing isn't
+    // required either).
+    _bannerDismissTimer = Timer(const Duration(seconds: 6), () {
+      rootScaffoldMessengerKey.currentState?.hideCurrentMaterialBanner();
+    });
   }
 
   void dispose() {
     _tokenRefreshSubscription?.cancel();
+    _bannerDismissTimer?.cancel();
   }
 }
