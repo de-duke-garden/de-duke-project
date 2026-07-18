@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.security import CurrentUser, UserRole, require_roles
 from app.models.host_account import HostAccount
-from app.models.listing import ListingImage
+from app.models.listing import ListingMedia
 from app.schemas.moderation import (
     ModerationDecisionIn,
     ModerationDecisionOut,
@@ -51,9 +51,9 @@ async def get_moderation_queue(
         ).scalar_one_or_none()
         primary_image = (
             await session.execute(
-                select(ListingImage).where(
-                    ListingImage.listing_id == listing.id,
-                    ListingImage.is_primary == True,  # noqa: E712
+                select(ListingMedia).where(
+                    ListingMedia.listing_id == listing.id,
+                    ListingMedia.is_primary == True,  # noqa: E712
                 )
             )
         ).scalar_one_or_none()
@@ -68,7 +68,7 @@ async def get_moderation_queue(
                 host_account_id=listing.host_account_id,
                 host_type=host_account.host_type if host_account else "unknown",
                 created_at=listing.created_at.isoformat(),
-                primary_image_url=primary_image.image_url if primary_image else None,
+                primary_image_url=primary_image.media_url if primary_image else None,
             )
         )
 

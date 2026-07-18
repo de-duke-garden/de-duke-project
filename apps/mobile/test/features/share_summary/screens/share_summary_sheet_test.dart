@@ -3,8 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:de_duke_mobile/core/api/api_client.dart';
 import 'package:de_duke_mobile/core/auth/session_store.dart';
-import 'package:de_duke_mobile/features/listings/data/listing_models.dart'
-    hide ListingImage;
+import 'package:de_duke_mobile/features/listings/data/listing_models.dart';
 import 'package:de_duke_mobile/features/share_summary/data/share_repository.dart';
 import 'package:de_duke_mobile/features/share_summary/screens/share_summary_sheet.dart';
 

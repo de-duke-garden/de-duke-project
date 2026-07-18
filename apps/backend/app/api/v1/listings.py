@@ -1,11 +1,21 @@
-"""Listing CRUD + image upload endpoints -- FEAT-004 (Commercial), FEAT-005
-(Shortlet), FEAT-008 (auto-approval / under_review status).
+"""Listing CRUD + media (photo/video) upload endpoints -- FEAT-004
+(Commercial), FEAT-005 (Shortlet), FEAT-008 (auto-approval / under_review
+status).
 
-Image upload uses the structured multi-file contract from architecture.md:
-a JSON `images_meta` form field (array of {temp_key, display_order,
-is_primary}) plus multipart file fields named `file_<temp_key>`. FastAPI's
-`File(...)` params can't express a dynamic set of differently-named file
-fields per request, so these endpoints read `Request.form()` directly.
+Media upload uses the structured multi-file contract from architecture.md:
+a JSON `media_meta` form field (array of {temp_key, display_order,
+is_primary, media_type}) plus multipart file fields named `file_<temp_key>`.
+FastAPI's `File(...)` params can't express a dynamic set of
+differently-named file fields per request, so these endpoints read
+`Request.form()` directly.
+
+A video clip (media_type='video') is additionally probed for duration and
+has a poster frame extracted server-side (app/services/listing_service.py's
+process_uploaded_video) -- rejected outright if it exceeds
+MAX_VIDEO_BYTES/MAX_VIDEO_DURATION_SECONDS or the listing would exceed
+MAX_VIDEOS_PER_LISTING (FEAT-004/FEAT-005 acceptance criteria), degraded
+gracefully (stored with processing_status='failed', no poster) if ffmpeg/
+ffprobe merely can't process an otherwise-valid file.
 """
 
 from __future__ import annotations
@@ -20,23 +30,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.core.security import CurrentUser, get_current_user, get_current_user_optional
+from app.core.storage import upload_bytes as upload_bytes_to_media_storage
 from app.core.storage import upload_file as upload_to_media_storage
 from app.models.host_account import HostAccount
 from app.models.listing import (
     CommercialListing,
     CommercialListingRoom,
     Listing,
-    ListingImage,
+    ListingMedia,
     ShortletListing,
 )
 from app.schemas.listing import (
     AvailabilityOut,
-    ImageMetaIn,
     ListingCreateIn,
     ListingUpdateIn,
+    MediaMetaIn,
 )
-from app.services import analytics_service
+from app.services import agency_service, analytics_service
 from app.services.listing_service import (
+    MAX_VIDEO_BYTES,
+    MAX_VIDEO_DURATION_SECONDS,
+    MAX_VIDEOS_PER_LISTING,
+    count_listing_videos,
     create_commercial_subtype,
     create_listing,
     create_shortlet_subtype,
@@ -44,6 +59,7 @@ from app.services.listing_service import (
     is_listing_available,
     listing_to_dict,
     make_location_point_wkt,
+    process_uploaded_video,
     touch_updated_at,
 )
 
@@ -69,8 +85,8 @@ async def _load_listing_bundle(session: AsyncSession, listing_id: str) -> dict:
     if listing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
 
-    images = list(
-        (await session.execute(select(ListingImage).where(ListingImage.listing_id == listing_id)))
+    media = list(
+        (await session.execute(select(ListingMedia).where(ListingMedia.listing_id == listing_id)))
         .scalars()
         .all()
     )
@@ -115,7 +131,7 @@ async def _load_listing_bundle(session: AsyncSession, listing_id: str) -> dict:
 
     return listing_to_dict(
         listing,
-        images,
+        media,
         commercial=commercial,
         commercial_rooms=commercial_rooms,
         shortlet=shortlet,
@@ -130,7 +146,14 @@ async def create_listing_endpoint(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict:
     host_account = await _get_own_host_account(session, current_user)
-    listing = await create_listing(session, host_account=host_account, payload=payload)
+    # None for an individual host; the agency root's users.id for an
+    # agency account (root or invited team member) -- see
+    # agency_service.resolve_agency_id_for_listing's docstring for the bug
+    # this fixes (agency listings never showing in their own Portfolio).
+    agency_id = await agency_service.resolve_agency_id_for_listing(session, current_user)
+    listing = await create_listing(
+        session, host_account=host_account, payload=payload, agency_id=agency_id
+    )
     return await _load_listing_bundle(session, listing.id)
 
 
@@ -239,17 +262,26 @@ async def update_listing_endpoint(
     return await _load_listing_bundle(session, listing_id)
 
 
-@router.post("/{listing_id}/images", status_code=status.HTTP_201_CREATED)
-async def upload_listing_images_endpoint(
+@router.post("/{listing_id}/media", status_code=status.HTTP_201_CREATED)
+async def upload_listing_media_endpoint(
     listing_id: str,
     request: Request,
     session: AsyncSession = Depends(get_session),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict:
-    """Structured multi-file upload: `images_meta` (JSON array of
-    ImageMetaIn) + one multipart file field per temp_key, named
+    """Structured multi-file upload: `media_meta` (JSON array of
+    MediaMetaIn) + one multipart file field per temp_key, named
     `file_<temp_key>`. Each file is uploaded to the File Storage Service
     (S3 + CDN, app/core/storage.py) and its durable CDN URL persisted.
+
+    A `media_type='video'` item is additionally validated against
+    MAX_VIDEO_BYTES/MAX_VIDEO_DURATION_SECONDS/MAX_VIDEOS_PER_LISTING
+    BEFORE upload (so a rejected clip never touches File Storage), then has
+    its duration probed and a poster frame extracted server-side
+    (listing_service.process_uploaded_video) -- a processing failure there
+    degrades to `processing_status='failed'` rather than rejecting the
+    upload outright, since the video itself is still valid and playable,
+    just without a poster (see that function's docstring).
     """
     listing = (
         await session.execute(select(Listing).where(Listing.id == listing_id))
@@ -262,16 +294,28 @@ async def upload_listing_images_endpoint(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your listing.")
 
     form = await request.form()
-    raw_meta = form.get("images_meta")
+    raw_meta = form.get("media_meta")
     if raw_meta is None:
-        raise HTTPException(status_code=422, detail="images_meta form field is required")
+        raise HTTPException(status_code=422, detail="media_meta form field is required")
 
     try:
-        meta_list = [ImageMetaIn(**item) for item in json.loads(raw_meta)]
+        meta_list = [MediaMetaIn(**item) for item in json.loads(raw_meta)]
     except (json.JSONDecodeError, ValidationError, TypeError) as exc:
-        raise HTTPException(status_code=422, detail=f"Invalid images_meta: {exc}") from exc
+        raise HTTPException(status_code=422, detail=f"Invalid media_meta: {exc}") from exc
 
-    created: list[ListingImage] = []
+    new_video_count = sum(1 for meta in meta_list if meta.media_type == "video")
+    if new_video_count:
+        existing_video_count = await count_listing_videos(session, listing_id)
+        if existing_video_count + new_video_count > MAX_VIDEOS_PER_LISTING:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"A listing can have at most {MAX_VIDEOS_PER_LISTING} videos "
+                    f"(already has {existing_video_count})."
+                ),
+            )
+
+    created: list[ListingMedia] = []
     for meta in meta_list:
         file_field = f"file_{meta.temp_key}"
         upload_file = form.get(file_field)
@@ -280,27 +324,84 @@ async def upload_listing_images_endpoint(
                 status_code=422,
                 detail=f"Missing file field '{file_field}' for temp_key '{meta.temp_key}'",
             )
-        image_url = await upload_to_media_storage(upload_file, prefix=f"listings/{listing_id}")
-        image = ListingImage(
-            listing_id=listing_id,
-            image_url=image_url,
-            display_order=meta.display_order,
-            is_primary=meta.is_primary,
-        )
-        session.add(image)
-        created.append(image)
+
+        if meta.media_type == "video":
+            video_bytes = await upload_file.read()
+            if len(video_bytes) > MAX_VIDEO_BYTES:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"Video '{meta.temp_key}' exceeds the "
+                        f"{MAX_VIDEO_BYTES // (1024 * 1024)}MB limit."
+                    ),
+                )
+
+            duration_seconds, poster_bytes = await process_uploaded_video(video_bytes)
+            if duration_seconds is not None and duration_seconds > MAX_VIDEO_DURATION_SECONDS:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"Video '{meta.temp_key}' exceeds the "
+                        f"{MAX_VIDEO_DURATION_SECONDS // 60}-minute limit."
+                    ),
+                )
+
+            content_type = upload_file.content_type or "video/mp4"
+            media_url = await upload_bytes_to_media_storage(
+                video_bytes,
+                prefix=f"listings/{listing_id}",
+                filename=upload_file.filename or "video.mp4",
+                content_type=content_type,
+            )
+            poster_url = None
+            if poster_bytes is not None:
+                poster_url = await upload_bytes_to_media_storage(
+                    poster_bytes,
+                    prefix=f"listings/{listing_id}/posters",
+                    filename="poster.jpg",
+                    content_type="image/jpeg",
+                )
+
+            item = ListingMedia(
+                listing_id=listing_id,
+                media_type="video",
+                media_url=media_url,
+                poster_url=poster_url,
+                duration_seconds=duration_seconds,
+                processing_status="ready" if poster_url is not None else "failed",
+                display_order=meta.display_order,
+                is_primary=False,  # MediaMetaIn's own validator already enforces this
+            )
+        else:
+            media_url = await upload_to_media_storage(
+                upload_file, prefix=f"listings/{listing_id}"
+            )
+            item = ListingMedia(
+                listing_id=listing_id,
+                media_type="image",
+                media_url=media_url,
+                processing_status="ready",
+                display_order=meta.display_order,
+                is_primary=meta.is_primary,
+            )
+        session.add(item)
+        created.append(item)
 
     await session.commit()
     return {
         "listing_id": listing_id,
-        "images": [
+        "media": [
             {
-                "id": img.id,
-                "image_url": img.image_url,
-                "display_order": img.display_order,
-                "is_primary": img.is_primary,
+                "id": item.id,
+                "media_type": item.media_type,
+                "media_url": item.media_url,
+                "poster_url": item.poster_url,
+                "duration_seconds": item.duration_seconds,
+                "processing_status": item.processing_status,
+                "display_order": item.display_order,
+                "is_primary": item.is_primary,
             }
-            for img in created
+            for item in created
         ],
     }
 

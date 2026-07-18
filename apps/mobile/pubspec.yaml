@@ -25,6 +25,10 @@ dependencies:
   url_launcher: ^6.3.1
   uuid: ^4.5.1
   image_picker: ^1.2.3
+  # FEAT-004/FEAT-005 video support (docs/De-Duke/schema.md's ListingMedia)
+  # -- inline tap-to-play playback for video tiles in the Listing Detail
+  # gallery and Create/Edit Listing's combined media grid preview.
+  video_player: ^2.13.0
   geolocator: ^14.0.2
   # Pinned below its latest (13.x) -- 13.x's win32 ^6.0.1 requirement
   # conflicts with flutter_secure_storage 9.x's win32 ^5.0.0 transitive

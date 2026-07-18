@@ -22,6 +22,15 @@ RUN pip install --no-cache-dir --prefix=/install .
 
 FROM python:3.12-slim AS runtime
 
+# ffmpeg/ffprobe -- FEAT-004/FEAT-005 video support
+# (app/services/listing_service.py's process_uploaded_video): server-side
+# clip-duration probing and poster-frame extraction shell out to these
+# binaries directly (no Python wrapper package -- ffmpeg is an OS tool, not
+# a pip dependency). Runtime-stage only; not needed at build time.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Runs as a non-root user -- least-privilege inside the container, matching
 # the "every sensitive action" security posture the rest of this project
 # holds itself to (AGENTS.md).

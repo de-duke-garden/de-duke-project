@@ -9,10 +9,15 @@ shared models and wired up here.
 
 from __future__ import annotations
 
+import logging
+import subprocess
+import tempfile
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select, update
+import anyio
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.host_account import HostAccount
@@ -20,11 +25,133 @@ from app.models.listing import (
     CommercialListing,
     CommercialListingRoom,
     Listing,
-    ListingImage,
+    ListingMedia,
     ShortletListing,
 )
 from app.models.transaction import Transaction
 from app.schemas.listing import CommercialListingIn, ListingCreateIn, ShortletListingIn
+
+logger = logging.getLogger("app.services.listing_service")
+
+# FEAT-004/FEAT-005 acceptance criteria (docs/De-Duke/features.md, product-
+# shaped via product-shaper) -- a video clip is capped at 100MB / 5 minutes,
+# and a listing can carry at most 5 video clips (on top of however many
+# photos). Validated server-side, never trusted from the client alone.
+MAX_VIDEO_BYTES = 100 * 1024 * 1024
+MAX_VIDEO_DURATION_SECONDS = 5 * 60
+MAX_VIDEOS_PER_LISTING = 5
+
+# Bounded timeout for the ffmpeg/ffprobe subprocess calls below -- same
+# "never let a hung external dependency pile up slow requests" reasoning
+# as every other external call in this codebase (AGENTS.md Behavior
+# Rules), even though ffmpeg is a local binary, not a network dependency:
+# a malformed/adversarial video file can still make it hang.
+_FFMPEG_TIMEOUT_SECONDS = 30
+
+
+class VideoValidationError(ValueError):
+    """A video upload violates FEAT-004/FEAT-005's documented limits (file
+    size, clip length, or per-listing count) -- mapped to a 422 by the
+    router. Distinct from a processing failure (see ListingMedia.
+    processing_status's docstring): this is a hard rejection the caller
+    must fix before retrying, not a degraded-but-accepted upload."""
+
+
+def _probe_and_extract_poster_sync(video_bytes: bytes) -> tuple[float, bytes]:
+    """The actual blocking ffmpeg/ffprobe work -- run off the event loop
+    via anyio.to_thread by `process_uploaded_video` below, mirroring
+    push_service._send_multicast_sync's own "real external-tool call, run
+    in a worker thread" pattern.
+
+    Writes `video_bytes` to a temp file (ffmpeg/ffprobe both require a
+    real file path, not a stream) and returns (duration_seconds,
+    poster_jpeg_bytes). Raises RuntimeError -- caught by the caller and
+    treated as "processing failed" (ListingMedia.processing_status
+    ='failed'), never propagated as a hard upload rejection, since a video
+    that merely failed poster generation (e.g. an unusual codec ffmpeg
+    can't read a frame from) should still be stored and playable, just
+    without a poster -- see risk_log.md's R-021 for the tradeoff this
+    reflects (reject non-conforming codecs at the client's declared
+    content-type/extension level, degrade gracefully for anything that
+    slips through server-side).
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        video_path = Path(tmpdir) / "input"
+        video_path.write_bytes(video_bytes)
+        poster_path = Path(tmpdir) / "poster.jpg"
+
+        try:
+            probe = subprocess.run(
+                [
+                    "ffprobe",
+                    "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    str(video_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=_FFMPEG_TIMEOUT_SECONDS,
+                check=True,
+            )
+            duration_seconds = float(probe.stdout.strip())
+
+            # 1s into the clip (falls back to the first frame ffmpeg can
+            # decode if the clip is shorter than that) -- avoids a
+            # frequently-black true-first-frame on phone camera footage.
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-ss", "00:00:01",
+                    "-i", str(video_path),
+                    "-frames:v", "1",
+                    "-q:v", "3",
+                    str(poster_path),
+                ],
+                capture_output=True,
+                timeout=_FFMPEG_TIMEOUT_SECONDS,
+                check=True,
+            )
+            poster_bytes = poster_path.read_bytes()
+        except (
+            OSError,
+            ValueError,
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+        ) as exc:
+            raise RuntimeError(f"video processing failed: {exc}") from exc
+
+    return duration_seconds, poster_bytes
+
+
+async def process_uploaded_video(video_bytes: bytes) -> tuple[float | None, bytes | None]:
+    """Probes clip duration and extracts a poster frame for a freshly
+    uploaded video. Returns (None, None) if ffmpeg/ffprobe aren't
+    available or the file couldn't be processed -- callers persist the
+    video anyway with `processing_status='failed'` (graceful degradation,
+    same "bounded timeout, fail fast, log and continue" pattern
+    push_service.py/sms_service.py already establish) rather than
+    rejecting an otherwise-valid upload over a poster-generation hiccup.
+    """
+    try:
+        return await anyio.to_thread.run_sync(_probe_and_extract_poster_sync, video_bytes)
+    except Exception as exc:  # noqa: BLE001 -- ffmpeg/subprocess raise many distinct types
+        logger.warning("process_uploaded_video: failed (%s)", exc)
+        return None, None
+
+
+async def count_listing_videos(session: AsyncSession, listing_id: str) -> int:
+    """Backs the MAX_VIDEOS_PER_LISTING check -- counts already-persisted
+    video rows so a second upload request against the same listing (e.g.
+    Edit Listing adding more clips later) is checked against the true
+    total, not just what's in the current request batch."""
+    result = await session.execute(
+        select(func.count())
+        .select_from(ListingMedia)
+        .where(ListingMedia.listing_id == listing_id, ListingMedia.media_type == "video")
+    )
+    return result.scalar_one()
 
 
 def derive_status_for_new_listing(host_type: str) -> tuple[str, str | None]:
@@ -53,6 +180,7 @@ async def create_listing(
     *,
     host_account: HostAccount,
     payload: ListingCreateIn,
+    agency_id: str | None = None,
 ) -> Listing:
     if payload.listing_type == "commercial" and payload.commercial is None:
         raise ValueError("commercial payload required for listing_type=commercial")
@@ -63,6 +191,13 @@ async def create_listing(
 
     listing = Listing(
         host_account_id=host_account.id,
+        # Resolved by the caller via agency_service.resolve_agency_id_for_listing
+        # -- None for an individual host, the agency root's users.id for an
+        # agency account (root or invited team member). Without this,
+        # agency_service's Portfolio/Summary queries (which filter on
+        # `Listing.agency_id == agency_id`) never match a listing this
+        # account creates.
+        agency_id=agency_id,
         listing_type=payload.listing_type,
         title=payload.title,
         description=payload.description,
@@ -215,14 +350,14 @@ async def is_listing_available(
 
 def listing_to_dict(
     listing: Listing,
-    images: list[ListingImage],
+    media: list[ListingMedia],
     commercial: CommercialListing | None = None,
     commercial_rooms: list[CommercialListingRoom] | None = None,
     shortlet: ShortletListing | None = None,
     host_account: Any | None = None,
 ) -> dict[str, Any]:
     """Assembles the API response dict for a Listing + its subtype row +
-    images, matching ListingOut.
+    media (photos/videos), matching ListingOut.
 
     `host_account` (FEAT-042) is the owning HostAccount row, optional so
     every existing call site that doesn't have it handy yet doesn't break
@@ -251,14 +386,18 @@ def listing_to_dict(
         "host_bio": host_account.bio if host_account is not None else None,
         "host_photo_url": host_account.host_photo_url if host_account is not None else None,
         "host_type": host_account.host_type if host_account is not None else None,
-        "images": [
+        "media": [
             {
-                "id": img.id,
-                "image_url": img.image_url,
-                "display_order": img.display_order,
-                "is_primary": img.is_primary,
+                "id": item.id,
+                "media_type": item.media_type,
+                "media_url": item.media_url,
+                "poster_url": item.poster_url,
+                "duration_seconds": item.duration_seconds,
+                "processing_status": item.processing_status,
+                "display_order": item.display_order,
+                "is_primary": item.is_primary,
             }
-            for img in sorted(images, key=lambda i: i.display_order)
+            for item in sorted(media, key=lambda i: i.display_order)
         ],
         "commercial": None,
         "shortlet": None,
@@ -370,13 +509,13 @@ async def list_host_listings(
         return []
 
     listing_ids = [listing.id for listing in listings]
-    images_result = await session.execute(
-        select(ListingImage)
-        .where(ListingImage.listing_id.in_(listing_ids))
-        .where(ListingImage.is_primary == True)  # noqa: E712 -- SQLAlchemy column comparison, not a Python bool check
+    media_result = await session.execute(
+        select(ListingMedia)
+        .where(ListingMedia.listing_id.in_(listing_ids))
+        .where(ListingMedia.is_primary == True)  # noqa: E712 -- SQLAlchemy column comparison, not a Python bool check
     )
     primary_image_by_listing = {
-        img.listing_id: img.image_url for img in images_result.scalars().all()
+        item.listing_id: item.media_url for item in media_result.scalars().all()
     }
 
     now = datetime.now(UTC)

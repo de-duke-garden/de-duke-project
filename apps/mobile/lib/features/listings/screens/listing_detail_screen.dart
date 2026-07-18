@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
@@ -33,18 +34,9 @@ import '../../become_host/data/host_account_models.dart';
 import '../../chat/data/chat_repository.dart';
 import '../../reporting/data/report_repository.dart';
 import '../../reporting/screens/report_sheet.dart';
-// `ListingImage` collides with the widget of the same name from
-// listing_card.dart -- this import is only used for `Listing`,
-// `CommercialListingDetails`, `ShortletListingDetails`, so hide it here
-// rather than prefixing every reference in the file. The model class is
-// still needed (for _ListingImageCarousel's `List<ListingImage>` param
-// below), so it's imported a second time, prefixed, purely to disambiguate
-// that one type -- Dart allows importing the same library twice under
-// different show/hide/as combinations.
 import '../../share_summary/data/share_repository.dart';
 import '../../share_summary/screens/share_summary_sheet.dart';
-import '../data/listing_models.dart' hide ListingImage;
-import '../data/listing_models.dart' as listing_models show ListingImage;
+import '../data/listing_models.dart';
 import '../data/listing_repository.dart';
 
 enum _LoadState { loading, loaded, empty, error, offline }
@@ -378,17 +370,17 @@ class _ListingBodyState extends State<_ListingBody> {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        // A listing can have multiple photos (FEAT-004/005 AC: "Host can
-        // upload multiple photos, reorder them, and mark one as the
-        // primary/cover image") -- this screen previously only ever
-        // rendered `listing.images.first` in a static, non-swipeable
-        // frame, with no way to see the rest. _ListingImageCarousel below
-        // makes every photo reachable via a swipeable PageView + dot
-        // indicator; the FIRST page still carries the same
-        // `'listing-image-<id>'` heroTag as the originating Listing/
-        // Featured card, so the shared-element transition (branding.md
-        // `shared-element-transition`) is unaffected.
-        _ListingImageCarousel(images: listing.images, heroTag: widget.heroTag),
+        // A listing can have multiple photos AND short videos (FEAT-004/005
+        // AC: "Host can upload multiple photos, reorder them, and mark one
+        // as the primary/cover image"; video support product-shaped via
+        // product-shaper) -- _ListingMediaCarousel makes every item
+        // reachable via a swipeable PageView + dot indicator, interleaved
+        // at each item's server-assigned displayOrder exactly as Create
+        // Listing's media grid arranged them. The FIRST page still carries
+        // the same `'listing-image-<id>'` heroTag as the originating
+        // Listing/Featured card, so the shared-element transition
+        // (branding.md `shared-element-transition`) is unaffected.
+        _ListingMediaCarousel(media: listing.media, heroTag: widget.heroTag),
         const SizedBox(height: AppSpacing.md),
         AnimatedOpacity(
           opacity: _bodyVisible ? 1 : 0,
@@ -558,23 +550,28 @@ class _ListingBodyState extends State<_ListingBody> {
   }
 }
 
-/// Screen 6's photo gallery -- FEAT-004/005 AC: a listing can have
-/// multiple photos, all of which must be viewable, not just the primary/
-/// cover one. A swipeable `PageView` (one `ListingImage` per photo) with a
-/// dot page indicator; degrades to the previous single static frame when
-/// there's 0 or 1 photo (no indicator needed, and no `PageController`
-/// listener churn for the common single-photo case).
-class _ListingImageCarousel extends StatefulWidget {
-  const _ListingImageCarousel({required this.images, required this.heroTag});
+/// Screen 6's media gallery -- FEAT-004/005 AC: a listing can have multiple
+/// photos AND short videos, all of which must be viewable, not just the
+/// primary/cover one. A swipeable `PageView` interleaving photo and video
+/// tiles at their server-assigned `displayOrder` (product decision --
+/// video support product-shaped via product-shaper) with a dot page
+/// indicator; degrades to a single static frame when there's 0 or 1 item
+/// (no indicator needed, and no `PageController` listener churn for the
+/// common single-item case). A video plays inline, tap-to-play, no
+/// autoplay -- see `_VideoTile`. Tapping a PHOTO still opens the
+/// full-screen photo viewer (photo-only, per the product decision --
+/// videos never open it, since they already play inline here).
+class _ListingMediaCarousel extends StatefulWidget {
+  const _ListingMediaCarousel({required this.media, required this.heroTag});
 
-  final List<listing_models.ListingImage> images;
+  final List<ListingMedia> media;
   final String heroTag;
 
   @override
-  State<_ListingImageCarousel> createState() => _ListingImageCarouselState();
+  State<_ListingMediaCarousel> createState() => _ListingMediaCarouselState();
 }
 
-class _ListingImageCarouselState extends State<_ListingImageCarousel> {
+class _ListingMediaCarouselState extends State<_ListingMediaCarousel> {
   final _pageController = PageController();
   int _page = 0;
 
@@ -584,11 +581,16 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
     super.dispose();
   }
 
-  /// Opens `_FullScreenImageViewer` starting at `initialIndex`, unless
-  /// there are no photos at all (the placeholder isn't tappable -- nothing
-  /// to zoom into).
-  void _openFullScreen(int initialIndex) {
-    if (widget.images.isEmpty) return;
+  /// Opens `_FullScreenPhotoViewer` at whichever PHOTO-only index
+  /// corresponds to `carouselIndex` -- the full-screen viewer's own item
+  /// list excludes videos entirely (per the product decision), so a tap on
+  /// carousel index 3 (say, the 2nd photo after one video) must resolve to
+  /// photo-only index 1, not 3.
+  void _openFullScreenPhoto(int carouselIndex) {
+    final photos = widget.media.where((m) => !m.isVideo).toList();
+    if (photos.isEmpty) return;
+    final tapped = widget.media[carouselIndex];
+    final photoIndex = photos.indexWhere((p) => p.id == tapped.id);
     Navigator.of(context).push(
       PageRouteBuilder<void>(
         opaque: false,
@@ -596,9 +598,9 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
         transitionDuration: AppDurations.fast,
         pageBuilder: (context, animation, secondaryAnimation) => FadeTransition(
           opacity: animation,
-          child: _FullScreenImageViewer(
-            images: widget.images,
-            initialIndex: initialIndex,
+          child: _FullScreenPhotoViewer(
+            photos: photos,
+            initialIndex: photoIndex == -1 ? 0 : photoIndex,
           ),
         ),
       ),
@@ -607,21 +609,25 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.images.length <= 1) {
-      // Single (or zero) photo -- no PageView/indicator needed; still
+    if (widget.media.length <= 1) {
+      // Single (or zero) item -- no PageView/indicator needed; still
       // carries the heroTag for the shared-element transition exactly as
-      // before this carousel existed.
-      return GestureDetector(
-        onTap: () => _openFullScreen(0),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadii.md),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: ListingImage(
-              imageUrl: widget.images.isNotEmpty ? widget.images.first.imageUrl : null,
-              heroTag: widget.heroTag,
-            ),
-          ),
+      // before this carousel existed. A lone video still plays inline
+      // (not opened full-screen -- there's nothing to page between).
+      final only = widget.media.isNotEmpty ? widget.media.first : null;
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: only == null
+              ? ListingImage(imageUrl: null, heroTag: widget.heroTag)
+              : only.isVideo
+                  ? _VideoTile(media: only, isActive: true)
+                  : GestureDetector(
+                      onTap: () => _openFullScreenPhoto(0),
+                      child: ListingImage(
+                          imageUrl: only.mediaUrl, heroTag: widget.heroTag),
+                    ),
         ),
       );
     }
@@ -634,19 +640,28 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
           children: [
             PageView.builder(
               controller: _pageController,
-              itemCount: widget.images.length,
+              itemCount: widget.media.length,
               onPageChanged: (index) => setState(() => _page = index),
-              itemBuilder: (context, index) => GestureDetector(
-                onTap: () => _openFullScreen(index),
-                child: ListingImage(
-                  imageUrl: widget.images[index].imageUrl,
-                  // Only the first page carries the heroTag -- a Hero
-                  // widget requires a globally unique tag per active route,
-                  // and the originating card's shared-element transition
-                  // only ever animates into this carousel's first frame.
-                  heroTag: index == 0 ? widget.heroTag : null,
-                ),
-              ),
+              itemBuilder: (context, index) {
+                final item = widget.media[index];
+                if (item.isVideo) {
+                  // Pauses itself once swiped away from -- see _VideoTile's
+                  // own `isActive` docstring.
+                  return _VideoTile(media: item, isActive: index == _page);
+                }
+                return GestureDetector(
+                  onTap: () => _openFullScreenPhoto(index),
+                  child: ListingImage(
+                    imageUrl: item.mediaUrl,
+                    // Only the first page carries the heroTag -- a Hero
+                    // widget requires a globally unique tag per active
+                    // route, and the originating card's shared-element
+                    // transition only ever animates into this carousel's
+                    // first frame.
+                    heroTag: index == 0 ? widget.heroTag : null,
+                  ),
+                );
+              },
             ),
             Positioned(
               bottom: AppSpacing.sm,
@@ -655,7 +670,7 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  for (var i = 0; i < widget.images.length; i++)
+                  for (var i = 0; i < widget.media.length; i++)
                     AnimatedContainer(
                       duration: AppDurations.fast,
                       margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -677,9 +692,9 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
                 ],
               ),
             ),
-            // Photo count chip (e.g. "2/5") -- an additional, more precise
+            // Media count chip (e.g. "2/5") -- an additional, more precise
             // affordance alongside the dots for galleries with several
-            // photos, where individual dots become harder to distinguish.
+            // items, where individual dots become harder to distinguish.
             Positioned(
               top: AppSpacing.sm,
               right: AppSpacing.sm,
@@ -691,7 +706,7 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
                   borderRadius: BorderRadius.circular(AppRadii.full),
                 ),
                 child: Text(
-                  '${_page + 1}/${widget.images.length}',
+                  '${_page + 1}/${widget.media.length}',
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
               ),
@@ -703,26 +718,222 @@ class _ListingImageCarouselState extends State<_ListingImageCarousel> {
   }
 }
 
-/// Full-screen photo viewer, opened by tapping any image in
-/// `_ListingImageCarousel` -- pinch/double-tap-to-zoom per photo
-/// (`InteractiveViewer`) and swipeable between every photo on the listing,
-/// starting at whichever one was tapped. Black background, a close button,
-/// and the same "n/total" counter chip as the inline carousel so position
-/// is never ambiguous.
-class _FullScreenImageViewer extends StatefulWidget {
-  const _FullScreenImageViewer({
-    required this.images,
+/// A single video item within `_ListingMediaCarousel` -- tap-to-play,
+/// inline, no autoplay (product decision). Shows the server-generated
+/// poster frame with a play-button overlay and duration badge until
+/// tapped; once tapped, lazily initializes a `VideoPlayerController` and
+/// swaps to a real playing video with standard play/pause + scrub controls.
+///
+/// `processing_status`/`poster_url` states (schema.md's ListingMedia,
+/// risk_log.md's R-021): 'pending' (poster not generated yet) shows a
+/// "Processing..." placeholder, not tappable, since there's nothing to
+/// show yet even though the raw clip may already be playable -- keeps the
+/// UI simple rather than offering a play button with no visual preview.
+/// 'failed' (poster generation errored, e.g. an unusual codec) still shows
+/// a generic video placeholder AND stays tappable -- the clip itself is
+/// independently valid and playable even without a poster.
+class _VideoTile extends StatefulWidget {
+  const _VideoTile({required this.media, required this.isActive});
+
+  final ListingMedia media;
+
+  /// False once the user has swiped to a different carousel page -- the
+  /// controller pauses itself so a video playing off-screen doesn't keep
+  /// making noise/using bandwidth after the user has moved on.
+  final bool isActive;
+
+  @override
+  State<_VideoTile> createState() => _VideoTileState();
+}
+
+class _VideoTileState extends State<_VideoTile> {
+  VideoPlayerController? _controller;
+  bool _initializing = false;
+  bool _playing = false;
+
+  @override
+  void didUpdateWidget(_VideoTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.isActive && oldWidget.isActive) {
+      _controller?.pause();
+      if (mounted) setState(() => _playing = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _startPlayback() async {
+    if (widget.media.processingStatus == 'pending') return; // no poster/preview ready yet
+    setState(() => _initializing = true);
+    final controller =
+        VideoPlayerController.networkUrl(Uri.parse(widget.media.mediaUrl));
+    try {
+      await controller.initialize();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      await controller.play();
+      setState(() {
+        _controller = controller;
+        _initializing = false;
+        _playing = true;
+      });
+    } catch (_) {
+      await controller.dispose();
+      if (!mounted) return;
+      setState(() => _initializing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't play this video.")),
+      );
+    }
+  }
+
+  void _togglePlayback() {
+    final controller = _controller;
+    if (controller == null) {
+      _startPlayback();
+      return;
+    }
+    setState(() {
+      if (controller.value.isPlaying) {
+        controller.pause();
+        _playing = false;
+      } else {
+        controller.play();
+        _playing = true;
+      }
+    });
+  }
+
+  String _formatDuration(double? seconds) {
+    if (seconds == null) return '';
+    final d = Duration(seconds: seconds.round());
+    final m = d.inMinutes.toString();
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (controller != null && controller.value.isInitialized) {
+      return GestureDetector(
+        onTap: _togglePlayback,
+        child: Stack(
+          alignment: Alignment.center,
+          fit: StackFit.expand,
+          children: [
+            FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: controller.value.size.width,
+                height: controller.value.size.height,
+                child: VideoPlayer(controller),
+              ),
+            ),
+            if (!_playing)
+              const Icon(Icons.play_arrow, color: Colors.white, size: 56),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: VideoProgressIndicator(
+                controller,
+                allowScrubbing: true,
+                padding: const EdgeInsets.all(AppSpacing.xs),
+                colors: const VideoProgressColors(
+                  playedColor: AppColors.primary,
+                  bufferedColor: Colors.white38,
+                  backgroundColor: Colors.white12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final poster = widget.media.posterUrl;
+    return GestureDetector(
+      onTap: widget.media.processingStatus == 'pending' ? null : _startPlayback,
+      child: Stack(
+        alignment: Alignment.center,
+        fit: StackFit.expand,
+        children: [
+          if (poster != null)
+            ListingImage(imageUrl: poster)
+          else
+            Container(color: AppColors.surfaceSecondary),
+          if (_initializing)
+            const CircularProgressIndicator(color: Colors.white)
+          else if (widget.media.processingStatus == 'pending')
+            const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: Colors.white),
+                SizedBox(height: AppSpacing.sm),
+                Text('Processing video...',
+                    style: TextStyle(color: Colors.white)),
+              ],
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: const BoxDecoration(
+                color: Color(0x66000000),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.play_arrow, color: Colors.white, size: 40),
+            ),
+          if (widget.media.durationSeconds != null)
+            Positioned(
+              right: AppSpacing.sm,
+              bottom: AppSpacing.sm,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                ),
+                child: Text(
+                  _formatDuration(widget.media.durationSeconds),
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Full-screen photo viewer, opened by tapping any PHOTO in
+/// `_ListingMediaCarousel` -- pinch/double-tap-to-zoom per photo
+/// (`InteractiveViewer`) and swipeable between every PHOTO on the listing
+/// (videos are excluded entirely -- they already play inline in the
+/// carousel, per the product decision), starting at whichever one was
+/// tapped. Black background, a close button, and the same "n/total"
+/// counter chip as the inline carousel so position is never ambiguous.
+class _FullScreenPhotoViewer extends StatefulWidget {
+  const _FullScreenPhotoViewer({
+    required this.photos,
     required this.initialIndex,
   });
 
-  final List<listing_models.ListingImage> images;
+  final List<ListingMedia> photos;
   final int initialIndex;
 
   @override
-  State<_FullScreenImageViewer> createState() => _FullScreenImageViewerState();
+  State<_FullScreenPhotoViewer> createState() => _FullScreenPhotoViewerState();
 }
 
-class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
+class _FullScreenPhotoViewerState extends State<_FullScreenPhotoViewer> {
   late final PageController _pageController =
       PageController(initialPage: widget.initialIndex);
   late int _page = widget.initialIndex;
@@ -742,13 +953,13 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
           children: [
             PageView.builder(
               controller: _pageController,
-              itemCount: widget.images.length,
+              itemCount: widget.photos.length,
               onPageChanged: (index) => setState(() => _page = index),
               itemBuilder: (context, index) => InteractiveViewer(
                 minScale: 1,
                 maxScale: 4,
                 child: Center(
-                  child: ListingImage(imageUrl: widget.images[index].imageUrl),
+                  child: ListingImage(imageUrl: widget.photos[index].mediaUrl),
                 ),
               ),
             ),
@@ -763,7 +974,7 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
                 ),
               ),
             ),
-            if (widget.images.length > 1)
+            if (widget.photos.length > 1)
               Positioned(
                 top: AppSpacing.sm,
                 right: AppSpacing.sm,
@@ -775,7 +986,7 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
                     borderRadius: BorderRadius.circular(AppRadii.full),
                   ),
                   child: Text(
-                    '${_page + 1}/${widget.images.length}',
+                    '${_page + 1}/${widget.photos.length}',
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),

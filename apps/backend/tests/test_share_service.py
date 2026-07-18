@@ -17,7 +17,7 @@ import pytest
 
 from app.models.discovery import ShareableSummary
 from app.models.host_account import HostAccount
-from app.models.listing import CommercialListing, Listing, ListingImage, ShortletListing
+from app.models.listing import CommercialListing, Listing, ListingMedia, ShortletListing
 from app.services import share_service
 
 
@@ -220,7 +220,7 @@ class TestResolvePublicSummary:
                 Listing: listing,
                 HostAccount: host_account,
                 CommercialListing: commercial,
-                ListingImage: SimpleNamespace(image_url="https://cdn.example/img.jpg"),
+                ListingMedia: SimpleNamespace(media_url="https://cdn.example/img.jpg"),
             }
         )
 
@@ -254,7 +254,7 @@ class TestResolvePublicSummary:
                 Listing: listing,
                 HostAccount: host_account,
                 ShortletListing: shortlet,
-                ListingImage: None,
+                ListingMedia: None,
             }
         )
 

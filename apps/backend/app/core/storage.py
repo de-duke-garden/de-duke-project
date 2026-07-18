@@ -96,23 +96,16 @@ def build_media_url(key: str) -> str:
     )
 
 
-async def upload_file(upload: UploadFile, *, prefix: str) -> str:
-    """Uploads a FastAPI/Starlette UploadFile to the media bucket and
-    returns its durable URL (via build_media_url).
-
-    `prefix` namespaces the object key by what it belongs to (e.g.
-    `listings/{listing_id}` or `host-accounts/{host_account_id}`) so the
-    bucket stays browsable/auditable rather than one flat namespace.
-
-    boto3 is synchronous -- put_object runs in a worker thread (anyio, the
-    same primitive Starlette's own UploadFile uses) so it never blocks the
-    event loop, preserving the async-native concurrency benefit AGENTS.md
-    calls out as the whole reason FastAPI was chosen.
+async def upload_bytes(body: bytes, *, prefix: str, filename: str, content_type: str) -> str:
+    """Same upload as `upload_file` below, but for already-in-memory bytes
+    rather than a live `UploadFile` -- used by listing_service.py's video
+    upload path, which must read the video's bytes into memory anyway (to
+    probe its duration and extract a poster frame server-side, see
+    listing_service._process_video_sync) before deciding whether to
+    persist it at all, so re-reading from an already-consumed UploadFile
+    isn't an option. `upload_file` below is now a thin wrapper over this.
     """
-    key = _build_key(prefix=prefix, filename=upload.filename or "upload")
-    content_type = upload.content_type or mimetypes.guess_type(key)[0] or "application/octet-stream"
-
-    body = await upload.read()
+    key = _build_key(prefix=prefix, filename=filename or "upload")
 
     def _put() -> None:
         _get_client().put_object(
@@ -131,3 +124,24 @@ async def upload_file(upload: UploadFile, *, prefix: str) -> str:
         ) from exc
 
     return build_media_url(key)
+
+
+async def upload_file(upload: UploadFile, *, prefix: str) -> str:
+    """Uploads a FastAPI/Starlette UploadFile to the media bucket and
+    returns its durable URL (via build_media_url).
+
+    `prefix` namespaces the object key by what it belongs to (e.g.
+    `listings/{listing_id}` or `host-accounts/{host_account_id}`) so the
+    bucket stays browsable/auditable rather than one flat namespace.
+
+    boto3 is synchronous -- put_object runs in a worker thread (anyio, the
+    same primitive Starlette's own UploadFile uses) so it never blocks the
+    event loop, preserving the async-native concurrency benefit AGENTS.md
+    calls out as the whole reason FastAPI was chosen.
+    """
+    filename = upload.filename or "upload"
+    content_type = (
+        upload.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    )
+    body = await upload.read()
+    return await upload_bytes(body, prefix=prefix, filename=filename, content_type=content_type)

@@ -14,7 +14,7 @@ import '../../../core/config/env.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../listings/data/listing_models.dart' hide ListingImage;
+import '../../listings/data/listing_models.dart';
 import '../data/share_models.dart';
 import '../data/share_repository.dart';
 

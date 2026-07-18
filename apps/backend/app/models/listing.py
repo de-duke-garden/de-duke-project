@@ -1,4 +1,4 @@
-"""Listing + ListingImage + CommercialListing/CommercialListingRoom +
+"""Listing + ListingMedia + CommercialListing/CommercialListingRoom +
 ShortletListing -- schema.md.
 
 `Listing.location` uses a GeoAlchemy2 Geography column (PostGIS) for
@@ -115,12 +115,40 @@ class Listing(SQLModel, table=True):
     )
 
 
-class ListingImage(SQLModel, table=True):
-    __tablename__ = "listing_images"
+class ListingMedia(SQLModel, table=True):
+    """A single photo or short video clip attached to a Listing --
+    generalized from the photo-only `ListingImage` (schema.md's
+    `ListingMedia` entity, product-shaped for video support). One shared
+    `display_order` sequence spans both media types, so a video and a
+    photo can be interleaved against each other in the gallery, per the
+    product decision to display them together rather than photos-then-
+    videos.
+
+    `is_primary` stays restricted to `media_type == "image"` rows --
+    enforced at the API layer (app/api/v1/listings.py), never the DB --
+    matching how the "exactly one primary per listing" invariant was
+    already app-layer-enforced before video existed.
+    """
+
+    __tablename__ = "listing_media"
 
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
     listing_id: str = Field(foreign_key="listings.id", index=True)
-    image_url: str
+    # image | video
+    media_type: str = Field(default="image", index=True)
+    media_url: str
+    # Server-generated poster/thumbnail frame for a video (see
+    # listing_service.generate_video_poster) -- always None for an image.
+    poster_url: str | None = Field(default=None)
+    # Clip length in seconds, probed server-side at upload time (ffprobe) --
+    # always None for an image.
+    duration_seconds: float | None = Field(default=None)
+    # pending | ready | failed -- video-only. A video row starts "pending"
+    # the instant its file finishes uploading, moves to "ready" once its
+    # poster frame is generated (or "failed" if that generation errors,
+    # e.g. an unreadable/non-conforming upload -- see risk_log.md's R-021).
+    # Always "ready" for an image row, which has no processing step.
+    processing_status: str | None = Field(default="ready")
     display_order: int
     is_primary: bool = Field(default=False)
     created_at: datetime = Field(

@@ -2,48 +2,82 @@
 /// Shortlet), mirroring apps/backend/app/schemas/listing.py.
 library;
 
-class ListingImage {
-  const ListingImage({
+/// A single photo or short video clip attached to a listing (schema.md's
+/// `ListingMedia` entity, generalized from the photo-only `ListingImage` --
+/// FEAT-004/FEAT-005 video support, product-shaped via product-shaper).
+/// Photos and videos share one `displayOrder` sequence so they can be
+/// interleaved in the gallery -- see listing_detail_screen.dart's
+/// `_ListingMediaCarousel`.
+class ListingMedia {
+  const ListingMedia({
     required this.id,
-    required this.imageUrl,
+    required this.mediaType,
+    required this.mediaUrl,
+    this.posterUrl,
+    this.durationSeconds,
+    this.processingStatus,
     required this.displayOrder,
     required this.isPrimary,
   });
 
   final String id;
-  final String imageUrl;
+  // image | video
+  final String mediaType;
+  final String mediaUrl;
+  // Video-only -- server-generated poster/thumbnail frame. Always null for
+  // an image.
+  final String? posterUrl;
+  final double? durationSeconds;
+  // pending | ready | failed | null (null for image rows, which have no
+  // processing step -- see the backend ListingMedia model's docstring).
+  final String? processingStatus;
   final int displayOrder;
+  // Restricted to media_type == 'image' server-side -- a video is never
+  // the listing's primary/cover.
   final bool isPrimary;
 
-  factory ListingImage.fromJson(Map<String, dynamic> json) => ListingImage(
+  bool get isVideo => mediaType == 'video';
+  bool get isPosterReady => posterUrl != null && processingStatus != 'pending';
+
+  factory ListingMedia.fromJson(Map<String, dynamic> json) => ListingMedia(
         id: json['id'] as String,
-        imageUrl: json['image_url'] as String,
+        mediaType: json['media_type'] as String? ?? 'image',
+        mediaUrl: json['media_url'] as String,
+        posterUrl: json['poster_url'] as String?,
+        durationSeconds: (json['duration_seconds'] as num?)?.toDouble(),
+        processingStatus: json['processing_status'] as String?,
         displayOrder: json['display_order'] as int,
         isPrimary: json['is_primary'] as bool? ?? false,
       );
 }
 
-/// A locally-picked image awaiting upload, tracked by a client-generated
-/// `tempKey` per the structured multi-file upload contract
-/// (architecture.md): submitted as `images_meta` JSON + a `file_<tempKey>`
-/// multipart field.
-class PendingListingImage {
-  PendingListingImage({
+/// A locally-picked photo or video awaiting upload, tracked by a
+/// client-generated `tempKey` per the structured multi-file upload
+/// contract (architecture.md): submitted as `media_meta` JSON + a
+/// `file_<tempKey>` multipart field.
+class PendingListingMedia {
+  PendingListingMedia({
     required this.tempKey,
     required this.localPath,
+    required this.mediaType,
     required this.displayOrder,
     this.isPrimary = false,
   });
 
   final String tempKey;
   final String localPath;
+  // image | video
+  final String mediaType;
   int displayOrder;
   bool isPrimary;
+
+  bool get isVideo => mediaType == 'video';
 
   Map<String, dynamic> toMetaJson() => {
         'temp_key': tempKey,
         'display_order': displayOrder,
         'is_primary': isPrimary,
+        'media_type': mediaType,
       };
 }
 
@@ -180,7 +214,7 @@ class Listing {
     this.statusReason,
     required this.viewCount,
     this.ownerClientName,
-    this.images = const [],
+    this.media = const [],
     this.commercial,
     this.shortlet,
     this.hostBio,
@@ -207,7 +241,7 @@ class Listing {
   // free-text label (e.g. a landlord's name), not a platform account. Null
   // for the vast majority of (non-agency) listings.
   final String? ownerClientName;
-  final List<ListingImage> images;
+  final List<ListingMedia> media;
   final CommercialListingDetails? commercial;
   final ShortletListingDetails? shortlet;
   // FEAT-042: Host Profile card fields -- null only if the host account
@@ -236,8 +270,8 @@ class Listing {
         statusReason: json['status_reason'] as String?,
         viewCount: json['view_count'] as int? ?? 0,
         ownerClientName: json['owner_client_name'] as String?,
-        images: (json['images'] as List? ?? [])
-            .map((e) => ListingImage.fromJson(e as Map<String, dynamic>))
+        media: (json['media'] as List? ?? [])
+            .map((e) => ListingMedia.fromJson(e as Map<String, dynamic>))
             .toList(),
         commercial: json['commercial'] != null
             ? CommercialListingDetails.fromJson(

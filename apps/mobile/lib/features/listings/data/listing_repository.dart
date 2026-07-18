@@ -109,23 +109,31 @@ class ListingRepository {
     return Listing.fromJson(response.data as Map<String, dynamic>);
   }
 
-  /// Uploads locally-picked images using the structured multi-file contract:
-  /// `images_meta` (JSON) + one `file_<tempKey>` multipart field per image.
-  Future<void> uploadImages(
+  /// Uploads locally-picked photos/videos using the structured multi-file
+  /// contract: `media_meta` (JSON) + one `file_<tempKey>` multipart field
+  /// per item. Returns the persisted media (with server-assigned ids and,
+  /// for a video, `processing_status`/`poster_url`) so the caller can
+  /// reflect processing state immediately rather than re-fetching the
+  /// whole listing.
+  Future<List<ListingMedia>> uploadMedia(
     String listingId,
-    List<PendingListingImage> images,
+    List<PendingListingMedia> media,
   ) async {
     final formMap = <String, dynamic>{
-      'images_meta': jsonEncode(images.map((i) => i.toMetaJson()).toList()),
+      'media_meta': jsonEncode(media.map((m) => m.toMetaJson()).toList()),
     };
-    for (final image in images) {
-      formMap['file_${image.tempKey}'] =
-          await MultipartFile.fromFile(image.localPath);
+    for (final item in media) {
+      formMap['file_${item.tempKey}'] =
+          await MultipartFile.fromFile(item.localPath);
     }
-    await _apiClient.dio.post(
-      '/v1/listings/$listingId/images',
+    final response = await _apiClient.dio.post(
+      '/v1/listings/$listingId/media',
       data: FormData.fromMap(formMap),
     );
+    final body = response.data as Map<String, dynamic>;
+    return (body['media'] as List)
+        .map((e) => ListingMedia.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<({bool available, List<String> conflictingDates})> checkAvailability(

@@ -73,7 +73,7 @@ from sqlalchemy.orm import aliased
 from app.core import cache
 from app.core.config import get_settings
 from app.models.host_account import HostAccount
-from app.models.listing import CommercialListing, Listing, ListingImage, ShortletListing
+from app.models.listing import CommercialListing, Listing, ListingMedia, ShortletListing
 from app.schemas.search import (
     ListingSearchResult,
     ListingTypeFilter,
@@ -395,9 +395,9 @@ async def search_listings(
     if rows:
         listing_ids_for_images = [row[0].id for row in rows]
         images_result = await session.execute(
-            select(ListingImage.listing_id, ListingImage.image_url)
-            .where(ListingImage.listing_id.in_(listing_ids_for_images))
-            .where(ListingImage.is_primary == True)  # noqa: E712 -- SQLAlchemy column comparison, not a Python bool check
+            select(ListingMedia.listing_id, ListingMedia.media_url)
+            .where(ListingMedia.listing_id.in_(listing_ids_for_images))
+            .where(ListingMedia.is_primary == True)  # noqa: E712 -- SQLAlchemy column comparison, not a Python bool check
         )
         primary_image_by_listing = dict(images_result.all())
 

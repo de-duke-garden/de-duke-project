@@ -95,6 +95,30 @@ async def _agency_root_id(session: AsyncSession, current_user: CurrentUser) -> s
     raise NotAnAgencyAdminError("This account is not part of any agency team.")
 
 
+async def resolve_agency_id_for_listing(
+    session: AsyncSession, current_user: CurrentUser
+) -> str | None:
+    """Same resolution as `_agency_root_id`, but returns None instead of
+    raising for a caller with no agency affiliation -- listing_service.
+    create_listing calls this for EVERY new listing (individual hosts
+    included) to decide whether to stamp `Listing.agency_id`, so a non-
+    agency host must fall through cleanly rather than 403ing on their own
+    listing creation.
+
+    Fixes a real bug: listings created by an agency account never had
+    `agency_id` set at all (the field was added to the model but nothing
+    ever populated it on create), so `list_agency_listings`/
+    `get_agency_summary`'s `Listing.agency_id == agency_id` filters never
+    matched -- a brand-new listing silently never appeared in the agency's
+    own Portfolio view."""
+    user = await session.get(User, current_user.user_id)
+    if user is not None and user.agency_id is not None:
+        return user.agency_id
+    if current_user.role == UserRole.AGENCY:
+        return current_user.user_id
+    return None
+
+
 async def _is_agency_admin(
     session: AsyncSession, *, agency_id: str, current_user: CurrentUser
 ) -> bool:

@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.discovery import ShareableSummary
 from app.models.host_account import HostAccount
-from app.models.listing import CommercialListing, Listing, ListingImage, ShortletListing
+from app.models.listing import CommercialListing, Listing, ListingMedia, ShortletListing
 
 # Default link lifetime when the caller doesn't request a shorter one --
 # generous enough for an internal approval loop (Screen 17's user story:
@@ -150,9 +150,9 @@ async def resolve_public_summary(
 
     primary_image = (
         await session.execute(
-            select(ListingImage)
-            .where(ListingImage.listing_id == listing.id)
-            .where(ListingImage.is_primary == True)  # noqa: E712
+            select(ListingMedia)
+            .where(ListingMedia.listing_id == listing.id)
+            .where(ListingMedia.is_primary == True)  # noqa: E712
         )
     ).scalar_one_or_none()
 
@@ -201,7 +201,7 @@ async def resolve_public_summary(
         "price_label": price_label,
         "key_terms": key_terms,
         "verification_status": verification_status,
-        "primary_image_url": primary_image.image_url if primary_image else None,
+        "primary_image_url": primary_image.media_url if primary_image else None,
         # Screen 18 Data Flow step 4 / user_flow.md Flow 4 Alternate Path D:
         # a listing that's been unpublished/banned since the link was
         # generated still renders (static details), flagged via this field

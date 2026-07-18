@@ -55,3 +55,46 @@ Future<String?> pickImageFromCameraOrGallery(
     return null;
   }
 }
+
+/// Same "Record Video" / "Choose from Gallery" bottom sheet, for FEAT-004/
+/// FEAT-005's video support (Create/Edit Listing's combined media grid --
+/// see create_listing_screen.dart's `_buildMediaStep`). `maxDuration` caps
+/// what the CAMERA will record on-device (client-side convenience only --
+/// the 5-minute limit is still enforced authoritatively server-side, see
+/// listing_service.MAX_VIDEO_DURATION_SECONDS); a gallery-picked clip can
+/// still exceed it, since image_picker has no equivalent gallery-side trim.
+Future<String?> pickVideoFromCameraOrGallery(
+  BuildContext context, {
+  Duration maxDuration = const Duration(minutes: 5),
+}) async {
+  final source = await showModalBottomSheet<ImageSource>(
+    context: context,
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.videocam_outlined),
+            title: const Text('Record Video'),
+            onTap: () => Navigator.of(context).pop(ImageSource.camera),
+          ),
+          ListTile(
+            leading: const Icon(Icons.video_library_outlined),
+            title: const Text('Choose from Gallery'),
+            onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (source == null) return null;
+
+  final picker = ImagePicker();
+  try {
+    final picked =
+        await picker.pickVideo(source: source, maxDuration: maxDuration);
+    return picked?.path;
+  } on Exception {
+    return null;
+  }
+}

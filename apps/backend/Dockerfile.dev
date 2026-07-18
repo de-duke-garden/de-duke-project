@@ -18,8 +18,12 @@ WORKDIR /app
 # Build-time OS deps for wheels that compile from source on slim images
 # (e.g. psycopg-family / cryptography extras pulled in transitively) --
 # mirrors the production Dockerfile's builder stage.
+#   - ffmpeg/ffprobe -- FEAT-004/FEAT-005 video support
+#     (app/services/listing_service.py's process_uploaded_video), same as
+#     the production Dockerfile's runtime stage.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Dependencies installed from pyproject.toml alone first, so this layer

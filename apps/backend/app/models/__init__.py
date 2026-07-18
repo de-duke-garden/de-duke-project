@@ -25,7 +25,7 @@ from app.models.listing import (
     CommercialListing,
     CommercialListingRoom,
     Listing,
-    ListingImage,
+    ListingMedia,
     ShortletListing,
 )
 from app.models.ops import AuditLogEntry, CommissionRateConfig, Dispute
@@ -45,7 +45,7 @@ __all__ = [
     "HostAccountArchitect",
     "HostAccountSurveyor",
     "Listing",
-    "ListingImage",
+    "ListingMedia",
     "CommercialListing",
     "CommercialListingRoom",
     "ShortletListing",

@@ -71,7 +71,7 @@ class TestListingToDictHostFields:
             host_photo_url="https://example.com/host.jpg",
             bio="A friendly, verified host.",
         )
-        out = listing_to_dict(self._listing(), images=[], host_account=host_account)
+        out = listing_to_dict(self._listing(), media=[], host_account=host_account)
         assert out["host_bio"] == "A friendly, verified host."
         assert out["host_photo_url"] == "https://example.com/host.jpg"
         assert out["host_type"] == "owner"
@@ -79,7 +79,7 @@ class TestListingToDictHostFields:
     def test_host_fields_are_none_when_host_account_omitted(self) -> None:
         """Defensive default -- shouldn't occur for a live listing (a
         HostAccount is required to create one), but must never crash."""
-        out = listing_to_dict(self._listing(), images=[])
+        out = listing_to_dict(self._listing(), media=[])
         assert out["host_bio"] is None
         assert out["host_photo_url"] is None
         assert out["host_type"] is None

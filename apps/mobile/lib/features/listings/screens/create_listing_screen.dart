@@ -3,18 +3,20 @@
 /// Covers: listing type + commercial/shortlet subtype fields, the
 /// three-method location input (map pin drop / address autocomplete / "use
 /// my GPS location" -- all three resolve to the same lat/lng+address
-/// fields sent to the server), image picking with reorder + primary flag,
-/// commercial room breakdown, and submitting/validation/error/offline
-/// states.
+/// fields sent to the server), a combined photo/video media picker with
+/// reorder + primary flag (FEAT-004/FEAT-005 video support, product-shaped
+/// via product-shaper -- a video can never be primary, see
+/// PendingListingMedia's docstring), commercial room breakdown, and
+/// submitting/validation/error/offline states.
 ///
 /// Structured as a 5-step wizard per screens.md's Layout section:
 ///   1. Listing type (Commercial vs. Shortlet) via large selectable cards
 ///   2. Type-specific detail form (+ title/description, common to both
 ///      types and not called out as their own step in the doc)
 ///   3. Location (Location Input subsection)
-///   4. Photo upload grid
+///   4. Media (photo + video) upload grid
 ///   5. Review + Publish
-/// All step state lives in this single State object (form fields, photo
+/// All step state lives in this single State object (form fields, media
 /// objects, room entries, resolved lat/lng) and persists across step
 /// navigation since every step's widget subtree stays mounted inside the
 /// `PageView` for the lifetime of this screen.
@@ -34,7 +36,8 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/enum_display.dart';
 import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/celebratory_sequence.dart';
-import '../../../core/widgets/image_source_picker.dart';
+import '../../../core/widgets/image_source_picker.dart'
+    show pickImageFromCameraOrGallery, pickVideoFromCameraOrGallery;
 import '../data/listing_constants.dart';
 import '../data/listing_models.dart';
 import '../data/listing_repository.dart';
@@ -48,7 +51,7 @@ const List<String> _stepTitles = [
   'Type',
   'Details',
   'Location',
-  'Photos',
+  'Media',
   'Review',
 ];
 
@@ -133,7 +136,16 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   // empty amenities array regardless of what the host actually offers.
   final Set<String> _amenities = {};
 
-  final List<PendingListingImage> _images = [];
+  final List<PendingListingMedia> _media = [];
+
+  // FEAT-004/FEAT-005 AC -- server-enforced cap (listing_service.
+  // MAX_VIDEOS_PER_LISTING), mirrored client-side so "Add video" disables
+  // itself with a clear reason rather than letting the user pick a 6th
+  // clip only to have the upload rejected after the fact.
+  static const int _maxVideos = 5;
+  static const int _maxVideoBytes = 100 * 1024 * 1024;
+
+  int get _videoCount => _media.where((m) => m.isVideo).length;
 
   _SubmitState _state = _SubmitState.idle;
   String? _errorMessage;
@@ -285,7 +297,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _addPickedImage() async {
+  Future<void> _addPickedPhoto() async {
     final path = await pickImageFromCameraOrGallery(context);
     if (path == null || !mounted) return;
 
@@ -296,7 +308,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     // decode cache is keyed only by (path, scale), never by file content or
     // modification time (a documented Flutter caveat), so a repeated path
     // serves the first photo's already-cached bytes for every later pick
-    // that reuses it. Copying to a filename unique to this PendingListingImage
+    // that reuses it. Copying to a filename unique to this PendingListingMedia
     // guarantees no two entries ever share a cache key, regardless of what
     // path image_picker happens to reuse internally.
     final original = File(path);
@@ -306,12 +318,61 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
     if (!mounted) return;
     setState(() {
-      _images.add(
-        PendingListingImage(
+      _media.add(
+        PendingListingMedia(
           tempKey: key,
           localPath: localFile.path,
-          displayOrder: _images.length,
-          isPrimary: _images.isEmpty,
+          mediaType: 'image',
+          displayOrder: _media.length,
+          // Only the very first media item overall defaults to primary --
+          // matches the pre-video behavior (first PHOTO was primary) since
+          // a video can never be primary anyway (isEmpty check below would
+          // otherwise wrongly default a photo added after some videos to
+          // non-primary even when it's the listing's first photo).
+          isPrimary: _media.every((m) => !m.isVideo) && _media.isEmpty,
+        ),
+      );
+    });
+  }
+
+  /// FEAT-004/FEAT-005 video support -- same picked-media flow as
+  /// `_addPickedPhoto`, but for a video clip. Client-side checks (count
+  /// cap, file size) fail fast with a clear message rather than letting an
+  /// obviously-oversized upload reach the server only to be rejected there
+  /// (listing_service.MAX_VIDEO_BYTES/MAX_VIDEOS_PER_LISTING remain the
+  /// authoritative check either way).
+  Future<void> _addPickedVideo() async {
+    if (_videoCount >= _maxVideos) {
+      _showLocationMessage('A listing can have at most $_maxVideos videos.');
+      return;
+    }
+
+    final path = await pickVideoFromCameraOrGallery(context);
+    if (path == null || !mounted) return;
+
+    final original = File(path);
+    final sizeBytes = await original.length();
+    if (sizeBytes > _maxVideoBytes) {
+      if (!mounted) return;
+      _showLocationMessage(
+          'That video is larger than ${_maxVideoBytes ~/ (1024 * 1024)}MB -- pick a shorter/lower-resolution clip.');
+      return;
+    }
+
+    final key = 'vid_${_tempKeyCounter++}';
+    final uniquePath =
+        '${original.parent.path}/listing_video_$key${_extensionOf(path)}';
+    final localFile = await original.copy(uniquePath);
+
+    if (!mounted) return;
+    setState(() {
+      _media.add(
+        PendingListingMedia(
+          tempKey: key,
+          localPath: localFile.path,
+          mediaType: 'video',
+          displayOrder: _media.length,
+          isPrimary: false, // a video can never be primary
         ),
       );
     });
@@ -322,38 +383,45 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return dotIndex == -1 ? '' : path.substring(dotIndex);
   }
 
-  void _reorderImages(int oldIndex, int newIndex) {
+  void _reorderMedia(int oldIndex, int newIndex) {
     setState(() {
       if (newIndex > oldIndex) newIndex -= 1;
-      final item = _images.removeAt(oldIndex);
-      _images.insert(newIndex, item);
-      for (var i = 0; i < _images.length; i++) {
-        _images[i].displayOrder = i;
+      final item = _media.removeAt(oldIndex);
+      _media.insert(newIndex, item);
+      for (var i = 0; i < _media.length; i++) {
+        _media[i].displayOrder = i;
       }
     });
   }
 
-  void _setPrimaryImage(int index) {
+  /// A video can never be primary (schema.md's documented invariant, same
+  /// restriction MediaMetaIn enforces server-side) -- callers only ever
+  /// reach this from a photo tile's star button, but guarded here too
+  /// defensively.
+  void _setPrimaryMedia(int index) {
+    if (_media[index].isVideo) return;
     setState(() {
-      for (var i = 0; i < _images.length; i++) {
-        _images[i].isPrimary = i == index;
+      for (var i = 0; i < _media.length; i++) {
+        _media[i].isPrimary = i == index;
       }
     });
   }
 
   /// Confirmed real gap: there was no way to remove a picked photo once
   /// added -- only reorder and set-primary existed. Re-numbers
-  /// displayOrder and, if the removed photo was primary, promotes the new
-  /// first photo so a listing is never left with zero primary images.
-  void _removeImage(int index) {
+  /// displayOrder and, if the removed item was primary, promotes the new
+  /// first PHOTO (never a video) so a listing is never left with zero
+  /// primary images while it still has at least one photo.
+  void _removeMedia(int index) {
     setState(() {
-      final wasPrimary = _images[index].isPrimary;
-      _images.removeAt(index);
-      for (var i = 0; i < _images.length; i++) {
-        _images[i].displayOrder = i;
+      final wasPrimary = _media[index].isPrimary;
+      _media.removeAt(index);
+      for (var i = 0; i < _media.length; i++) {
+        _media[i].displayOrder = i;
       }
-      if (wasPrimary && _images.isNotEmpty) {
-        _images[0].isPrimary = true;
+      if (wasPrimary) {
+        final firstPhotoIndex = _media.indexWhere((m) => !m.isVideo);
+        if (firstPhotoIndex != -1) _media[firstPhotoIndex].isPrimary = true;
       }
     });
   }
@@ -515,8 +583,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             : null,
       );
 
-      if (_images.isNotEmpty) {
-        await widget.repository.uploadImages(listing.id, _images);
+      if (_media.isNotEmpty) {
+        await widget.repository.uploadMedia(listing.id, _media);
       }
 
       if (!mounted) return;
@@ -1350,24 +1418,40 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
-  // -- Step 4: photos ----------------------------------------------------------
+  // -- Step 4: media (photos + videos) -----------------------------------------
 
   Widget _buildPhotosStep(bool submitting) {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        Text('Photos', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppSpacing.sm),
-        _ImageReorderList(
-          images: _images,
-          onReorder: submitting ? (_, __) {} : _reorderImages,
-          onSetPrimary: submitting ? (_) {} : _setPrimaryImage,
-          onRemove: submitting ? (_) {} : _removeImage,
+        Text('Photos & Videos', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Up to $_maxVideos videos (5 min / 100MB each), any number of photos.',
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
         ),
-        TextButton.icon(
-          onPressed: submitting ? null : _addPickedImage,
-          icon: const Icon(Icons.add_a_photo),
-          label: const Text('Add photo'),
+        const SizedBox(height: AppSpacing.sm),
+        _MediaReorderList(
+          media: _media,
+          onReorder: submitting ? (_, __) {} : _reorderMedia,
+          onSetPrimary: submitting ? (_) {} : _setPrimaryMedia,
+          onRemove: submitting ? (_) {} : _removeMedia,
+        ),
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: submitting ? null : _addPickedPhoto,
+              icon: const Icon(Icons.add_a_photo),
+              label: const Text('Add photo'),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            TextButton.icon(
+              onPressed:
+                  submitting || _videoCount >= _maxVideos ? null : _addPickedVideo,
+              icon: const Icon(Icons.videocam_outlined),
+              label: Text('Add video ($_videoCount/$_maxVideos)'),
+            ),
+          ],
         ),
       ],
     );
@@ -1426,7 +1510,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                     _blockedDates.isEmpty ? 'None' : '${_blockedDates.length} blocked',
                   ),
                 ],
-                _reviewRow('Photos', '${_images.length}'),
+                _reviewRow('Photos', '${_media.where((m) => !m.isVideo).length}'),
+                _reviewRow('Videos', '$_videoCount'),
               ],
             ),
           ),
@@ -1660,29 +1745,36 @@ class _Banner extends StatelessWidget {
 /// smooth spring-based reflow rather than an instant jump" -- each row is
 /// wrapped so reorders animate their position change with an
 /// `easeSpringSoft` curve instead of `ReorderableListView`'s default snap.
-class _ImageReorderList extends StatelessWidget {
-  const _ImageReorderList({
-    required this.images,
+///
+/// FEAT-004/FEAT-005 video support: a single combined list (per the product
+/// decision to match the interleaved Listing Detail gallery 1:1) -- a video
+/// row shows a video-camera thumbnail instead of a decoded frame (no local
+/// poster exists yet client-side, unlike the server-generated one shown
+/// once persisted) and never gets a star/primary button, since a video can
+/// never be the listing's cover.
+class _MediaReorderList extends StatelessWidget {
+  const _MediaReorderList({
+    required this.media,
     required this.onReorder,
     required this.onSetPrimary,
     required this.onRemove,
   });
 
-  final List<PendingListingImage> images;
+  final List<PendingListingMedia> media;
   final void Function(int, int) onReorder;
   final void Function(int) onSetPrimary;
   final void Function(int) onRemove;
 
   @override
   Widget build(BuildContext context) {
-    if (images.isEmpty) {
-      return const Text('No photos added yet.',
+    if (media.isEmpty) {
+      return const Text('No photos or videos added yet.',
           style: TextStyle(color: AppColors.textSecondary));
     }
     return ReorderableListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: images.length,
+      itemCount: media.length,
       onReorder: onReorder,
       // Confirmed real bug: with the default drag handles, the WHOLE tile
       // (including the star/remove IconButtons on top of it) was a
@@ -1706,7 +1798,7 @@ class _ImageReorderList extends StatelessWidget {
         child: child,
       ),
       itemBuilder: (context, index) {
-        final image = images[index];
+        final item = media[index];
         // Confirmed real bug: ReorderableListView's drag proxy re-parents
         // the dragged item's render tree into the root Overlay (via
         // proxyDecorator/_RenderTheater), which sits above the page's own
@@ -1718,44 +1810,58 @@ class _ImageReorderList extends StatelessWidget {
         // key ReorderableListView needs must stay on this outermost
         // widget, not the ListTile inside it.
         return Material(
-          key: ValueKey(image.tempKey),
+          key: ValueKey(item.tempKey),
           type: MaterialType.transparency,
           child: ListTile(
             // Confirmed real gap: this used to be a generic Icons.image
             // placeholder, never the actual picked photo.
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(AppRadii.sm),
-              child: Image.file(
-                File(image.localPath),
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  width: 48,
-                  height: 48,
-                  color: AppColors.surfaceSecondary,
-                  child: const Icon(Icons.broken_image_outlined,
-                      color: AppColors.textSecondary),
-                ),
-              ),
+              child: item.isVideo
+                  // No local poster exists yet client-side (that's a
+                  // server-side step, see listing_service.
+                  // process_uploaded_video) -- a plain video-camera tile
+                  // is enough for the picker list; the real poster shows
+                  // up once the listing reloads post-publish.
+                  ? Container(
+                      width: 48,
+                      height: 48,
+                      color: AppColors.surfaceSecondary,
+                      child: const Icon(Icons.videocam,
+                          color: AppColors.textSecondary),
+                    )
+                  : Image.file(
+                      File(item.localPath),
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: 48,
+                        height: 48,
+                        color: AppColors.surfaceSecondary,
+                        child: const Icon(Icons.broken_image_outlined,
+                            color: AppColors.textSecondary),
+                      ),
+                    ),
             ),
-            title: Text('Photo ${index + 1}'),
+            title: Text(item.isVideo ? 'Video' : 'Photo'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (image.isPrimary)
-                  const Icon(Icons.star, color: AppColors.accent)
-                else
-                  IconButton(
-                    icon: const Icon(Icons.star_border),
-                    tooltip: 'Set as primary photo',
-                    onPressed: () => onSetPrimary(index),
-                  ),
+                if (!item.isVideo)
+                  if (item.isPrimary)
+                    const Icon(Icons.star, color: AppColors.accent)
+                  else
+                    IconButton(
+                      icon: const Icon(Icons.star_border),
+                      tooltip: 'Set as primary photo',
+                      onPressed: () => onSetPrimary(index),
+                    ),
                 // Confirmed real gap: there was previously no way at all
                 // to remove a picked photo.
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Remove photo',
+                  tooltip: item.isVideo ? 'Remove video' : 'Remove photo',
                   onPressed: () => onRemove(index),
                 ),
                 ReorderableDragStartListener(
