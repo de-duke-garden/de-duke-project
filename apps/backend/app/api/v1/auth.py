@@ -260,12 +260,12 @@ async def update_notification_preferences(
     return NotificationPreferencesResponse(email_notification_preferences=preferences)
 
 
-@router.patch("/me/role", response_model=CurrentUserResponse)
+@router.patch("/me/role", response_model=AuthTokenResponse)
 async def update_role(
     payload: UpdateRoleRequest,
     current_user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> CurrentUserResponse:
+) -> AuthTokenResponse:
     """FEAT-003 -- Screen 2 (Role Selection) and its Account Settings
     re-entry point. `payload.role` is already restricted to
     SELF_SERVICE_ROLES by UpdateRoleRequest's validator (see
@@ -278,6 +278,17 @@ async def update_role(
     bootstrap, FEAT-033), and a staff member self-demoting to "seeker"
     through this endpoint would be a real, unintended privilege change,
     not a normal product-experience choice.
+
+    Reissues a fresh access/refresh token pair (rather than returning
+    CurrentUserResponse as before) -- `role` is baked into the access
+    token's JWT claims at issuance (create_access_token) and
+    get_current_user resolves `CurrentUser.role` purely from those claims,
+    never re-reading the DB. Without reissuing here, the caller's existing
+    token kept carrying their PRE-selection role for the rest of its
+    lifetime, so role-gated endpoints (e.g. GET /v1/agency/summary's
+    `_agency_root_id` check) would 403 for an agency account immediately
+    after Role Selection, surfacing as "Something went wrong" on the
+    Agency dashboard until the user logged out and back in.
     """
     if current_user.role in (UserRole.DEDUKE_STAFF, UserRole.DEDUKE_ADMIN):
         raise HTTPException(
@@ -286,12 +297,11 @@ async def update_role(
         )
 
     user = await auth_service.update_role(session, user_id=current_user.user_id, role=payload.role)
-    return CurrentUserResponse(
+    access_token, refresh_token = await auth_service.issue_tokens(user)
+    return AuthTokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
         user_id=user.id,
         role=user.role,
-        full_name=user.full_name,
-        email=user.email,
-        phone_number=user.phone_number,
         is_verified_host=user.is_verified_host,
-        is_active=user.is_active,
     )

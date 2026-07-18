@@ -104,7 +104,15 @@ class _HostTypeSelectionScreenState extends State<HostTypeSelectionScreen> {
           ),
         _ScreenState.verified => _VerifiedStatusView(
             hostType: _submission?.hostType ?? '',
-            onAction: () => context.goNamed(RouteNames.host),
+            // An "agent" host type is an agency account -- its bottom nav
+            // has no Host branch (only Agency, see app_shell.dart's
+            // `_visibleBranches`), so routing it to RouteNames.host would
+            // land on a hidden branch and desync the nav selection.
+            onAction: () => context.goNamed(
+              _submission?.hostType == 'agent'
+                  ? RouteNames.agency
+                  : RouteNames.host,
+            ),
           ),
         _ScreenState.rejected => _StatusView(
             title: 'Application rejected',
@@ -201,7 +209,9 @@ class _VerifiedStatusView extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               ElevatedButton(
                   onPressed: onAction,
-                  child: const Text('Go to Host Dashboard')),
+                  child: Text(hostType == 'agent'
+                      ? 'Go to Agency Dashboard'
+                      : 'Go to Host Dashboard')),
             ],
           ),
         ),

@@ -712,7 +712,19 @@ class AuthRepository {
     try {
       final response =
           await _apiClient.dio.patch('/v1/auth/me/role', data: {'role': role});
-      return CurrentUser.fromJson(response.data as Map<String, dynamic>);
+      // Backend now reissues a fresh access/refresh token pair here (see
+      // that endpoint's docstring) -- `role` is baked into the access
+      // token's JWT claims at issuance, so the PREVIOUSLY stored token
+      // would keep carrying the old role for the rest of its lifetime,
+      // 403-ing every role-gated endpoint (e.g. the Agency dashboard's
+      // GET /v1/agency/summary) until a full logout/login. Persist the
+      // new pair immediately so this session's role change takes effect
+      // right away, same as login/refresh do.
+      await _persistSession(response.data as Map<String, dynamic>);
+      // The role endpoint's response (AuthTokenResponse) doesn't carry
+      // full_name/email/phone/is_active, so re-fetch the full identity
+      // over the now-current token rather than partially constructing one.
+      return getCurrentUser();
     } on DioException catch (e) {
       throw AuthException(
           _errorMessage(e, "Couldn't save your selection, try again."));

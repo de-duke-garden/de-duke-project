@@ -222,9 +222,24 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
                 ElevatedButton(
                   // screens.md Screen 3b Exit Points: "Host Dashboard
                   // (submission successful, now In Review)" -- button
-                  // label already said this, but it routed to Home Feed.
-                  onPressed: () => context.goNamed(RouteNames.host),
-                  child: const Text('Go to Host Dashboard'),
+                  // label already said this, but it always routed to the
+                  // Host branch, even for agency accounts (whose bottom
+                  // nav has no Host branch, only Agency -- that branch
+                  // index isn't in app_shell.dart's `_visibleBranches` for
+                  // an agency role, so the shell fell back to selecting
+                  // the Home tab while still showing this content, i.e.
+                  // "listing" appearing under the Home tab). Route to the
+                  // Agency branch for agent-type submissions instead.
+                  onPressed: () => context.goNamed(
+                    widget.hostType == HostType.agent
+                        ? RouteNames.agency
+                        : RouteNames.host,
+                  ),
+                  child: Text(
+                    widget.hostType == HostType.agent
+                        ? 'Go to Agency Dashboard'
+                        : 'Go to Host Dashboard',
+                  ),
                 ),
               ],
             ),
