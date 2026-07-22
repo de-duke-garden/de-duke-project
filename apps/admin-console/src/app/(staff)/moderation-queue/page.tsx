@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { getAdminSession } from "@/lib/auth";
 import { ModerationQueueClient } from "@/components/moderation/ModerationQueueClient";
 
@@ -31,7 +33,9 @@ export default async function ModerationQueuePage() {
         Listings awaiting review, oldest first. Every decision requires a reason.
       </p>
       <div className="mt-lg">
-        <ModerationQueueClient />
+        <Suspense fallback={null}>
+          <ModerationQueueClient />
+        </Suspense>
       </div>
     </main>
   );

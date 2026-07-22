@@ -3,7 +3,7 @@ FEAT-007 (Listing Filters & Sort), FEAT-031 (Semantic Property Search,
 degraded/keyword-only path). Backs Screen 5 (Search Results) in screens.md.
 
 Public/unauthenticated: browsing listings does not require a session, per
-user_flow.md's Flow 0 (a seeker can search before signing up).
+user_flow.md's Flow 0 (a guest can search before signing up).
 """
 
 from typing import Annotated

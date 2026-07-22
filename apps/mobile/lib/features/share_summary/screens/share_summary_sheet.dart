@@ -1,7 +1,7 @@
 /// screens.md Screen 17: Shareable Summary (Generate).
 ///
 /// A `ModalBottomSheet` (not a full screen/route) opened from Listing
-/// Detail's Share action. Lets a corporate seeker (David persona, FEAT-020)
+/// Detail's Share action. Lets a guest (Amaka persona, FEAT-020)
 /// generate a no-login-required link summarizing a listing, then copy or
 /// hand it to the OS share sheet, or revoke it.
 library;
@@ -11,8 +11,8 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/config/env.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../listings/data/listing_models.dart';
 import '../data/share_models.dart';
@@ -188,10 +188,12 @@ class _ShareSummarySheetState extends State<ShareSummarySheet> {
             ? '₦${shortlet.nightlyPrice.toStringAsFixed(0)} / night'
             : '';
 
+    final colorScheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondary,
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(AppRadii.md),
       ),
       child: Column(
@@ -201,7 +203,7 @@ class _ShareSummarySheetState extends State<ShareSummarySheet> {
           const SizedBox(height: 4),
           Text(
             '${listing.addressLine}, ${listing.city}, ${listing.state}',
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(priceLabel, style: Theme.of(context).textTheme.titleMedium),
@@ -212,13 +214,14 @@ class _ShareSummarySheetState extends State<ShareSummarySheet> {
                 listing.isVerifiedActive ? Icons.verified : Icons.info_outline,
                 size: 16,
                 color: listing.isVerifiedActive
-                    ? AppColors.verified
-                    : AppColors.textSecondary,
+                    ? semantic.verified
+                    : colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: 4),
               Text(
                 listing.isVerifiedActive ? 'Verified' : 'Unverified',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                style: TextStyle(
+                    color: colorScheme.onSurfaceVariant, fontSize: 12),
               ),
             ],
           ),
@@ -249,7 +252,7 @@ class _ShareSummarySheetState extends State<ShareSummarySheet> {
           children: [
             Text(
               _errorMessage ?? 'Something went wrong generating this link.',
-              style: const TextStyle(color: AppColors.error),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
             const SizedBox(height: AppSpacing.sm),
             ElevatedButton(onPressed: _generate, child: const Text('Retry')),
@@ -296,7 +299,11 @@ class _ShareSummarySheetState extends State<ShareSummarySheet> {
             AnimatedOpacity(
               opacity: _justCopied ? 1 : 0,
               duration: AppDurations.instant,
-              child: const Text('Copied!', style: TextStyle(color: AppColors.success)),
+              child: Text('Copied!',
+                  style: TextStyle(
+                      color: Theme.of(context)
+                          .extension<AppSemanticColors>()!
+                          .success)),
             ),
             const Spacer(),
             IconButton(
@@ -309,7 +316,8 @@ class _ShareSummarySheetState extends State<ShareSummarySheet> {
         const SizedBox(height: AppSpacing.sm),
         TextButton(
           onPressed: revoking ? null : _revoke,
-          style: TextButton.styleFrom(foregroundColor: AppColors.error),
+          style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error),
           child: revoking
               ? const SizedBox(
                   width: 16,

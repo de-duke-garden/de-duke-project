@@ -18,6 +18,9 @@ export type DisputeResolution = "resolved_refunded" | "resolved_no_refund";
 export interface DisputeListItem {
   id: string;
   transaction_id: string;
+  // Denormalized from the linked Transaction -- backs the row's link to
+  // /properties/:id (the property detail context hub).
+  listing_id: string | null;
   raised_by_id: string;
   raised_by_name: string;
   reason: DisputeReason;
@@ -32,7 +35,6 @@ export interface DisputeDetail extends DisputeListItem {
   resolution_notes: string | null;
   refund_amount: number | null;
   resolved_at: string | null;
-  listing_id: string;
   transaction_gross_amount: number;
   transaction_status: string;
 }

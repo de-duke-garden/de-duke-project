@@ -23,17 +23,25 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.models.host_account import HostAccount
 from app.models.listing import CommercialListing, Listing, ShortletListing
 from app.models.transaction import Transaction
+from app.services.commission_service import compute_price_breakdown, get_effective_rates
 
 settings = get_settings()
 
 # Transaction statuses that still hold/consume a listing's availability.
-NON_TERMINAL_STATUSES = ("held", "pending_payment", "succeeded")
+# 'payment_received'/'released_to_wallet' are the two escrow-model
+# statuses (schema.md) that both mean "the guest paid" -- they must both
+# keep blocking the listing/dates regardless of whether a De-Duke Admin
+# has released the funds to the payee's Wallet yet (FEAT-043), since
+# release is purely about WHEN the payee is credited, not whether the
+# booking itself is confirmed.
+NON_TERMINAL_STATUSES = ("held", "pending_payment", "payment_received", "released_to_wallet")
 
 
 class BookingError(Exception):
@@ -74,16 +82,76 @@ async def _has_overlapping_hold(
     """Must be called only after `_lock_listing_row` has been awaited in the
     same DB transaction, so this read reflects a serialized view: no other
     transaction can concurrently insert a competing hold for this listing
-    until we commit/rollback."""
+    until we commit/rollback.
+
+    Bug fix: previously blocked on `status.in_(NON_TERMINAL_STATUSES)` alone
+    -- `held`/`pending_payment` rows count as blocking purely by status,
+    with no check of whether `hold_expires_at` has already passed. That
+    status transition to `expired` is only ever performed by
+    `hold_expiry_job.expire_stale_holds`, a "pure transition function"
+    this codebase never actually wires up to run on a schedule anywhere
+    (no cron entrypoint, no infra trigger) -- so in practice a hold's row
+    just stays `held` forever once it expires, and every retry after the
+    countdown hits zero was told the dates are still unavailable,
+    indefinitely. Fixed here by also treating a `held`/`pending_payment`
+    row whose `hold_expires_at` has already passed as non-blocking,
+    regardless of whether the batch job has gotten to it yet -- the
+    correctness of this check no longer depends on that job running at
+    all. A transaction that has been paid (`payment_received` or, later,
+    `released_to_wallet` -- schema.md's escrow model) is exempt from this
+    (a paid booking has no expiry and must always keep blocking,
+    regardless of whether a De-Duke Admin has released its funds yet).
+    """
+    now = datetime.now(UTC)
+    still_active_hold = and_(
+        Transaction.status.in_(("held", "pending_payment")),
+        or_(
+            Transaction.hold_expires_at.is_(None),
+            Transaction.hold_expires_at >= now,
+        ),
+    )
     result = await session.execute(
         select(Transaction.id)
         .where(Transaction.listing_id == listing_id)
-        .where(Transaction.status.in_(NON_TERMINAL_STATUSES))
+        .where(
+            or_(
+                Transaction.status.in_(("payment_received", "released_to_wallet")),
+                still_active_hold,
+            )
+        )
         .where(Transaction.possession_period_start_date < end)
         .where(Transaction.possession_period_end_date > start)
         .with_for_update()
     )
     return result.first() is not None
+
+
+async def _expire_stale_holds_for_listing(session: AsyncSession, listing_id: str) -> None:
+    """Self-healing companion to the fix above -- opportunistically
+    transitions this listing's own past-expiry `held`/`pending_payment`
+    rows to `expired` right here, while `create_hold` already holds the
+    listing row lock (see `_lock_listing_row`), rather than leaving that
+    entirely to the never-actually-scheduled `hold_expiry_job`. This
+    keeps the data itself correct (host dashboards, transaction history,
+    disputes all read `status` directly and would otherwise show a stale
+    `held` row forever) rather than only correct from
+    `_has_overlapping_hold`'s point of view. Scoped to one listing (not a
+    global sweep) since that's the only lock this call site already
+    holds; the batch job -- once actually wired to run on a schedule,
+    still a real infra gap -- remains responsible for the rest of the
+    table.
+    """
+    now = datetime.now(UTC)
+    result = await session.execute(
+        select(Transaction)
+        .where(Transaction.listing_id == listing_id)
+        .where(Transaction.status.in_(("held", "pending_payment")))
+        .where(Transaction.hold_expires_at.is_not(None))
+        .where(Transaction.hold_expires_at < now)
+    )
+    for txn in result.scalars().all():
+        txn.status = "expired"
+        session.add(txn)
 
 
 async def _compute_possession_period(
@@ -92,7 +160,10 @@ async def _compute_possession_period(
     check_in_date: datetime | None,
     check_out_date: datetime | None,
 ) -> tuple[datetime, datetime, float]:
-    """Returns (start, end, gross_amount)."""
+    """Returns (start, end, listing_price) -- `listing_price` is the raw
+    listing/deal price BEFORE either commission component (see
+    Transaction.listing_price's own docstring); confirm_booking below
+    applies the two-sided commission math on top of this value."""
     if listing.listing_type == "shortlet":
         shortlet = (
             await session.execute(
@@ -116,8 +187,8 @@ async def _compute_possession_period(
             raise InvalidBookingDatesError(
                 f"Maximum stay is {shortlet.maximum_stay_nights} night(s)"
             )
-        gross_amount = nights * shortlet.nightly_price
-        return check_in_date, check_out_date, gross_amount
+        listing_price = nights * shortlet.nightly_price
+        return check_in_date, check_out_date, listing_price
 
     # commercial: lease or sale_reservation
     commercial = (
@@ -168,25 +239,67 @@ async def confirm_booking(
         )
     ).scalar_one_or_none()
 
-    start, end, gross_amount = await _compute_possession_period(
+    start, end, listing_price = await _compute_possession_period(
         session, listing, check_in_date, check_out_date
     )
+
+    # Self-heal this listing's own stale holds while we already hold its
+    # row lock -- see that function's docstring for why this can't be left
+    # entirely to the (never actually scheduled) hold_expiry_job.
+    await _expire_stale_holds_for_listing(session, listing_id)
 
     # Re-check overlap now that the listing row (and any competing
     # transactions) are locked -- closes the check-then-write race window.
     if await _has_overlapping_hold(session, listing_id, start, end):
         raise ListingUnavailableError("These dates are no longer available")
 
-    payee_id = listing.agency_id or listing.host_account_id
+    # Bug fix: Transaction.payee_id has a foreign key to users.id (see
+    # app/models/transaction.py), but `listing.host_account_id` is a
+    # host_accounts.id -- a different table/primary key entirely (see
+    # app/models/host_account.py's HostAccount.id vs. HostAccount.user_id).
+    # For any individually-owned (non-agency) listing this inserted a
+    # HostAccount id into a column that only ever validates against real
+    # User rows, throwing ForeignKeyViolationError on every confirm_booking
+    # call for that listing -- 100% reproducible, not a race/edge case.
+    # `listing.agency_id` is unaffected (agency_service.py already
+    # resolves it to the agency root's *users.id* at listing-creation
+    # time), so only the individual-host fallback needed fetching the
+    # HostAccount row to resolve its owning user.
+    if listing.agency_id is not None:
+        payee_id = listing.agency_id
+    else:
+        host_account = await session.get(HostAccount, listing.host_account_id)
+        if host_account is None:
+            raise ListingUnavailableError("Listing's host account no longer exists")
+        payee_id = host_account.user_id
+
+    transaction_type = transaction_type_for_listing(listing, commercial)
+
+    # Two-sided commission model (product decision): both rates are
+    # snapshotted HERE, at hold creation, not deferred to payment-webhook
+    # time -- gross_amount (the actual Paystack charge amount) must
+    # already include the buyer fee before checkout can even initiate the
+    # transaction, so this can no longer be computed lazily the way the
+    # old single-rate model was. `as_of=now` matches the old model's own
+    # snapshot instant (it resolved the rate `as_of=txn.created_at`, just
+    # lazily at webhook time) -- same rate-resolution semantics, computed
+    # once instead of twice.
+    buyer_fee_pct, owner_commission_pct = await get_effective_rates(
+        session, transaction_type, as_of=datetime.now(UTC)
+    )
+    breakdown = compute_price_breakdown(listing_price, buyer_fee_pct, owner_commission_pct)
 
     txn = Transaction(
         listing_id=listing_id,
         payer_id=payer_id,
         payee_id=payee_id,
-        transaction_type=transaction_type_for_listing(listing, commercial),
-        gross_amount=gross_amount,
-        commission_amount=0.0,
-        net_payout_amount=gross_amount,
+        transaction_type=transaction_type,
+        listing_price=breakdown.listing_price,
+        buyer_fee_amount=breakdown.buyer_fee_amount,
+        owner_commission_amount=breakdown.owner_commission_amount,
+        gross_amount=breakdown.gross_amount,
+        net_payout_amount=breakdown.net_payout_amount,
+        commission_amount=breakdown.commission_amount,
         status="held",
         hold_expires_at=datetime.now(UTC)
         + timedelta(minutes=settings.booking_hold_duration_minutes),

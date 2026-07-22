@@ -90,10 +90,9 @@ def _get_firestore_client() -> Any:
 # Maps a De-Duke `User.role` onto the chat-role claim Firestore security
 # rules understand: client | property_management | deduke_staff.
 _ROLE_CLAIM_MAP: dict[UserRole, str] = {
-    UserRole.SEEKER: "client",
-    UserRole.INDIVIDUAL_HOST: "property_management",
+    UserRole.GUEST: "client",
+    UserRole.HOST: "property_management",
     UserRole.AGENCY: "property_management",
-    UserRole.CORPORATE: "property_management",
     UserRole.DEDUKE_STAFF: "deduke_staff",
     UserRole.DEDUKE_ADMIN: "deduke_staff",
 }

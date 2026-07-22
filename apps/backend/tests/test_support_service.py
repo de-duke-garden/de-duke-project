@@ -153,7 +153,7 @@ def _clear_overrides():
 
 
 def test_get_or_create_endpoint_returns_503_when_unconfigured(client: TestClient) -> None:
-    _override_current_user(UserRole.SEEKER)
+    _override_current_user(UserRole.GUEST)
     with patch.object(
         svc, "_get_firebase_app", side_effect=svc.ChatServiceUnavailableError("not configured")
     ):
@@ -162,7 +162,7 @@ def test_get_or_create_endpoint_returns_503_when_unconfigured(client: TestClient
 
 
 def test_get_or_create_endpoint_returns_conversation(client: TestClient) -> None:
-    _override_current_user(UserRole.SEEKER)
+    _override_current_user(UserRole.GUEST)
     now = datetime.now(UTC)
     fake_conversation = svc.SupportConversation(
         id="conv-1",

@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../data/listing_models.dart';
 import '../data/listing_repository.dart';
@@ -232,7 +231,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
         children: [
           if (_saveErrorMessage != null) ...[
             Text(_saveErrorMessage!,
-                style: const TextStyle(color: AppColors.error)),
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
             const SizedBox(height: AppSpacing.sm),
           ],
           TextFormField(
@@ -290,7 +289,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
             subtitle: Text(
               canTogglePublished
                   ? (_isPublished
-                      ? 'Visible to seekers in search and on your listing page.'
+                      ? 'Visible to guests in search and on your listing page.'
                       : 'Hidden from search -- you can republish any time.')
                   : "This listing is ${_statusLabel(listing.status)} and can't be toggled here.",
             ),

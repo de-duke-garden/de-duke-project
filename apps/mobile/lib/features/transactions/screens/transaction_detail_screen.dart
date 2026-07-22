@@ -17,10 +17,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/widgets/listing_title_text.dart';
 import '../../checkout/data/checkout_repository.dart';
 import '../../checkout/data/transaction_models.dart';
 import '../../listings/data/listing_repository.dart';
@@ -38,8 +37,12 @@ class TransactionDetailScreen extends StatefulWidget {
   final String transactionId;
   final CheckoutRepository repository;
 
-  /// Resolves the transaction's `listingId` to its listing title for the
-  /// "Listing" row -- previously showed the raw listing id.
+  /// No longer used to resolve the "Listing" row's title -- the backend
+  /// now denormalizes `listing_title` directly onto the transaction
+  /// response (see transactions.py), so this screen no longer needs a
+  /// separate GET /v1/listings/{id} call for that. Kept on the
+  /// constructor since other call sites/tests still wire it through; a
+  /// follow-up could drop it from the router entirely.
   final ListingRepository listingRepository;
 
   @override
@@ -90,7 +93,14 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   /// `url_launcher` hand-off to the OS share sheet/file viewer as before.
   Future<void> _downloadReceipt() async {
     final txn = _transaction;
-    if (txn == null || txn.receiptUrl == null) {
+    // Bug fix: previously null-checked `receiptUrl` alone, but the backend
+    // (paystack_webhook_handler.py) seeds `pdf_url` as `""` (empty string,
+    // not null) when a Receipt row is first created -- real PDF generation
+    // is still a backend TODO, so an empty string is exactly what a
+    // genuinely "succeeded" transaction has today, and `Uri.tryParse('')`
+    // silently no-ops instead of showing this snackbar. `isEmpty` catches
+    // both cases the same way.
+    if (txn == null || txn.receiptUrl == null || txn.receiptUrl!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content:
@@ -168,17 +178,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 padding: const EdgeInsets.all(AppSpacing.md),
                 child: Column(
                   children: [
-                    // Was `_row('Listing', txn.listingId)` -- the raw id.
-                    _rowWidget(
-                      'Listing',
-                      DefaultTextStyle.merge(
-                        textAlign: TextAlign.right,
-                        child: ListingTitleText(
-                          listingId: txn.listingId,
-                          listingRepository: widget.listingRepository,
-                        ),
-                      ),
-                    ),
+                    // Was `_row('Listing', txn.listingId)` -- the raw id --
+                    // then a `ListingTitleText` fetch. The backend now
+                    // denormalizes the title directly onto the transaction
+                    // response (transactions.py), so no separate
+                    // GET /v1/listings/{id} call is needed here anymore.
+                    _row('Listing', txn.listingTitle),
                     _row('Transaction type', txn.transactionType),
                     const Divider(height: AppSpacing.lg),
                     _row('Gross amount',
@@ -200,15 +205,37 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _downloadReceipt,
-                icon: const Icon(Icons.picture_as_pdf_outlined),
-                label: const Text('Download PDF Receipt'),
+            // Bug fix: this button used to render unconditionally for
+            // every transaction status, including failed/expired/refunded
+            // ones that will never have a document. The backend
+            // (receipt_service.py) now generates a real PDF for exactly
+            // two cases -- a "Booking Hold Confirmation" the moment a hold
+            // is created (`held`/`pending_payment`), upgraded in place to
+            // a full "Payment Receipt" once the same transaction succeeds
+            // -- so the button is shown for those statuses only, with a
+            // label that reflects which document the user will actually
+            // get. `_downloadReceipt`'s "not ready yet" snackbar is a
+            // genuinely accurate, retryable message for these two
+            // statuses (PDF generation is best-effort and could briefly
+            // lag); it would still be actively misleading for a
+            // failed/expired/refunded transaction, which is why those
+            // remain excluded entirely rather than just risking a
+            // permanent "not ready yet".
+            if (txn.status == 'succeeded' ||
+                txn.status == 'held' ||
+                txn.status == 'pending_payment') ...[
+              const SizedBox(height: AppSpacing.lg),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _downloadReceipt,
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  label: Text(txn.status == 'succeeded'
+                      ? 'Download PDF Receipt'
+                      : 'Download Hold Confirmation'),
+                ),
               ),
-            ),
+            ],
           ],
         ],
       ),
@@ -216,14 +243,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   }
 
   Widget _statusChip(String status) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
     final (label, color) = switch (status) {
-      'succeeded' => ('Paid', AppColors.success),
-      'held' => ('Held', AppColors.warning),
-      'pending_payment' => ('Processing', AppColors.info),
-      'failed' => ('Failed', AppColors.error),
-      'expired' => ('Expired', AppColors.error),
-      'refunded' => ('Refunded', AppColors.textSecondary),
-      _ => (status, AppColors.textSecondary),
+      'succeeded' => ('Paid', semantic.success),
+      'held' => ('Held', semantic.warning),
+      'pending_payment' => ('Processing', semantic.info),
+      'failed' => ('Failed', colorScheme.error),
+      'expired' => ('Expired', colorScheme.error),
+      'refunded' => ('Refunded', colorScheme.onSurfaceVariant),
+      _ => (status, colorScheme.onSurfaceVariant),
     };
     return Chip(
       label: Text(label),
@@ -245,8 +274,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: AppTypography.bodySmall
-                  .copyWith(color: AppColors.textSecondary)),
+              style: AppTypography.bodySmall.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
           Flexible(child: value),
         ],
       ),

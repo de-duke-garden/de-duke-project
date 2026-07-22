@@ -8,7 +8,6 @@ library;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../data/search_models.dart';
 
@@ -81,11 +80,11 @@ class _SearchMapViewState extends State<SearchMapView> {
                   widget.onSearchThisArea(target.latitude, target.longitude);
                   setState(() => _showSearchThisArea = false);
                 },
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary),
-                icon: const Icon(Icons.search, color: Colors.white, size: 18),
-                label: const Text('Search this area',
-                    style: TextStyle(color: Colors.white)),
+                // No explicit style override -- ElevatedButtonTheme (AppTheme)
+                // already resolves background/foreground from the current
+                // ColorScheme per brightness.
+                icon: const Icon(Icons.search, size: 18),
+                label: const Text('Search this area'),
               ),
             ),
           ),

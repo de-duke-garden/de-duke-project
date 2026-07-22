@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import anyio
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.host_account import HostAccount
@@ -323,10 +323,33 @@ async def is_listing_available(
 
     conflicts: set[str] = set()
 
-    non_blocking_statuses = ("failed", "expired", "refunded")
+    # Bug fix: previously excluded only ("failed", "expired", "refunded")
+    # by status, so a `held`/`pending_payment` row stayed blocking forever
+    # once its `hold_expires_at` passed -- that status transition is only
+    # ever performed by hold_expiry_job.expire_stale_holds, which this
+    # codebase never actually schedules to run anywhere (no cron
+    # entrypoint, no infra trigger wired up). Same fix as
+    # booking_service.py's `_has_overlapping_hold`: a `held`/
+    # `pending_payment` row whose hold has already expired no longer
+    # counts as a conflict, independent of whether the batch job has
+    # caught up to it. A paid transaction (`payment_received` or, later,
+    # `released_to_wallet` -- schema.md's escrow model) is exempt (a paid
+    # booking has no expiry and must always keep blocking, regardless of
+    # whether a De-Duke Admin has released its funds to the payee yet).
+    now = datetime.now(UTC)
+    still_active_hold = and_(
+        Transaction.status.in_(("held", "pending_payment")),
+        or_(
+            Transaction.hold_expires_at.is_(None),
+            Transaction.hold_expires_at >= now,
+        ),
+    )
     stmt = select(Transaction).where(
         Transaction.listing_id == listing_id,
-        Transaction.status.not_in(non_blocking_statuses),
+        or_(
+            Transaction.status.in_(("payment_received", "released_to_wallet")),
+            still_active_hold,
+        ),
         Transaction.possession_period_start_date.is_not(None),
         Transaction.possession_period_end_date.is_not(None),
     )
@@ -536,3 +559,52 @@ async def list_host_listings(
             }
         )
     return items
+
+
+async def list_listings_admin(
+    session: AsyncSession,
+    *,
+    search: str | None = None,
+    status_filter: str | None = None,
+    listing_type: str | None = None,
+    cursor: str | None = None,
+    limit: int = 20,
+) -> tuple[list[Listing], str | None]:
+    """Backs the Admin Web Console's `/properties` list -- staff/admin-only
+    (enforced by the caller, app/api/v1/listings.py). Cursor-based (keyset)
+    pagination on `id` per AGENTS.md convention -- never offset/page-number
+    pagination, so the result stays correct even as listings are created
+    concurrently while a staff member pages through.
+
+    `search` matches title OR address/city/state (case-insensitive
+    substring) -- deliberately NOT the semantic search embedding
+    search.py's guest-facing endpoint uses; this is a plain operational
+    lookup ("find listing X by name/address"), not a relevance-ranked
+    discovery search, so a simple ILIKE is the right tool and avoids
+    depending on the embedding worker having already processed a
+    brand-new listing.
+    """
+    limit = max(1, min(limit, 100))
+    stmt = select(Listing)
+    if search:
+        term = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Listing.title.ilike(term),
+                Listing.location_address_line.ilike(term),
+                Listing.location_city.ilike(term),
+                Listing.location_state.ilike(term),
+            )
+        )
+    if status_filter:
+        stmt = stmt.where(Listing.status == status_filter)
+    if listing_type:
+        stmt = stmt.where(Listing.listing_type == listing_type)
+    stmt = stmt.order_by(Listing.id).limit(limit + 1)
+    if cursor:
+        stmt = stmt.where(Listing.id > cursor)
+
+    result = await session.execute(stmt)
+    rows = list(result.scalars().all())
+    next_cursor = rows[limit].id if len(rows) > limit else None
+    return rows[:limit], next_cursor

@@ -1,6 +1,6 @@
 # De-Duke Mobile
 
-Flutter client app for De-Duke (seekers, hosts, agencies, corporate).
+Flutter client app for De-Duke (guests, hosts, agencies).
 See the project root's `AGENTS.md` and `docs/De-Duke/` for product/architecture
 context -- this file only documents local dev commands.
 

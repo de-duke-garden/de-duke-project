@@ -16,6 +16,7 @@ library;
 
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -37,7 +38,7 @@ class AuthResult {
   /// True only for a brand-new account's very first sign-in
   /// (POST /firebase-exchange's `is_new_user`) -- FEAT-001 AC: routes to
   /// Role Selection. NOT inferable from `role` alone (a returning user
-  /// can still legitimately be "seeker") -- see
+  /// can still legitimately be "guest") -- see
   /// auth_service.exchange_firebase_token's docstring on the backend for
   /// why this is a real field, not a client-side guess.
   final bool isNewUser;
@@ -156,6 +157,18 @@ class AuthRepository {
   final SessionStore _sessionStore;
   final fb_auth.FirebaseAuth _firebaseAuth;
   final GoogleSignIn _googleSignIn;
+
+  /// Live current-role signal -- lets app_shell.dart's bottom nav react to
+  /// a role change (FEAT-003's Account Settings "Change role" re-entry
+  /// point) immediately, without requiring an app restart. Confirmed real
+  /// gap: the shell previously fetched the role exactly once, in its own
+  /// `initState`, and never again -- so switching Guest -> Host (or vice
+  /// versa) left the Dashboard/Agency tab showing (or missing) the OLD
+  /// role's tab until the process was killed and relaunched. Updated
+  /// centrally here (in `getCurrentUser`, which `updateRole` already calls
+  /// at the end of its own flow) rather than duplicated at every call site
+  /// that might change the role.
+  final ValueNotifier<String?> currentRoleNotifier = ValueNotifier<String?>(null);
 
   String _errorMessage(DioException e, String fallback) {
     if (e.type == DioExceptionType.connectionError ||
@@ -645,11 +658,15 @@ class AuthRepository {
 
   /// Resolves the caller's identity from the persisted De-Duke session
   /// token (GET /v1/auth/me) -- used by the app shell (role-based bottom
-  /// nav) and Account Settings.
+  /// nav) and Account Settings. Also publishes the resolved role onto
+  /// `currentRoleNotifier` (best-effort, on every successful call) so the
+  /// shell's bottom nav stays live -- see that field's docstring.
   Future<CurrentUser> getCurrentUser() async {
     try {
       final response = await _apiClient.dio.get('/v1/auth/me');
-      return CurrentUser.fromJson(response.data as Map<String, dynamic>);
+      final user = CurrentUser.fromJson(response.data as Map<String, dynamic>);
+      currentRoleNotifier.value = user.role;
+      return user;
     } on DioException catch (e) {
       throw AuthException(_errorMessage(e, 'Could not load your profile.'));
     }
@@ -705,8 +722,8 @@ class AuthRepository {
 
   /// FEAT-003 (Role Selection) -- Screen 2's initial choice, and its
   /// change-later re-entry point from Account Settings. `role` must be one
-  /// of the four self-service values (seeker | individual_host | agency |
-  /// corporate) -- the backend rejects anything else (see
+  /// of the three self-service values (guest | host | agency) -- the
+  /// backend rejects anything else (see
   /// app/schemas/auth.py's SELF_SERVICE_ROLES).
   Future<CurrentUser> updateRole(String role) async {
     try {
@@ -782,6 +799,10 @@ class AuthRepository {
       }
     }
     await _sessionStore.clear();
+    // Clears the shell's live role signal too -- otherwise the bottom nav
+    // would keep showing the just-logged-out user's Dashboard/Agency tab
+    // for whatever briefly renders before AuthGate routes back to /auth.
+    currentRoleNotifier.value = null;
     try {
       await _firebaseAuth.signOut();
       await _googleSignIn.signOut();

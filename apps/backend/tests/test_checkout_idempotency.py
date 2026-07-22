@@ -35,7 +35,7 @@ async def test_repeated_idempotency_key_reuses_cached_reference() -> None:
     with pytest.raises(payment_service.PaystackNotConfiguredError):
         await payment_service.initiate_paystack_transaction(
             idempotency_key="retry-key-1",
-            email="seeker@example.com",
+            email="guest@example.com",
             amount_kobo=500_00,
             reference="txn_new_would_be_ref",
             metadata={},

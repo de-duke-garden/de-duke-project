@@ -22,9 +22,18 @@ resource "aws_secretsmanager_secret_version" "app" {
   # overwrite manually-populated values on a re-apply as long as this
   # resource is not re-created — see README note on `ignore_changes`.
   secret_string = jsonencode({
+    # PAYSTACK_SECRET_KEY also verifies incoming webhook signatures --
+    # Paystack signs webhooks with your account's SECRET key, not a
+    # separate value, so there is no PAYSTACK_WEBHOOK_SECRET key here
+    # anymore (see app/services/payment_service.py's
+    # verify_webhook_signature). Note: because this resource's
+    # `secret_string` is under `ignore_changes` below, removing this key
+    # here does NOT retroactively delete it from an already-populated,
+    # already-applied secret in a live environment -- an operator would
+    # still need to remove it manually from the Secrets Manager console
+    # if it was ever populated there.
     PAYSTACK_SECRET_KEY           = "REPLACE_ME"
     PAYSTACK_PUBLIC_KEY           = "REPLACE_ME"
-    PAYSTACK_WEBHOOK_SECRET       = "REPLACE_ME"
     GOOGLE_MAPS_API_KEY           = "REPLACE_ME"
     FIREBASE_SERVICE_ACCOUNT_JSON = "REPLACE_ME"
     FIRESTORE_PROJECT_ID          = "REPLACE_ME"

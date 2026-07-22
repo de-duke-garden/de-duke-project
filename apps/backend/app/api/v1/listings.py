@@ -29,7 +29,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.core.security import CurrentUser, get_current_user, get_current_user_optional
+from app.core.security import (
+    CurrentUser,
+    UserRole,
+    get_current_user,
+    get_current_user_optional,
+    require_roles,
+)
 from app.core.storage import upload_bytes as upload_bytes_to_media_storage
 from app.core.storage import upload_file as upload_to_media_storage
 from app.models.host_account import HostAccount
@@ -43,6 +49,8 @@ from app.models.listing import (
 from app.schemas.listing import (
     AvailabilityOut,
     ListingCreateIn,
+    ListingListResponse,
+    ListingSummaryOut,
     ListingUpdateIn,
     MediaMetaIn,
 )
@@ -57,6 +65,7 @@ from app.services.listing_service import (
     create_shortlet_subtype,
     increment_view_count,
     is_listing_available,
+    list_listings_admin,
     listing_to_dict,
     make_location_point_wkt,
     process_uploaded_video,
@@ -136,6 +145,63 @@ async def _load_listing_bundle(session: AsyncSession, listing_id: str) -> dict:
         commercial_rooms=commercial_rooms,
         shortlet=shortlet,
         host_account=host_account,
+    )
+
+
+@router.get("", response_model=ListingListResponse)
+async def list_listings_admin_endpoint(
+    search: str | None = None,
+    status_filter: str | None = None,
+    listing_type: str | None = None,
+    cursor: str | None = None,
+    limit: int = 20,
+    _current_user: CurrentUser = Depends(
+        require_roles(UserRole.DEDUKE_STAFF, UserRole.DEDUKE_ADMIN)
+    ),
+    session: AsyncSession = Depends(get_session),
+) -> ListingListResponse:
+    """Admin Web Console `/properties` list -- staff/admin-only (distinct
+    from the guest-facing GET /v1/search, which is unauthenticated and
+    relevance-ranked). Search + status/type filters + cursor pagination,
+    per the console's brief to browse the full property catalog without a
+    performance-costly unbounded/offset query.
+    """
+    listings, next_cursor = await list_listings_admin(
+        session,
+        search=search,
+        status_filter=status_filter,
+        listing_type=listing_type,
+        cursor=cursor,
+        limit=limit,
+    )
+    if not listings:
+        return ListingListResponse(items=[], next_cursor=None)
+
+    listing_ids = [listing.id for listing in listings]
+    media_result = await session.execute(
+        select(ListingMedia)
+        .where(ListingMedia.listing_id.in_(listing_ids))
+        .where(ListingMedia.is_primary == True)  # noqa: E712
+    )
+    primary_image_by_listing = {
+        item.listing_id: item.media_url for item in media_result.scalars().all()
+    }
+
+    return ListingListResponse(
+        items=[
+            ListingSummaryOut(
+                id=listing.id,
+                title=listing.title,
+                listing_type=listing.listing_type,
+                status=listing.status,
+                status_reason=listing.status_reason,
+                location_city=listing.location_city,
+                location_state=listing.location_state,
+                primary_image_url=primary_image_by_listing.get(listing.id),
+            )
+            for listing in listings
+        ],
+        next_cursor=next_cursor,
     )
 
 

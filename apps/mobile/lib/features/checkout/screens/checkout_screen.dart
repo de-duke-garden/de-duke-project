@@ -12,8 +12,8 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/skeleton_loader.dart';
@@ -201,6 +201,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
     final txn = _transaction;
 
     if (txn != null && txn.status == 'succeeded') {
@@ -230,15 +232,15 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                       Icon(Icons.timer_outlined,
                           size: 14,
                           color: _timeRemaining.inMinutes < 2
-                              ? AppColors.warning
-                              : AppColors.textSecondary),
+                              ? semantic.warning
+                              : colorScheme.onSurfaceVariant),
                       const SizedBox(width: AppSpacing.xs),
                       Text(
                         'Hold expires in ${_timeRemaining.inMinutes}m ${(_timeRemaining.inSeconds % 60).toString().padLeft(2, '0')}s',
                         style: AppTypography.bodySmall.copyWith(
                           color: _timeRemaining.inMinutes < 2
-                              ? AppColors.warning
-                              : AppColors.textSecondary,
+                              ? semantic.warning
+                              : colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -280,6 +282,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
   Widget _buildReady(BuildContext context, TransactionDetail? txn,
       {bool submitting = false, String? paymentError}) {
     if (txn == null) return const Center(child: CircularProgressIndicator());
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
@@ -298,19 +301,19 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                     margin: const EdgeInsets.only(bottom: AppSpacing.md),
                     padding: const EdgeInsets.all(AppSpacing.sm),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha: 0.1),
+                      color: colorScheme.error.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(AppRadii.md),
-                      border: Border.all(color: AppColors.error),
+                      border: Border.all(color: colorScheme.error),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline,
-                            color: AppColors.error, size: 20),
+                        Icon(Icons.error_outline,
+                            color: colorScheme.error, size: 20),
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(paymentError,
                               style: AppTypography.body
-                                  .copyWith(color: AppColors.error)),
+                                  .copyWith(color: colorScheme.error)),
                         ),
                       ],
                     ),
@@ -322,8 +325,10 @@ class _CheckoutScreenState extends State<CheckoutScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Listing ${txn.listingId}',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(txn.listingTitle,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: AppSpacing.sm),
                   _row(context, 'Amount',
                       '₦${txn.grossAmount.toStringAsFixed(2)}',
@@ -344,18 +349,20 @@ class _CheckoutScreenState extends State<CheckoutScreen>
             width: double.infinity,
             padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
-              color: AppColors.primaryLight,
+              color: colorScheme.primaryContainer,
               borderRadius: BorderRadius.circular(AppRadii.md),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.shield_outlined, color: AppColors.primary, size: 20),
-                SizedBox(width: AppSpacing.sm),
+                Icon(Icons.shield_outlined,
+                    color: colorScheme.onPrimaryContainer, size: 20),
+                const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
                     "Paying in-app is covered by De-Duke's buyer "
                     'protection guarantee -- paying off-platform is not.',
-                    style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                    style: TextStyle(
+                        color: colorScheme.onPrimaryContainer, fontSize: 13),
                   ),
                 ),
               ],
@@ -408,8 +415,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: AppTypography.bodySmall
-              .copyWith(color: AppColors.textSecondary)),
+          Text(label, style: AppTypography.bodySmall.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant)),
           Text(value,
               style: isStat
                   ? AppTypography.statSmall
@@ -436,9 +443,9 @@ class _SkeletonSummary extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(AppRadii.md),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: Theme.of(context).colorScheme.outline),
             ),
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,

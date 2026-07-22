@@ -39,7 +39,17 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  String? _role;
+  /// Live-updating role source -- `AuthRepository.currentRoleNotifier`
+  /// (see that field's docstring). Previously this shell fetched the role
+  /// exactly ONCE in `initState` and stored it in local `_role` state, so
+  /// changing role via Account Settings' "Change role" re-entry point
+  /// (FEAT-003) never updated the bottom nav's Dashboard/Agency tab until
+  /// the app was force-closed and relaunched -- confirmed real bug, fixed
+  /// here by listening to the shared notifier instead of a one-shot fetch.
+  /// `ValueListenableBuilder` below rebuilds the nav bar the instant
+  /// `AuthRepository.getCurrentUser()`/`updateRole()` updates it, from
+  /// anywhere in the app, without this widget needing to be recreated.
+  String? get _role => widget.authRepository.currentRoleNotifier.value;
 
   @override
   void initState() {
@@ -47,22 +57,21 @@ class _AppShellState extends State<AppShell> {
     _loadRole();
   }
 
-  /// Resolves the caller's role once per shell lifetime (not per-tab) --
-  /// screens.md Screen 4 Data Requirements: "User's role (to show correct
-  /// dashboard tab) -- from auth context." Centralized here (rather than
-  /// duplicated per-screen) means one fetch, not one per screen, and the
-  /// nav bar itself (not just individual screens) reacts to it.
+  /// Seeds `currentRoleNotifier` on first shell mount (e.g. a fresh app
+  /// launch, before anything else has called `getCurrentUser()` yet).
+  /// Every subsequent role change updates the notifier directly wherever
+  /// it happens (Account Settings' role change, Role Selection) --
+  /// `ValueListenableBuilder` picks those up on its own without calling
+  /// this again.
   Future<void> _loadRole() async {
     try {
-      final user = await widget.authRepository.getCurrentUser();
-      if (!mounted) return;
-      setState(() => _role = user.role);
+      await widget.authRepository.getCurrentUser();
     } catch (_) {
       // Never blocks the shell from rendering -- worst case, the Dashboard
-      // tab stays hidden until a later successful fetch (e.g. this widget
-      // is never rebuilt to retry today, but a full app relaunch will
-      // retry; acceptable given a role fetch failure here almost always
-      // means the session itself is bad, which surfaces elsewhere too).
+      // tab stays hidden until a later successful fetch elsewhere in the
+      // app (e.g. Account Settings loading the profile) updates the shared
+      // notifier; acceptable given a role fetch failure here almost always
+      // means the session itself is bad, which surfaces elsewhere too.
     }
   }
 
@@ -72,7 +81,7 @@ class _AppShellState extends State<AppShell> {
   /// Settings would add friction to a high-frequency action for exactly
   /// the users who rely on it most, per screens.md Screen 4's Edge Cases
   /// note).
-  bool get _showsHostDashboardTab => _role == 'individual_host';
+  bool get _showsHostDashboardTab => _role == 'host';
 
   /// Screen 13 (Agency Dashboard, FEAT-012/FEAT-019) -- an `agency` account
   /// (root or invited team member; both share `User.role == 'agency'` per
@@ -94,15 +103,49 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuilds this shell (and only this shell -- widget.navigationShell's
+    // own branch subtrees are untouched) whenever currentRoleNotifier
+    // changes, e.g. right after Account Settings' "Change role" completes
+    // its PATCH /v1/auth/me/role call -- no app restart needed. `_role`
+    // reads the same notifier, so it always reflects whatever this builder
+    // was just called with.
+    return ValueListenableBuilder<String?>(
+      valueListenable: widget.authRepository.currentRoleNotifier,
+      builder: (context, _, __) => _buildShell(context),
+    );
+  }
+
+  Widget _buildShell(BuildContext context) {
     final currentBranchIndex = widget.navigationShell.currentIndex;
     // Falls back to 0 (Home) rather than a negative/invalid selectedIndex
     // -- can only happen if a deep link lands directly on the Dashboard
     // branch (/host) for a non-host account, a real but rare edge case
     // (the Dashboard screens themselves still gate on verification/role
-    // server-side regardless of how the tab bar renders).
-    final selectedVisibleIndex = _visibleBranches.contains(currentBranchIndex)
-        ? _visibleBranches.indexOf(currentBranchIndex)
-        : 0;
+    // server-side regardless of how the tab bar renders). Also now the
+    // landing path right after a role change removes the branch the user
+    // was previously on (e.g. Agency -> Guest removes branch index 3).
+    final onHiddenBranch = !_visibleBranches.contains(currentBranchIndex);
+    final selectedVisibleIndex = onHiddenBranch
+        ? 0
+        : _visibleBranches.indexOf(currentBranchIndex);
+
+    // If a role change just removed the branch currently being VIEWED
+    // (not merely a deep-link edge case, but a live "I was looking at the
+    // Agency dashboard and my role just became Guest" moment), the nav
+    // bar above already re-highlights Home -- but `widget.navigationShell`
+    // itself is still showing the now-hidden branch's body underneath it
+    // until something actually navigates away from it. Scheduled for
+    // after this frame (navigating mid-build is unsafe); a no-op on every
+    // other rebuild since `onHiddenBranch` is false whenever the current
+    // branch is still valid for the (possibly just-changed) role.
+    if (onHiddenBranch) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (!_visibleBranches.contains(widget.navigationShell.currentIndex)) {
+          widget.navigationShell.goBranch(0);
+        }
+      });
+    }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // Explicit, rather than the Material 3 default (a tonal "elevated

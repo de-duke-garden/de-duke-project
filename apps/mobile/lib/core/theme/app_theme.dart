@@ -1,8 +1,42 @@
 /// De-Duke ThemeData -- assembles the branding.md tokens into Flutter's
 /// Material 3 theme system, for both light and dark mode.
+///
+/// Every branding.md token that has a natural Material 3 `ColorScheme` role
+/// is mapped onto that role here, not left as a bare `AppColors` constant --
+/// screens should read `Theme.of(context).colorScheme.X` /
+/// `Theme.of(context).textTheme.X` / `Theme.of(context).cardTheme`, never
+/// `AppColors.X` directly followed by a manual
+/// `Theme.of(context).brightness == Brightness.dark` branch. That per-widget
+/// branching pattern is exactly what this refactor replaces: previously
+/// `AppTheme` only set `colorScheme: ColorScheme.fromSeed(...)`, which
+/// derives most roles algorithmically from a single seed color rather than
+/// branding.md's actual tokens -- so screens reached for `AppColors.surface`/
+/// `.border`/`.textSecondary` directly instead, and every one of them had to
+/// remember to branch on brightness itself. Several didn't (the dark-mode
+/// bug this refactor fixes).
+///
+/// `ColorScheme` role mapping (light; dark mirrors it with the `*Dark`
+/// tokens):
+///   primary            -> AppColors.primary       onPrimary   -> white
+///   primaryContainer    -> AppColors.primaryLight  onPrimaryContainer -> AppColors.primary
+///   tertiary            -> AppColors.accent        onTertiary  -> white
+///   tertiaryContainer   -> AppColors.accentLight   onTertiaryContainer -> AppColors.accent
+///   error               -> AppColors.error         onError     -> white
+///   surface             -> AppColors.surface       onSurface   -> AppColors.textPrimary
+///   surfaceContainerHighest -> AppColors.surfaceSecondary  onSurfaceVariant -> AppColors.textSecondary
+///   outline             -> AppColors.border (full strength -- dividers/borders)
+///   outlineVariant      -> AppColors.border at reduced opacity (the
+///                          "hairline at 60%" treatment branding.md calls for
+///                          on every card)
+///
+/// Only tokens with no `ColorScheme` equivalent (success/warning/info/
+/// verified, and the two-layer shadow system) live on the `AppSemanticColors`
+/// `ThemeExtension` instead (app_semantic_colors.dart) -- registered below
+/// via `ThemeData.extensions`.
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'app_semantic_colors.dart';
 import 'app_spacing.dart';
 import 'app_typography.dart';
 
@@ -10,62 +44,128 @@ class AppTheme {
   AppTheme._();
 
   static ThemeData light() {
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
+    const colorScheme = ColorScheme(
       brightness: Brightness.light,
       primary: AppColors.primary,
-      surface: AppColors.surface,
+      onPrimary: Colors.white,
+      primaryContainer: AppColors.primaryLight,
+      onPrimaryContainer: AppColors.primary,
+      secondary: AppColors.primary,
+      onSecondary: Colors.white,
+      secondaryContainer: AppColors.primaryLight,
+      onSecondaryContainer: AppColors.primary,
+      tertiary: AppColors.accent,
+      onTertiary: Colors.white,
+      tertiaryContainer: AppColors.accentLight,
+      onTertiaryContainer: AppColors.accent,
       error: AppColors.error,
+      onError: Colors.white,
+      surface: AppColors.surface,
+      onSurface: AppColors.textPrimary,
+      surfaceContainerHighest: AppColors.surfaceSecondary,
+      onSurfaceVariant: AppColors.textSecondary,
+      outline: AppColors.border,
+      outlineVariant: AppColors.border,
+      shadow: Colors.black,
     );
 
+    return _buildTheme(
+      colorScheme: colorScheme,
+      semanticColors: AppSemanticColors.light,
+      textColor: AppColors.textPrimary,
+      inputFill: AppColors.surfaceSecondary,
+    );
+  }
+
+  static ThemeData dark() {
+    const colorScheme = ColorScheme(
+      brightness: Brightness.dark,
+      primary: AppColors.primaryDark,
+      onPrimary: Colors.white,
+      primaryContainer: AppColors.primaryLightDark,
+      onPrimaryContainer: AppColors.primaryDark,
+      secondary: AppColors.primaryDark,
+      onSecondary: Colors.white,
+      secondaryContainer: AppColors.primaryLightDark,
+      onSecondaryContainer: AppColors.primaryDark,
+      tertiary: AppColors.accent,
+      onTertiary: Colors.white,
+      tertiaryContainer: AppColors.accentLight,
+      onTertiaryContainer: AppColors.accent,
+      error: AppColors.error,
+      onError: Colors.white,
+      surface: AppColors.surfaceDark,
+      onSurface: AppColors.textPrimaryDark,
+      surfaceContainerHighest: AppColors.surfaceSecondaryDark,
+      onSurfaceVariant: AppColors.textSecondaryDark,
+      outline: AppColors.borderDark,
+      outlineVariant: AppColors.borderDark,
+      shadow: Colors.black,
+    );
+
+    return _buildTheme(
+      colorScheme: colorScheme,
+      semanticColors: AppSemanticColors.dark,
+      textColor: AppColors.textPrimaryDark,
+      inputFill: AppColors.surfaceSecondaryDark,
+    );
+  }
+
+  /// Shared theme assembly -- everything below derives from `colorScheme`
+  /// (never a bare `AppColors.X`), so light/dark truly are just two
+  /// different `ColorScheme`s feeding one shape, rather than two
+  /// hand-duplicated theme trees that can drift apart.
+  static ThemeData _buildTheme({
+    required ColorScheme colorScheme,
+    required AppSemanticColors semanticColors,
+    required Color textColor,
+    required Color inputFill,
+  }) {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppColors.surface,
-      textTheme: _textTheme(AppColors.textPrimary),
+      scaffoldBackgroundColor: colorScheme.surface,
+      textTheme: _textTheme(textColor),
+      extensions: [semanticColors],
       cardTheme: CardThemeData(
-        color: AppColors.surface,
+        color: colorScheme.surface,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.lg),
-          side: BorderSide(color: AppColors.border.withValues(alpha: 0.6)),
+          side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.6)),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
           minimumSize: const Size.fromHeight(AppSizing.buttonHeight),
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadii.md)),
         ),
       ),
-      // Previously unset -- fell back to Material 3's default pill-shaped,
-      // fully-transparent outline button, which visually clashed with the
-      // ElevatedButton it's so often paired with in a sticky action row
-      // (e.g. Listing Detail's "Message Host" / "Book Now" pair). Now
-      // shares the elevated button's height/radius exactly, but keeps the
+      // Shares the elevated button's height/radius exactly, but keeps the
       // outline button's lighter, "secondary action" feel via a faint
       // primary-tinted fill instead of a solid one, plus a visible border.
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          backgroundColor: AppColors.primary.withValues(alpha: 0.08),
-          foregroundColor: AppColors.primary,
+          backgroundColor: colorScheme.primary.withValues(alpha: 0.08),
+          foregroundColor: colorScheme.primary,
           disabledForegroundColor:
-              AppColors.textSecondary.withValues(alpha: 0.5),
+              colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           minimumSize: const Size.fromHeight(AppSizing.buttonHeight),
-          side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
+          side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.4)),
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadii.md)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceSecondary,
+        fillColor: inputFill,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
-          borderSide: BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: colorScheme.outline),
         ),
       ),
     );
@@ -81,66 +181,6 @@ class AppTheme {
       bodyMedium: AppTypography.body.copyWith(color: color),
       bodySmall: AppTypography.bodySmall.copyWith(color: color),
       labelSmall: AppTypography.caption.copyWith(color: color),
-    );
-  }
-
-  static ThemeData dark() {
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppColors.primaryDark,
-      brightness: Brightness.dark,
-      primary: AppColors.primaryDark,
-      surface: AppColors.surfaceDark,
-      error: AppColors.error,
-    );
-
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppColors.surfaceDark,
-      textTheme: _textTheme(AppColors.textPrimaryDark),
-      cardTheme: CardThemeData(
-        color: AppColors.surfaceDark,
-        elevation: 0,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.lg),
-          side:
-              BorderSide(color: AppColors.borderDark.withValues(alpha: 0.6)),
-        ),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryDark,
-          foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(AppSizing.buttonHeight),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadii.md)),
-        ),
-      ),
-      // Dark-mode counterpart of the light theme's outlinedButtonTheme --
-      // same shape/size parity with ElevatedButton, tinted with
-      // primaryDark instead of primary.
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          backgroundColor: AppColors.primaryDark.withValues(alpha: 0.12),
-          foregroundColor: AppColors.primaryDark,
-          disabledForegroundColor:
-              AppColors.textSecondaryDark.withValues(alpha: 0.5),
-          minimumSize: const Size.fromHeight(AppSizing.buttonHeight),
-          side:
-              BorderSide(color: AppColors.primaryDark.withValues(alpha: 0.5)),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadii.md)),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: AppColors.surfaceSecondaryDark,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadii.md),
-          borderSide: BorderSide(color: AppColors.borderDark),
-        ),
-      ),
     );
   }
 }

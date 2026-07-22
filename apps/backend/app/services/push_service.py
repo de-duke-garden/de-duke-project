@@ -46,6 +46,13 @@ DISPUTE_RESOLVED = "dispute_resolved"
 # saved search match rather than a status transition on a listing the user
 # owns.
 SAVED_SEARCH_MATCH = "saved_search_match"
+# FEAT-043/045 (escrow release + wallet withdrawal) -- mirrors
+# email_service.py's own ESCROW_FUNDS_RELEASED/WITHDRAWAL_PAID/
+# WITHDRAWAL_FAILED additions; see that module's comment for why
+# ESCROW_FUNDS_RELEASED replaces the old payment-time payout notification.
+ESCROW_FUNDS_RELEASED = "escrow_funds_released"
+WITHDRAWAL_PAID = "withdrawal_paid"
+WITHDRAWAL_FAILED = "withdrawal_failed"
 
 # FEAT-022 AC: "User can manage notification preferences per category in
 # settings" -- push's own category set (listings, chat, payments),
@@ -63,6 +70,9 @@ CATEGORY_BY_TEMPLATE: dict[str, str] = {
     # category, same reasoning as BOOKING_HOLD_*/PAYMENT_* above.
     DISPUTE_RESOLVED: "payments",
     SAVED_SEARCH_MATCH: "listings",
+    ESCROW_FUNDS_RELEASED: "payments",
+    WITHDRAWAL_PAID: "payments",
+    WITHDRAWAL_FAILED: "payments",
 }
 
 # Notification copy per template. Deliberately plain string formatting

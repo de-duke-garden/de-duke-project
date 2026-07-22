@@ -39,7 +39,7 @@ class User(SQLModel, table=True):
     email: str | None = Field(default=None, unique=True, index=True)
     phone_number: str | None = Field(default=None, unique=True, index=True)
 
-    # "firebase" (seeker/individual_host/agency/corporate, FEAT-001 --
+    # "firebase" (guest/host/agency, FEAT-001 --
     # Google Sign-In, Firebase email/password, or Firebase phone/OTP; the
     # Backend API Service never stores a password/OTP for these) |
     # "password" (deduke_staff/deduke_admin only, FEAT-033 -- backend-
@@ -52,7 +52,7 @@ class User(SQLModel, table=True):
     # sign-in). Null for auth_provider "password" accounts.
     firebase_uid: str | None = Field(default=None, unique=True, index=True)
 
-    # seeker | individual_host | agency | corporate | deduke_staff | deduke_admin
+    # guest | host | agency | deduke_staff | deduke_admin
     role: str = Field(index=True)
 
     # References User.id of the deduke_admin who invited a staff/admin account.

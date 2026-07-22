@@ -28,7 +28,8 @@ infra/
 │   ├── ecr/              # Container registry for the Backend API Service image
 │   ├── fargate_service/  # ALB, ECS cluster/service/task, RDS Proxy, autoscaling
 │   ├── waf/              # Web Application Firewall in front of the ALB
-│   └── dns/              # Per-environment Route53 alias records (api./cdn. subdomains)
+│   └── dns/              # Per-environment Route53 records (api./cdn. aliases, admin./root
+│                         # CNAME+A records for the Vercel-hosted Admin Console + Marketing Site)
 └── environments/
     ├── global/            # NOT a deploy environment -- one-time DNS/cert bootstrap
     │                      # shared by every environment below (see its own main.tf header)
@@ -64,17 +65,36 @@ What Terraform *does* create:
 - **Each environment's `module "dns"`** (`modules/dns`) — creates that
   environment's public subdomain alias records once the corresponding cert
   var is populated:
-  | Environment | API subdomain | CDN subdomain |
-  |---|---|---|
-  | production | `api.de-duke.com` | `cdn.de-duke.com` |
-  | staging | `staging-api.de-duke.com` | `cdn-staging.de-duke.com` |
-  | development | `dev-api.de-duke.com` | `cdn-dev.de-duke.com` |
+  | Environment | API subdomain | CDN subdomain | Admin Web Console |
+  |---|---|---|---|
+  | production | `api.de-duke.com` | `cdn.de-duke.com` | `admin.de-duke.com` |
+  | staging | `staging-api.de-duke.com` | `cdn-staging.de-duke.com` | `staging-admin.de-duke.com` |
+  | development | `dev-api.de-duke.com` | `cdn-dev.de-duke.com` | `dev-admin.de-duke.com` |
+
+  Production additionally owns the bare root domain, `de-duke.com` — the
+  Marketing Site. Staging/development marketing previews are **not**
+  tracked here; they use Vercel's own `*.vercel.app` preview URLs.
 
   The API record is always created (points at the ALB, which always
   exists). The CDN record is only created once `cdn_acm_certificate_arn`
   is set — CloudFront rejects traffic for a hostname that isn't yet
   configured as one of its own `aliases`, so the DNS record must not exist
   ahead of that.
+
+  **Admin Web Console + Marketing Site are Vercel-hosted, not
+  ECS/Fargate** — this Terraform config only manages their DNS, not their
+  deployment. Two record types:
+  - `admin` (every environment) → `CNAME` to `vercel_cname_target`. Unique
+    per Vercel project — no shared default, get the real value from the
+    Vercel dashboard (Settings → Domains) or `vercel domains inspect
+    <fqdn>` and set it as `TF_VERCEL_CNAME_TARGET`.
+  - `marketing` (production only, bare apex) → `A` record to
+    `vercel_apex_ips`, defaulting to Vercel's standard `76.76.21.21`. A
+    CNAME isn't valid at a zone apex (RFC 1034), which is why this is a
+    different record type from `admin`.
+
+  Vercel manages its own TLS certs once DNS resolves — no ACM cert work
+  needed for either record.
 
 Each environment stores its state remotely in a pre-existing, externally
 managed S3 bucket (not provisioned by this Terraform config -- the bucket

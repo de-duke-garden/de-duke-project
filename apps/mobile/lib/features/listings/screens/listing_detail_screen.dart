@@ -21,9 +21,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_motion.dart';
-import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/enum_display.dart';
@@ -415,14 +414,14 @@ class _ListingBodyState extends State<_ListingBody> {
         const SizedBox(height: AppSpacing.sm),
         Text(
           '${listing.addressLine}, ${listing.city}, ${listing.state}',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: AppSpacing.md),
         // Fixed price -- `stat-display` type token, no offer/negotiation
         // controls, by design (AGENTS.md fixed-price rule).
         Text(priceLabel,
             style:
-                AppTypography.statDisplay.copyWith(color: AppColors.primary)),
+                AppTypography.statDisplay.copyWith(color: Theme.of(context).colorScheme.primary)),
         const SizedBox(height: AppSpacing.md),
         Text(listing.description),
         // schema.md base Listing.amenities -- shared by both listing
@@ -483,7 +482,7 @@ class _ListingBodyState extends State<_ListingBody> {
             ),
           ],
           // schema.md's CommercialListing.legalDocuments -- "Shown to
-          // seekers as a trust signal, particularly for Sale listings."
+          // guests as a trust signal, particularly for Sale listings."
           // Was collected by Create Listing but never displayed anywhere.
           if (commercial.legalDocuments.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.md),
@@ -818,6 +817,55 @@ class _VideoTileState extends State<_VideoTile> {
     return '$m:$s';
   }
 
+  /// Opens `_FullScreenVideoViewer` for this clip -- mirrors
+  /// `_ListingMediaCarousel._openFullScreenPhoto`'s transition (fade,
+  /// opaque: false, black barrier) so full-screen photo and video both feel
+  /// like the same affordance. Pauses this tile's own inline controller
+  /// first (if any) so the clip doesn't play in two places/make doubled
+  /// audio while the full-screen viewer's own controller takes over;
+  /// deliberately left paused (not resumed) on return, matching the
+  /// carousel's existing "no autoplay" product decision -- the user taps
+  /// again inline if they want to keep watching.
+  void _openFullScreen() {
+    _controller?.pause();
+    if (mounted) setState(() => _playing = false);
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierColor: Colors.black,
+        transitionDuration: AppDurations.fast,
+        pageBuilder: (context, animation, secondaryAnimation) => FadeTransition(
+          opacity: animation,
+          child: _FullScreenVideoViewer(media: widget.media),
+        ),
+      ),
+    );
+  }
+
+  /// Small circular "expand" affordance, top-right -- same visual language
+  /// (semi-transparent black chip, white icon) as the carousel's page-count
+  /// chip/close button so it reads as part of the same control system.
+  /// Shown whenever there's something playable to expand into (i.e. not
+  /// while still `processing_status == 'pending'`, matching the inline
+  /// tap-to-play gate in `_startPlayback`).
+  Widget _fullScreenButton() {
+    return Positioned(
+      top: AppSpacing.xs,
+      right: AppSpacing.xs,
+      child: GestureDetector(
+        onTap: _openFullScreen,
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.55),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.fullscreen, color: Colors.white, size: 20),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
@@ -846,13 +894,14 @@ class _VideoTileState extends State<_VideoTile> {
                 controller,
                 allowScrubbing: true,
                 padding: const EdgeInsets.all(AppSpacing.xs),
-                colors: const VideoProgressColors(
-                  playedColor: AppColors.primary,
+                colors: VideoProgressColors(
+                  playedColor: Theme.of(context).colorScheme.primary,
                   bufferedColor: Colors.white38,
                   backgroundColor: Colors.white12,
                 ),
               ),
             ),
+            _fullScreenButton(),
           ],
         ),
       );
@@ -868,18 +917,40 @@ class _VideoTileState extends State<_VideoTile> {
           if (poster != null)
             ListingImage(imageUrl: poster)
           else
-            Container(color: AppColors.surfaceSecondary),
+            Container(color: Theme.of(context).colorScheme.surfaceContainerHighest),
+          // `fit: StackFit.expand` above forces every non-positioned child
+          // to the full stack size -- a bare CircularProgressIndicator has
+          // no intrinsic size to resist that with, so without this
+          // Center+SizedBox wrapper it was rendering as an oversized
+          // spinner filling the whole video tile instead of a normal-sized
+          // loading indicator. Center loosens the tight constraints for its
+          // child; the SizedBox then gives the spinner its real,
+          // deliberately-chosen size.
           if (_initializing)
-            const CircularProgressIndicator(color: Colors.white)
+            const Center(
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 3),
+              ),
+            )
           else if (widget.media.processingStatus == 'pending')
-            const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(color: Colors.white),
-                SizedBox(height: AppSpacing.sm),
-                Text('Processing video...',
-                    style: TextStyle(color: Colors.white)),
-              ],
+            const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 3),
+                  ),
+                  SizedBox(height: AppSpacing.sm),
+                  Text('Processing video...',
+                      style: TextStyle(color: Colors.white)),
+                ],
+              ),
             )
           else
             Container(
@@ -907,7 +978,149 @@ class _VideoTileState extends State<_VideoTile> {
                 ),
               ),
             ),
+          // Only offered once there's a poster to preview against -- while
+          // 'pending' (no poster yet) there's nothing meaningful to expand
+          // into, matching _startPlayback's own gate.
+          if (widget.media.processingStatus != 'pending') _fullScreenButton(),
         ],
+      ),
+    );
+  }
+}
+
+/// Full-screen video viewer -- opened via `_VideoTile`'s expand button,
+/// mirrors `_FullScreenPhotoViewer`'s chrome (black background, top-left
+/// close button, same transition) so photo and video full-screen viewing
+/// feel like one consistent affordance. Owns its own `VideoPlayerController`
+/// (independent of the inline tile's, which is paused before this opens --
+/// see `_VideoTileState._openFullScreen`) and autoplays immediately, since
+/// opening full-screen is already an explicit "I want to watch this" tap
+/// -- unlike the inline carousel tile, which deliberately never autoplays.
+class _FullScreenVideoViewer extends StatefulWidget {
+  const _FullScreenVideoViewer({required this.media});
+
+  final ListingMedia media;
+
+  @override
+  State<_FullScreenVideoViewer> createState() => _FullScreenVideoViewerState();
+}
+
+class _FullScreenVideoViewerState extends State<_FullScreenVideoViewer> {
+  VideoPlayerController? _controller;
+  bool _playing = false;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    final controller =
+        VideoPlayerController.networkUrl(Uri.parse(widget.media.mediaUrl));
+    try {
+      await controller.initialize();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      await controller.play();
+      setState(() {
+        _controller = controller;
+        _playing = true;
+      });
+    } catch (_) {
+      await controller.dispose();
+      if (!mounted) return;
+      setState(() => _failed = true);
+    }
+  }
+
+  void _togglePlayback() {
+    final controller = _controller;
+    if (controller == null) return;
+    setState(() {
+      if (controller.value.isPlaying) {
+        controller.pause();
+        _playing = false;
+      } else {
+        controller.play();
+        _playing = true;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Center(
+              child: controller != null && controller.value.isInitialized
+                  ? GestureDetector(
+                      onTap: _togglePlayback,
+                      child: AspectRatio(
+                        aspectRatio: controller.value.aspectRatio,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            VideoPlayer(controller),
+                            if (!_playing)
+                              const Icon(Icons.play_arrow,
+                                  color: Colors.white, size: 64),
+                          ],
+                        ),
+                      ),
+                    )
+                  : _failed
+                      ? const Text("Couldn't play this video.",
+                          style: TextStyle(color: Colors.white))
+                      // Deliberately NOT wrapped by a StackFit.expand
+                      // ancestor here (unlike the inline tile's bug above)
+                      // -- Center alone already gives this spinner its
+                      // normal size, no extra guard needed.
+                      : const CircularProgressIndicator(color: Colors.white),
+            ),
+            if (controller != null && controller.value.isInitialized)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: AppSpacing.lg,
+                child: VideoProgressIndicator(
+                  controller,
+                  allowScrubbing: true,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                  colors: VideoProgressColors(
+                    playedColor: Theme.of(context).colorScheme.primary,
+                    bufferedColor: Colors.white38,
+                    backgroundColor: Colors.white12,
+                  ),
+                ),
+              ),
+            Positioned(
+              top: AppSpacing.sm,
+              left: AppSpacing.sm,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close, color: Colors.white),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1007,16 +1220,20 @@ class _VerifiedBadge extends StatelessWidget {
       padding:
           const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.primaryLight,
+        color: Theme.of(context).colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(AppRadii.md),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.verified, size: 16, color: AppColors.verified),
-          SizedBox(width: 4),
+          Icon(Icons.verified,
+              size: 16,
+              color: Theme.of(context).extension<AppSemanticColors>()!.verified),
+          const SizedBox(width: 4),
           Text('Verified',
-              style: TextStyle(color: AppColors.verified, fontSize: 12)),
+              style: TextStyle(
+                  color: Theme.of(context).extension<AppSemanticColors>()!.verified,
+                  fontSize: 12)),
         ],
       ),
     );
@@ -1057,10 +1274,10 @@ class _HostProfileCardState extends State<_HostProfileCard> {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
-        boxShadow: AppShadows.sm,
+        border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.6)),
+        boxShadow: Theme.of(context).extension<AppSemanticColors>()!.shadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1069,12 +1286,12 @@ class _HostProfileCardState extends State<_HostProfileCard> {
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundColor: AppColors.primaryLight,
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                 backgroundImage: widget.photoUrl != null
                     ? NetworkImage(widget.photoUrl!)
                     : null,
                 child: widget.photoUrl == null
-                    ? const Icon(Icons.person_outline, color: AppColors.primary)
+                    ? Icon(Icons.person_outline, color: Theme.of(context).colorScheme.primary)
                     : null,
               ),
               const SizedBox(width: AppSpacing.sm),
@@ -1087,8 +1304,8 @@ class _HostProfileCardState extends State<_HostProfileCard> {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(hostTypeLabel,
-                            style: const TextStyle(
-                                color: AppColors.textSecondary)),
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant)),
                       ),
                   ],
                 ),
@@ -1144,7 +1361,7 @@ class _DetailStatsCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondary,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(AppRadii.md),
       ),
       child: Wrap(
@@ -1156,7 +1373,7 @@ class _DetailStatsCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(stat.icon,
-                      size: AppSizing.iconSm, color: AppColors.primary),
+                      size: AppSizing.iconSm, color: Theme.of(context).colorScheme.primary),
                   const SizedBox(width: AppSpacing.xs),
                   Text(stat.label,
                       style: Theme.of(context).textTheme.bodyMedium),
@@ -1184,8 +1401,8 @@ class _RoomRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          const Icon(Icons.meeting_room_outlined,
-              size: AppSizing.iconSm, color: AppColors.textSecondary),
+          Icon(Icons.meeting_room_outlined,
+              size: AppSizing.iconSm, color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
               child:
@@ -1194,7 +1411,7 @@ class _RoomRow extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: AppColors.textSecondary)),
+                  ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -1218,15 +1435,15 @@ class _TagChip extends StatelessWidget {
       padding:
           const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondary,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(AppRadii.full),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.check_circle_outline,
-              size: AppSizing.iconSm, color: AppColors.textSecondary),
+          Icon(Icons.check_circle_outline,
+              size: AppSizing.iconSm, color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(width: AppSpacing.xs),
           Text(label, style: Theme.of(context).textTheme.bodySmall),
         ],
@@ -1309,18 +1526,18 @@ class _ListingLocationPreview extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.surface.withValues(alpha: 0.9),
+                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(AppRadii.sm),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.open_in_new,
-                        size: 14, color: AppColors.textSecondary),
-                    SizedBox(width: 4),
+                        size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
                     Text('Open in Maps',
                         style: TextStyle(
-                            color: AppColors.textSecondary, fontSize: 12)),
+                            color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
                   ],
                 ),
               ),

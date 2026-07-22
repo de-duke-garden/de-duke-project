@@ -38,6 +38,19 @@ class CommissionRateConfig(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
     # shortlet_booking | lease_deposit | sale_reservation
     transaction_type: str = Field(index=True)
+    # buyer_fee | owner_commission -- product decision: the two rates are
+    # tracked as independent histories (same append-only,
+    # never-mutate-an-existing-row model as before, per-transaction_type),
+    # not two columns on one row, so either can be changed on its own
+    # schedule without disturbing the other's effective_from history.
+    # buyer_fee is a surcharge ADDED to the listing price (what the guest
+    # pays on top); owner_commission is deducted FROM the listing price
+    # (what the payee's net payout is reduced by) -- see
+    # commission_service.compute_price_breakdown for the actual math.
+    # Legacy rows (created before this split existed) were backfilled to
+    # 'owner_commission' -- the original single-rate model deducted
+    # entirely from the payee's payout with no separate buyer-side fee.
+    fee_type: str = Field(index=True)
     rate_percentage: float
     set_by_id: str = Field(foreign_key="users.id")
     effective_from: datetime = Field(index=True, sa_type=DateTime(timezone=True))

@@ -16,9 +16,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.security import CurrentUser, get_current_user
 from app.models.transaction import Transaction
+from app.models.user import User
 from app.schemas.transaction import InitiateCheckoutRequest, InitiateCheckoutResponse
 from app.services.booking_service import is_hold_active
 from app.services.payment_service import PaystackNotConfiguredError, initiate_paystack_transaction
@@ -27,6 +29,7 @@ from app.workers.paystack_webhook_handler import WebhookVerificationError, handl
 logger = logging.getLogger("app.api.v1.checkout")
 
 router = APIRouter()
+settings = get_settings()
 
 
 @router.post("/initiate", response_model=InitiateCheckoutResponse)
@@ -59,11 +62,29 @@ async def initiate_checkout(
                 paystack_reference=txn.payment_processor_reference,
             )
 
+        # Bug fix: this used to pass `current_user.user_id` (a bare UUID)
+        # as `email` -- Paystack's `/transaction/initialize` validates
+        # `email` as an actual email address and rejects anything else
+        # with a 400, which is exactly what surfaced to the client as a
+        # 502 "Payment provider is temporarily unavailable" below. Firebase
+        # phone/OTP sign-in (FEAT-001) never collects an email at all, so
+        # `User.email` is genuinely nullable here -- falls back to
+        # `settings.paystack_fallback_email` (a shared support address,
+        # not a fabricated per-user one) rather than failing checkout
+        # entirely over a field Paystack only uses for its own receipt
+        # email, not anything this app relies on. Real accounts with an
+        # email on file (Google/Firebase email sign-in) always get their
+        # real one.
+        user = await session.get(User, current_user.user_id)
+        payer_email = (user.email if user is not None else None) or (
+            settings.paystack_fallback_email
+        )
+
         reference = f"txn_{txn.id}"
         try:
             result_init = await initiate_paystack_transaction(
                 idempotency_key=body.idempotency_key,
-                email=current_user.user_id,  # TODO(payments): resolve real user email
+                email=payer_email,
                 amount_kobo=int(round(txn.gross_amount * 100)),
                 reference=reference,
                 metadata={"transaction_id": txn.id, "idempotency_key": body.idempotency_key},

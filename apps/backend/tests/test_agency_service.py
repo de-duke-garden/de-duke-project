@@ -127,7 +127,7 @@ async def test_invite_team_member_rejects_non_admin(session: AsyncSession) -> No
 
 async def test_invite_team_member_rejects_duplicate_email(session: AsyncSession) -> None:
     agency = await _make_user(session, role="agency")
-    existing = await _make_user(session, role="seeker")
+    existing = await _make_user(session, role="guest")
 
     with pytest.raises(agency_service.EmailAlreadyInUseError):
         await agency_service.invite_team_member(
@@ -225,7 +225,7 @@ async def test_assign_lead_rejects_non_admin(session: AsyncSession) -> None:
 
 async def test_assign_lead_rejects_unknown_team_member(session: AsyncSession) -> None:
     agency = await _make_user(session, role="agency")
-    outsider = await _make_user(session, role="seeker")
+    outsider = await _make_user(session, role="guest")
     lead = await _make_lead(session, agency_id=agency.id)
 
     with pytest.raises(agency_service.TeamMemberNotFoundError):

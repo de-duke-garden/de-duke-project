@@ -11,8 +11,7 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_shadows.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -201,15 +200,16 @@ class _CountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.primary,
+        color: colorScheme.primary,
         borderRadius: BorderRadius.circular(AppRadii.full),
       ),
       child: Text(
         '$count',
-        style: AppTypography.caption.copyWith(color: Colors.white),
+        style: AppTypography.caption.copyWith(color: colorScheme.onPrimary),
       ),
     );
   }
@@ -230,15 +230,17 @@ class _LeadRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final shadows = Theme.of(context).extension<AppSemanticColors>()!;
     return Container(
       margin: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppShadows.sm,
+        border: Border.all(color: colorScheme.outline),
+        boxShadow: shadows.shadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,7 +256,7 @@ class _LeadRow extends StatelessWidget {
                     Text(
                       'Listing ${lead.listingId}',
                       style: AppTypography.bodySmall
-                          .copyWith(color: AppColors.textSecondary),
+                          .copyWith(color: colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -274,14 +276,14 @@ class _LeadRow extends StatelessWidget {
               padding: const EdgeInsets.only(top: AppSpacing.xs),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline,
-                      size: 14, color: AppColors.error),
+                  Icon(Icons.error_outline,
+                      size: 14, color: colorScheme.error),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       errorMessage!,
                       style: AppTypography.bodySmall
-                          .copyWith(color: AppColors.error),
+                          .copyWith(color: colorScheme.error),
                     ),
                   ),
                 ],

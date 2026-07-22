@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { getAdminSession } from "@/lib/auth";
 import { ChatOversightClient } from "@/components/chat/ChatOversightClient";
 
@@ -27,7 +29,9 @@ export default async function ConversationsPage() {
         Monitor and, when needed, participate in any client-property management conversation.
       </p>
       <div className="mt-lg">
-        <ChatOversightClient currentUserId={session.userId} />
+        <Suspense fallback={null}>
+          <ChatOversightClient currentUserId={session.userId} />
+        </Suspense>
       </div>
     </main>
   );

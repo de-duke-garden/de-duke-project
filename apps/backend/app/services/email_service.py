@@ -37,6 +37,14 @@ PAYMENT_FAILED = "payment_failed"
 HOST_PAYOUT_SUMMARY = "host_payout_summary"
 STAFF_INVITE = "staff_invite"
 DISPUTE_RESOLVED = "dispute_resolved"
+# FEAT-043/045 (escrow release + wallet withdrawal, schema.md's Escrow
+# model). ESCROW_FUNDS_RELEASED replaces HOST_PAYOUT_SUMMARY's old firing
+# point (paystack_webhook_handler.py, at raw payment success) -- see that
+# module's docstring for why sending a "payout summary" at payment time
+# was actively misleading before a De-Duke Admin had released anything.
+ESCROW_FUNDS_RELEASED = "escrow_funds_released"
+WITHDRAWAL_PAID = "withdrawal_paid"
+WITHDRAWAL_FAILED = "withdrawal_failed"
 
 # FEAT-024 AC: "User can manage email notification preferences per
 # category in settings, separate from push preferences." Three categories
@@ -55,6 +63,9 @@ CATEGORY_BY_TEMPLATE: dict[str, str] = {
     PAYMENT_FAILED: "payments",
     HOST_PAYOUT_SUMMARY: "payments",
     DISPUTE_RESOLVED: "payments",
+    ESCROW_FUNDS_RELEASED: "payments",
+    WITHDRAWAL_PAID: "payments",
+    WITHDRAWAL_FAILED: "payments",
 }
 
 

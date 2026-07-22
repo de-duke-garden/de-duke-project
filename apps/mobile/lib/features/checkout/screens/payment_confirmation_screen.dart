@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/celebratory_sequence.dart';
@@ -68,7 +68,8 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
                 // illustration exception applies.
                 icon: Icons.verified,
                 iconSize: 88,
-                accentColor: AppColors.success,
+                accentColor:
+                    Theme.of(context).extension<AppSemanticColors>()!.success,
                 supportingContent: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -94,7 +95,7 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
                           padding: const EdgeInsets.all(AppSpacing.md),
                           child: Column(
                             children: [
-                              _row(context, 'Listing', _transaction!.listingId),
+                              _row(context, 'Listing', _transaction!.listingTitle),
                               _row(
                                 context,
                                 'Amount paid',
@@ -111,7 +112,7 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
                       Text(
                         'A receipt has also been emailed to your registered address.',
                         style: AppTypography.bodySmall
-                            .copyWith(color: AppColors.textSecondary),
+                            .copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -148,7 +149,7 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
         children: [
           Text(label,
               style: AppTypography.bodySmall
-                  .copyWith(color: AppColors.textSecondary)),
+                  .copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           Text(value,
               style: isStat ? AppTypography.statSmall : AppTypography.body),
         ],

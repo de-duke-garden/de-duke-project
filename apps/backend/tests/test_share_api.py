@@ -30,7 +30,7 @@ app.include_router(public_share_router, prefix="/v1/share")
 client = TestClient(app)
 
 
-def _token(role: UserRole = UserRole.CORPORATE) -> str:
+def _token(role: UserRole = UserRole.AGENCY) -> str:
     return create_access_token(user_id="user-1", role=role)
 
 

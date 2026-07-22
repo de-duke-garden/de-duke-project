@@ -17,6 +17,7 @@ from app.services.booking_service import (
     get_transaction_for_owner,
 )
 from app.services.email_service import BOOKING_HOLD_CONFIRMED, notify_user
+from app.services.receipt_service import ensure_receipt
 
 router = APIRouter()
 
@@ -48,6 +49,14 @@ async def confirm_booking_endpoint(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
+
+    # FEAT-015/product decision: a hold gets its own downloadable "Booking
+    # Hold Confirmation" PDF immediately, not only once paid (see
+    # receipt_service.py's module docstring). Called here, after the
+    # `session.begin()` block above has already committed `txn` -- see
+    # that function's own docstring for why it can't safely be called from
+    # inside booking_service.confirm_booking.
+    await ensure_receipt(session, txn)
 
     notification_context = {
         "transaction_id": txn.id,

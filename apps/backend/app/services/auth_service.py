@@ -9,14 +9,14 @@ task would be invisible to another handling the next request).
 
 Two distinct, deliberately non-overlapping auth paths live in this module
 (architecture.md's Authentication & Authorization section):
-  - Consumer roles (seeker/individual_host/agency/corporate) authenticate
+  - Consumer roles (guest/host/agency) authenticate
     against Firebase Authentication client-side (Google Sign-In, Firebase
     email/password, or Firebase phone/OTP) and never send a raw
     password/OTP to this service at all -- see `exchange_firebase_token`,
     the only entry point for these roles. There is deliberately no
     backend-hosted register/OTP flow for them anymore (removed along with
     the old FEAT-001 scope) -- schema.md's User.authProvider is always
-    "firebase" for these four roles, and a surviving password-based
+    "firebase" for these three roles, and a surviving password-based
     self-registration path here would silently violate that invariant.
   - Internal roles (deduke_staff/deduke_admin) are entirely unaffected and
     keep the pre-existing backend-managed email + password flow below
@@ -109,7 +109,7 @@ async def exchange_firebase_token(
 
     Returns `(user, is_new_user)` -- the bool is NOT derivable from `user`
     alone by the caller (a returning user can still legitimately have
-    role "seeker", the same default a brand-new account gets, if they
+    role "guest", the same default a brand-new account gets, if they
     haven't completed Role Selection yet) -- so it's threaded through
     explicitly for the router to put on AuthTokenResponse.is_new_user,
     which is what the mobile client actually branches on for FEAT-001 AC's
@@ -185,13 +185,13 @@ async def exchange_firebase_token(
 
         # First-ever sign-in for this Firebase identity -- FEAT-001 AC:
         # "a first-time sign-in via any of the three methods creates a new
-        # User record and routes to Role Selection." Defaults to seeker;
+        # User record and routes to Role Selection." Defaults to guest;
         # FEAT-003 Role Selection changes it immediately after.
         user = User(
             full_name=full_name,
             email=email,
             phone_number=phone_number,
-            role=UserRole.SEEKER.value,
+            role=UserRole.GUEST.value,
             auth_provider="firebase",
             firebase_uid=firebase_uid,
         )

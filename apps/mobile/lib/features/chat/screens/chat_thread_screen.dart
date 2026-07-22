@@ -10,7 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
@@ -382,14 +381,17 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                 const EdgeInsets.only(right: AppSpacing.xs),
                             child: BadgePop(
                               triggerKey: message.id,
-                              child: const Icon(Icons.support_agent,
-                                  size: 16, color: AppColors.primary),
+                              child: Icon(Icons.support_agent,
+                                  size: 16,
+                                  color: Theme.of(context).colorScheme.primary),
                             ),
                           ),
                         Text(
                           message.body,
-                          style: AppTypography.bodySmall
-                              .copyWith(color: AppColors.textSecondary),
+                          style: AppTypography.bodySmall.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -512,16 +514,17 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final isStaff = message.senderRole == 'deduke_staff';
     // Chat Bubble component tokens (branding.md): outgoing uses `primary`
     // background/white text with a squared tail corner; incoming uses
     // `surface-secondary`. De-Duke Staff messages get a distinct tint so
     // all three participant roles stay visually distinguishable (Layout).
     final bubbleColor = isStaff
-        ? AppColors.accentLight
-        : (isMine ? AppColors.primary : AppColors.surfaceSecondary);
+        ? colorScheme.tertiaryContainer
+        : (isMine ? colorScheme.primary : colorScheme.surfaceContainerHighest);
     final textColor =
-        isMine && !isStaff ? Colors.white : AppColors.textPrimary;
+        isMine && !isStaff ? colorScheme.onPrimary : colorScheme.onSurface;
     final isFailed = message.deliveryStatus == ChatDeliveryStatus.failed;
 
     // `radius-md` on 3 corners, sharp (squared) tail corner -- bottom-right
@@ -541,7 +544,7 @@ class _MessageBubble extends StatelessWidget {
       decoration: BoxDecoration(
         color: bubbleColor,
         borderRadius: radius,
-        border: isFailed ? Border.all(color: AppColors.error) : null,
+        border: isFailed ? Border.all(color: colorScheme.error) : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -565,12 +568,14 @@ class _MessageBubble extends StatelessWidget {
               const SizedBox(width: AppSpacing.xs),
               Icon(_statusIcon(),
                   size: 12,
-                  color: isFailed ? AppColors.error : textColor.withValues(alpha: 0.7)),
+                  color: isFailed
+                      ? colorScheme.error
+                      : textColor.withValues(alpha: 0.7)),
               if (isFailed) ...[
                 const SizedBox(width: AppSpacing.xs),
                 Text('Tap to retry',
                     style: AppTypography.bodySmall
-                        .copyWith(color: AppColors.error)),
+                        .copyWith(color: colorScheme.error)),
               ],
             ],
           ),
@@ -624,16 +629,17 @@ class _PaySafelyNudgeBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      color: AppColors.primaryLight,
+      color: colorScheme.primaryContainer,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
       ),
       child: Row(
         children: [
-          const Icon(Icons.shield_outlined, color: AppColors.primary),
+          Icon(Icons.shield_outlined, color: colorScheme.onPrimaryContainer),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(

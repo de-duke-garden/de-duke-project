@@ -13,8 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_shadows.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -76,6 +75,14 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen> {
         title: const Text('Agency Overview'),
         automaticallyImplyLeading: false, // tab root
         actions: [
+          // FEAT-044 -- Wallet lives on the Agency Dashboard (the agency
+          // root's day-to-day home screen), not Account Settings: same
+          // reasoning as Host Dashboard's own Wallet action.
+          IconButton(
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            tooltip: 'Wallet',
+            onPressed: () => context.pushNamed(RouteNames.wallet),
+          ),
           IconButton(
             icon: const Icon(Icons.group_outlined),
             tooltip: 'Manage team',
@@ -197,6 +204,14 @@ class _ConversionFunnelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Bug fix: this card (and _MetricCard/_ShortcutRow below) hardcoded
+    // light-mode-only AppColors constants throughout -- white container on
+    // a dark scaffold, plus muted-gray icons/text tuned for a white
+    // background rendering near-invisible on a dark one. Now reads
+    // everything from Theme.of(context), matching AppTheme's ColorScheme
+    // mapping -- see that file's doc comment.
+    final colorScheme = Theme.of(context).colorScheme;
+    final shadows = Theme.of(context).extension<AppSemanticColors>()!;
     final stages = [
       ('Views', summary.totalViews, Icons.visibility_outlined),
       ('Inquiries', summary.totalInquiries, Icons.chat_bubble_outline),
@@ -205,10 +220,10 @@ class _ConversionFunnelCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppShadows.sm,
+        border: Border.all(color: colorScheme.outline),
+        boxShadow: shadows.shadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,24 +234,23 @@ class _ConversionFunnelCard extends StatelessWidget {
             children: [
               for (var i = 0; i < stages.length; i++) ...[
                 if (i > 0)
-                  const Padding(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs),
                     child: Icon(Icons.arrow_forward,
-                        size: 16, color: AppColors.textSecondary),
+                        size: 16, color: colorScheme.onSurfaceVariant),
                   ),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(stages[i].$3,
-                          size: 18, color: AppColors.textSecondary),
+                      Icon(stages[i].$3, size: 18, color: colorScheme.onSurfaceVariant),
                       const SizedBox(height: 4),
                       Text(stages[i].$2.toString(),
                           style: AppTypography.statSmall),
                       Text(stages[i].$1,
                           style: AppTypography.bodySmall
-                              .copyWith(color: AppColors.textSecondary)),
+                              .copyWith(color: colorScheme.onSurfaceVariant)),
                     ],
                   ),
                 ),
@@ -261,13 +275,15 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final shadows = Theme.of(context).extension<AppSemanticColors>()!;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppShadows.sm,
+        border: Border.all(color: colorScheme.outline),
+        boxShadow: shadows.shadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,7 +292,7 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(data.label,
               style: AppTypography.bodySmall
-                  .copyWith(color: AppColors.textSecondary)),
+                  .copyWith(color: colorScheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -293,14 +309,15 @@ class _ShortcutRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return TapScale(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: AppSpacing.sm),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(AppRadii.md),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: colorScheme.outline),
         ),
         child: ListTile(
           leading: Icon(icon),

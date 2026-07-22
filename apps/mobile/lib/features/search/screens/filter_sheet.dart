@@ -4,7 +4,6 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../data/search_models.dart';
 
@@ -88,10 +87,10 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
                     widget.onApply(_draft);
                     Navigator.of(context).pop();
                   },
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary),
-                  child: const Text('Apply filters',
-                      style: TextStyle(color: Colors.white)),
+                  // No explicit style override needed -- ElevatedButtonTheme
+                  // (AppTheme) already resolves background/foreground from
+                  // the current ColorScheme per brightness.
+                  child: const Text('Apply filters'),
                 ),
               ),
             ],
@@ -211,7 +210,7 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
         divisions: 50,
         values: RangeValues(min, max),
         labels: RangeLabels(min.toStringAsFixed(0), max.toStringAsFixed(0)),
-        activeColor: AppColors.primary,
+        activeColor: Theme.of(context).colorScheme.primary,
         onChanged: (values) => setState(() {
           _draft =
               _draft.copyWith(minPrice: values.start, maxPrice: values.end);
@@ -234,7 +233,7 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
         divisions: 40,
         values: RangeValues(min, max),
         labels: RangeLabels(min.toStringAsFixed(0), max.toStringAsFixed(0)),
-        activeColor: AppColors.primary,
+        activeColor: Theme.of(context).colorScheme.primary,
         onChanged: (values) => setState(() {
           _draft =
               _draft.copyWith(minSizeSqm: values.start, maxSizeSqm: values.end);
@@ -273,7 +272,7 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
             style: TextStyle(fontWeight: FontWeight.w600)),
         Switch(
           value: _draft.verifiedOnly,
-          activeThumbColor: AppColors.primary,
+          activeThumbColor: Theme.of(context).colorScheme.primary,
           onChanged: (value) =>
               setState(() => _draft = _draft.copyWith(verifiedOnly: value)),
         ),
@@ -312,8 +311,9 @@ class _FilterSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(
-                fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+            style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurfaceVariant)),
         const SizedBox(height: AppSpacing.sm),
         child,
       ],

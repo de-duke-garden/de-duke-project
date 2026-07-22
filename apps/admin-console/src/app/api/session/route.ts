@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
   const body = await backendResponse.json();
 
-  // De-Duke Staff/Admin only -- a seeker/host/agency/corporate account can
+  // De-Duke Staff/Admin only -- a guest/host/agency account can
   // authenticate against the same backend endpoint, but must never gain
   // access to the Admin Web Console. Enforced here AND (redundantly, on
   // purpose) by every backend endpoint's own role checks.

@@ -36,6 +36,42 @@ variable "cdn_domain_name" {
   default     = ""
 }
 
+variable "create_admin_record" {
+  description = "Whether to create the Admin Web Console CNAME record."
+  type        = bool
+  default     = false
+}
+
+variable "admin_fqdn" {
+  description = "Fully-qualified subdomain for this environment's Admin Web Console, e.g. \"admin.de-duke.com\", \"staging-admin.de-duke.com\", or \"dev-admin.de-duke.com\"."
+  type        = string
+  default     = ""
+}
+
+variable "vercel_cname_target" {
+  description = "CNAME target Vercel gives for this environment's admin subdomain. Unique per Vercel project, no shared default -- get it from the Vercel dashboard or `vercel domains inspect <fqdn>`. Left empty until set."
+  type        = string
+  default     = ""
+}
+
+variable "create_marketing_record" {
+  description = "Whether to create the Marketing Site apex A record. Production-only."
+  type        = bool
+  default     = false
+}
+
+variable "marketing_fqdn" {
+  description = "The bare root domain the Marketing Site is served from, e.g. \"de-duke.com\"."
+  type        = string
+  default     = ""
+}
+
+variable "vercel_apex_ips" {
+  description = "IP address(es) Vercel gives for a bare apex/root domain (A record, not CNAME -- see main.tf's `marketing` record). Shared/stable across every Vercel project, unlike vercel_cname_target above."
+  type        = list(string)
+  default     = ["76.76.21.21"]
+}
+
 # CloudFront's hosted zone ID is the same fixed value for every CloudFront
 # distribution in every AWS account/region -- not looked up, it's a
 # documented AWS constant (see AWS docs: "Amazon Route 53 Alias Target").

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -36,9 +38,13 @@ const STATUS_FILTERS: { value: DisputeStatus | "all"; label: string }[] = [
 
 async function fetchDisputes(
   statusFilter: DisputeStatus | "all",
+  listingId: string | null,
 ): Promise<DisputeListItem[]> {
-  const query = statusFilter === "all" ? "" : `?status_filter=${statusFilter}`;
-  const response = await fetch(`${API_BASE_URL}/disputes${query}`);
+  const query = new URLSearchParams();
+  if (statusFilter !== "all") query.set("status_filter", statusFilter);
+  if (listingId) query.set("listing_id", listingId);
+  const qs = query.toString();
+  const response = await fetch(`${API_BASE_URL}/disputes${qs ? `?${qs}` : ""}`);
   if (!response.ok) {
     throw new Error(`Failed to load disputes (${response.status})`);
   }
@@ -47,8 +53,16 @@ async function fetchDisputes(
 
 /** screens.md Screen 24: Admin Dispute & Refund Management -- FEAT-026.
  * Table of disputes filterable by status; clicking a row opens the Dispute
- * Detail View (assign + resolve). */
+ * Detail View (assign + resolve).
+ *
+ * `?listing_id=` in the URL (set by the property detail page's "Disputes"
+ * summary card link) pre-filters this table to just that property's
+ * disputes -- read once on mount, same deep-link convention as the other
+ * queue screens (Moderation Queue, Release Funds). */
 export function DisputesClient() {
+  const searchParams = useSearchParams();
+  const listingIdFilter = searchParams.get("listing_id");
+
   const [state, setState] = useState<LoadState>("loading");
   const [items, setItems] = useState<DisputeListItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -60,14 +74,14 @@ export function DisputesClient() {
   const load = useCallback(async () => {
     setState("loading");
     try {
-      const data = await fetchDisputes(statusFilter);
+      const data = await fetchDisputes(statusFilter, listingIdFilter);
       setItems(data);
       setState(data.length === 0 ? "empty" : "loaded");
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : "Something went wrong.");
       setState("error");
     }
-  }, [statusFilter]);
+  }, [statusFilter, listingIdFilter]);
 
   useEffect(() => {
     void load();
@@ -75,6 +89,15 @@ export function DisputesClient() {
 
   return (
     <>
+      {listingIdFilter && (
+        <div className="mb-md rounded-md border border-primary bg-primary/5 p-sm text-sm">
+          Showing disputes for property {listingIdFilter}.{" "}
+          <Link href="/disputes" className="underline">
+            Clear filter
+          </Link>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-sm">
         {STATUS_FILTERS.map((f) => (
           <button
@@ -93,7 +116,7 @@ export function DisputesClient() {
       </div>
 
       <div className="mt-md">
-        {state === "loading" && <TableSkeleton rows={6} columns={6} />}
+        {state === "loading" && <TableSkeleton rows={6} columns={7} />}
 
         {state === "error" && (
           <div className="rounded-md border border-error p-md">
@@ -118,6 +141,7 @@ export function DisputesClient() {
               <thead>
                 <tr className="border-b border-border text-left text-text-secondary">
                   <th className="py-sm pr-md">Transaction</th>
+                  <th className="py-sm pr-md">Property</th>
                   <th className="py-sm pr-md">Raised by</th>
                   <th className="py-sm pr-md">Reason</th>
                   <th className="py-sm pr-md">Status</th>
@@ -134,6 +158,19 @@ export function DisputesClient() {
                   >
                     <td className="py-sm pr-md font-medium">
                       {item.transaction_id}
+                    </td>
+                    <td className="py-sm pr-md">
+                      {item.listing_id ? (
+                        <Link
+                          href={`/properties/${item.listing_id}`}
+                          className="underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          View property
+                        </Link>
+                      ) : (
+                        "--"
+                      )}
                     </td>
                     <td className="py-sm pr-md">{item.raised_by_name}</td>
                     <td className="py-sm pr-md">

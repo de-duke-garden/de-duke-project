@@ -92,4 +92,11 @@ abstract final class RouteNames {
 
   // -- Team management (FEAT-012: invite/list team members).
   static const agencyTeam = 'agencyTeam';
+
+  // -- FEAT-044: Host/Agency Virtual Wallet. Entry point: Account Settings
+  // (host/agency roles only -- see account_settings_screen.dart).
+  static const wallet = 'wallet';
+
+  // -- FEAT-045: Payout Settings (child of /wallet).
+  static const walletPayoutSettings = 'walletPayoutSettings';
 }

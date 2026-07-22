@@ -4,11 +4,13 @@
 /// REQUIRED_DOCUMENT_FIELDS / REQUIRED_TEXT_FIELDS exactly.
 library;
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/badge_pop.dart';
@@ -284,8 +286,8 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
                     suffixIcon: complete
                         ? BadgePop(
                             triggerKey: complete,
-                            child: const Icon(Icons.check_circle,
-                                color: AppColors.success),
+                            child: Icon(Icons.check_circle,
+                                color: Theme.of(context).extension<AppSemanticColors>()!.success),
                           )
                         : null,
                   ),
@@ -298,12 +300,11 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
               },
             ),
             const SizedBox(height: AppSpacing.md),
-            _PhotoPickerTile(
-              label: 'Profile photo',
-              picked: _profilePhotoPath != null,
-              onTap: submitting ? null : _pickProfilePhoto,
-            ),
-            const SizedBox(height: AppSpacing.md),
+            // Text fields first (registration numbers, reference phone),
+            // then every upload field (profile photo, documents) -- groups
+            // "type this" and "attach this" into two clear passes instead
+            // of interleaving them, so the form reads as one coherent flow
+            // rather than alternating input styles.
             if (widget.hostType == HostType.lawyer)
               _RegistrationField(
                   controller: _nbaController,
@@ -319,15 +320,6 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
                   controller: _surconController,
                   label: 'SURCON Registration Number',
                   enabled: !submitting),
-            for (final spec in _docSpecs)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: _PhotoPickerTile(
-                  label: spec.label,
-                  picked: _documentPaths.containsKey(spec.field),
-                  onTap: submitting ? null : () => _pickDocument(spec.field),
-                ),
-              ),
             if ({HostType.lawyer, HostType.architect, HostType.surveyor}
                 .contains(widget.hostType))
               _RegistrationField(
@@ -335,6 +327,24 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
                 label: 'Reference Phone Number',
                 enabled: !submitting,
                 keyboardType: TextInputType.phone,
+              ),
+            if ({HostType.lawyer, HostType.architect, HostType.surveyor}
+                .contains(widget.hostType))
+              const SizedBox(height: AppSpacing.md),
+            _DocumentPickerCard(
+              label: 'Profile photo',
+              localPath: _profilePhotoPath,
+              onTap: submitting ? null : _pickProfilePhoto,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            for (final spec in _docSpecs)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: _DocumentPickerCard(
+                  label: spec.label,
+                  localPath: _documentPaths[spec.field],
+                  onTap: submitting ? null : () => _pickDocument(spec.field),
+                ),
               ),
             const SizedBox(height: AppSpacing.lg),
             ElevatedButton(
@@ -353,36 +363,112 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
   }
 }
 
-class _PhotoPickerTile extends StatelessWidget {
-  const _PhotoPickerTile(
-      {required this.label, required this.picked, required this.onTap});
+/// Document upload card -- shows an actual thumbnail of the picked photo
+/// (not just a generic "Selected" label) once one exists, and a clear
+/// dashed-border "upload" affordance beforehand. Replaces the old
+/// _PhotoPickerTile ListTile, which never previewed what was picked and
+/// used a flat, easy-to-miss "Tap to select"/"Selected" text label as its
+/// only state signal.
+class _DocumentPickerCard extends StatelessWidget {
+  const _DocumentPickerCard(
+      {required this.label, required this.localPath, required this.onTap});
 
   final String label;
-  final bool picked;
+  final String? localPath;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    // `badge-pop` marks the document group complete instantly on valid
-    // fill; the icon/subtitle crossfade at `duration-fast`.
-    return Card(
-      child: ListTile(
-        leading: picked
-            ? BadgePop(
-                triggerKey: picked,
-                child: const Icon(Icons.check_circle,
-                    color: AppColors.success),
-              )
-            : const Icon(Icons.upload_file),
-        title: Text(label),
-        subtitle: AnimatedSwitcher(
-          duration: AppDurations.fast,
-          child: Text(
-            picked ? 'Selected' : 'Tap to select',
-            key: ValueKey(picked),
+    final colorScheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
+    final picked = localPath != null;
+
+    return Material(
+      color: colorScheme.surface,
+      borderRadius: BorderRadius.circular(AppRadii.lg),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            // Dashed-style affordance while empty (a solid border reads as
+            // "already filled in," which a plain upload slot is not) --
+            // approximated with a wider, lower-opacity solid border since
+            // Flutter has no built-in dashed BoxBorder; switches to a solid
+            // success-tinted border once a document is attached, echoing
+            // the same complete/incomplete signal used across this screen's
+            // BadgePop checkmarks.
+            border: Border.all(
+              color: picked
+                  ? semantic.success.withValues(alpha: 0.4)
+                  : colorScheme.outline,
+              width: picked ? 1 : 1.5,
+            ),
+            color: picked
+                ? semantic.success.withValues(alpha: 0.04)
+                : colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadii.md),
+                child: picked
+                    ? Image.file(
+                        File(localPath!),
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        width: 56,
+                        height: 56,
+                        color: colorScheme.surfaceContainerHighest,
+                        child: Icon(Icons.upload_file_outlined,
+                            color: colorScheme.onSurfaceVariant),
+                      ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: Theme.of(context).textTheme.bodyMedium),
+                    const SizedBox(height: 2),
+                    AnimatedSwitcher(
+                      duration: AppDurations.fast,
+                      child: Row(
+                        key: ValueKey(picked),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            picked
+                                ? Icons.check_circle
+                                : Icons.info_outline,
+                            size: 14,
+                            color: picked
+                                ? semantic.success
+                                : colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            picked ? 'Uploaded -- tap to replace' : 'Tap to upload',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: picked
+                                    ? semantic.success
+                                    : colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
+            ],
           ),
         ),
-        onTap: onTap,
       ),
     );
   }
@@ -416,8 +502,8 @@ class _RegistrationField extends StatelessWidget {
               suffixIcon: complete
                   ? BadgePop(
                       triggerKey: complete,
-                      child: const Icon(Icons.check_circle,
-                          color: AppColors.success),
+                      child: Icon(Icons.check_circle,
+                          color: Theme.of(context).extension<AppSemanticColors>()!.success),
                     )
                   : null,
             ),

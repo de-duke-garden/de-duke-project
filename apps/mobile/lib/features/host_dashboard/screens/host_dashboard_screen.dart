@@ -16,8 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_shadows.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/badge_pop.dart';
@@ -151,6 +150,16 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
         automaticallyImplyLeading:
             false, // tab root (core/routing/app_shell.dart)
         actions: [
+          // FEAT-044 -- Wallet lives on the Host Dashboard (the host's
+          // day-to-day home screen), not Account Settings: a host checking
+          // earnings/requesting a withdrawal reaches for their Dashboard
+          // tab first, same instinct as the "Verified Host" badge already
+          // living here rather than in Settings.
+          IconButton(
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            tooltip: 'Wallet',
+            onPressed: () => context.pushNamed(RouteNames.wallet),
+          ),
           if (_verification != null)
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.md),
@@ -250,10 +259,10 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
         index: index,
         child: _ListingStatusCard(
           listing: _listings[index],
-          // Was `RouteNames.listingDetail` (the read-only seeker-facing
+          // Was `RouteNames.listingDetail` (the read-only guest-facing
           // screen) -- a host tapping their own listing here wants to
           // manage it (edit price/description, unpublish per FEAT-004's
-          // AC), not preview it as a seeker would. Listing Detail is still
+          // AC), not preview it as a guest would. Listing Detail is still
           // one tap away via Edit Listing's own AppBar "View listing"
           // action for hosts who do want that preview.
           onTap: () async {
@@ -283,12 +292,13 @@ class _DashboardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppShadows.sm,
+        border: Border.all(color: colorScheme.outline),
+        boxShadow: Theme.of(context).extension<AppSemanticColors>()!.shadowSm,
       ),
       clipBehavior: Clip.antiAlias,
       child: child,
@@ -303,36 +313,38 @@ class _StatusBadge extends StatelessWidget {
 
   final String status;
 
-  ({Color color, IconData icon, String label}) _spec() {
+  ({Color color, IconData icon, String label}) _spec(BuildContext context) {
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
+    final error = Theme.of(context).colorScheme.error;
     return switch (status) {
       'active' => (
-          color: AppColors.success,
+          color: semantic.success,
           icon: Icons.check_circle,
           label: 'Active'
         ),
-      'banned' => (color: AppColors.error, icon: Icons.block, label: 'Banned'),
+      'banned' => (color: error, icon: Icons.block, label: 'Banned'),
       'under_review' => (
-          color: AppColors.warning,
+          color: semantic.warning,
           icon: Icons.hourglass_top,
           label: 'Under Review'
         ),
       'unpublished' => (
-          color: AppColors.warning,
+          color: semantic.warning,
           icon: Icons.visibility_off,
           label: 'Unpublished'
         ),
       'closed' => (
-          color: AppColors.warning,
+          color: semantic.warning,
           icon: Icons.lock_outline,
           label: 'Closed'
         ),
-      _ => (color: AppColors.warning, icon: Icons.info_outline, label: status),
+      _ => (color: semantic.warning, icon: Icons.info_outline, label: status),
     };
   }
 
   @override
   Widget build(BuildContext context) {
-    final spec = _spec();
+    final spec = _spec(context);
     return BadgePop(
       triggerKey: status,
       child: Container(
@@ -391,7 +403,9 @@ class _ListingStatusCard extends StatelessWidget {
                             style: AppTypography.statSmall.copyWith(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -402,8 +416,8 @@ class _ListingStatusCard extends StatelessWidget {
                           padding: const EdgeInsets.only(top: AppSpacing.xs),
                           child: Text(
                             listing.statusReason!,
-                            style: AppTypography.bodySmall
-                                .copyWith(color: AppColors.error),
+                            style: AppTypography.bodySmall.copyWith(
+                                color: Theme.of(context).colorScheme.error),
                           ),
                         ),
                       if (listing.isStale)
@@ -414,14 +428,19 @@ class _ListingStatusCard extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.warning_amber_rounded,
-                                    size: 14, color: AppColors.warning),
+                                Icon(Icons.warning_amber_rounded,
+                                    size: 14,
+                                    color: Theme.of(context)
+                                        .extension<AppSemanticColors>()!
+                                        .warning),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     'No activity yet — consider updating photos or price',
-                                    style: AppTypography.bodySmall
-                                        .copyWith(color: AppColors.warning),
+                                    style: AppTypography.bodySmall.copyWith(
+                                        color: Theme.of(context)
+                                            .extension<AppSemanticColors>()!
+                                            .warning),
                                   ),
                                 ),
                               ],
@@ -597,7 +616,8 @@ class _EditHostProfileSheetState extends State<_EditHostProfileSheet> {
                 children: [
                   CircleAvatar(
                     radius: 40,
-                    backgroundColor: AppColors.primaryLight,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
                     backgroundImage: _newPhotoLocalPath != null
                         ? FileImage(File(_newPhotoLocalPath!))
                         : (widget.initialPhotoUrl != null
@@ -605,8 +625,11 @@ class _EditHostProfileSheetState extends State<_EditHostProfileSheet> {
                             : null) as ImageProvider?,
                     child: _newPhotoLocalPath == null &&
                             widget.initialPhotoUrl == null
-                        ? const Icon(Icons.person_outline,
-                            color: AppColors.primary, size: 32)
+                        ? Icon(Icons.person_outline,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onPrimaryContainer,
+                            size: 32)
                         : null,
                   ),
                   const CircleAvatar(

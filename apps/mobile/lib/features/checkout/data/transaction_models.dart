@@ -5,6 +5,7 @@ class TransactionSummary {
   const TransactionSummary({
     required this.id,
     required this.listingId,
+    required this.listingTitle,
     required this.transactionType,
     required this.status,
     required this.grossAmount,
@@ -15,6 +16,15 @@ class TransactionSummary {
 
   final String id;
   final String listingId;
+
+  /// The listing's actual title -- the backend now denormalizes this onto
+  /// every transaction response (see transactions.py's `_listing_titles`)
+  /// specifically so screens never have to show the raw `listingId` (or
+  /// make a second per-row `GET /v1/listings/{id}` call just to get a
+  /// human-readable label). Falls back to a fixed placeholder string
+  /// server-side, never null, if the listing was since deleted (FEAT-015:
+  /// receipts stay accessible even then).
+  final String listingTitle;
   final String transactionType;
   // held | pending_payment | succeeded | failed | expired | refunded
   final String status;
@@ -27,6 +37,7 @@ class TransactionSummary {
       TransactionSummary(
         id: json['id'] as String,
         listingId: json['listing_id'] as String,
+        listingTitle: json['listing_title'] as String,
         transactionType: json['transaction_type'] as String,
         status: json['status'] as String,
         grossAmount: (json['gross_amount'] as num).toDouble(),
@@ -40,6 +51,7 @@ class TransactionDetail extends TransactionSummary {
   TransactionDetail({
     required super.id,
     required super.listingId,
+    required super.listingTitle,
     required super.transactionType,
     required super.status,
     required super.grossAmount,
@@ -63,6 +75,7 @@ class TransactionDetail extends TransactionSummary {
       TransactionDetail(
         id: json['id'] as String,
         listingId: json['listing_id'] as String,
+        listingTitle: json['listing_title'] as String,
         transactionType: json['transaction_type'] as String,
         status: json['status'] as String,
         grossAmount: (json['gross_amount'] as num).toDouble(),

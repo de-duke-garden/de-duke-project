@@ -22,7 +22,7 @@ class ChatTokenResponse(BaseModel):
 
 
 class StartConversationRequest(BaseModel):
-    """Only a seeker (client) or a property management (host/agency) user can
+    """Only a guest (client) or a property management (host/agency) user can
     kick off a new conversation, always scoped to a specific listing so the
     backend can resolve+validate both participants server-side."""
 

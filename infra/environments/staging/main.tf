@@ -198,4 +198,9 @@ module "dns" {
   create_cdn_record = var.cdn_acm_certificate_arn != ""
   cdn_fqdn          = local.cdn_fqdn
   cdn_domain_name   = module.media.cdn_domain_name
+
+  # Admin Web Console -- Vercel-hosted, DNS only.
+  create_admin_record = true
+  admin_fqdn          = local.admin_fqdn
+  vercel_cname_target = var.vercel_cname_target
 }

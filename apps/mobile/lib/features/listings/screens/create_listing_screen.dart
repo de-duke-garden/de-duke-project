@@ -30,7 +30,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/services/places_service.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/enum_display.dart';
@@ -104,7 +104,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _possessionDaysController = TextEditingController();
   final List<CommercialRoom> _rooms = [];
   // Confirmed real gap: schema.md's CommercialListing.legalDocuments is a
-  // required field (schema.md: shown to seekers "as a trust signal,
+  // required field (schema.md: shown to guests "as a trust signal,
   // particularly for Sale listings") but this form never rendered any UI
   // for it -- every listing silently submitted an empty list regardless of
   // what documents the host actually has.
@@ -650,7 +650,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                     horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                 child: Text(
                   _stepBlockedMessage!,
-                  style: const TextStyle(color: AppColors.error),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
             Expanded(
@@ -893,7 +893,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           const SizedBox(height: AppSpacing.xs),
           Text(
             'Size: ${_computedSizeSquareMeters.toStringAsFixed(1)} sqm',
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ],
         const SizedBox(height: AppSpacing.sm),
@@ -926,11 +926,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          'Shown to seekers as a trust signal, especially for Sale listings.',
+          'Shown to guests as a trust signal, especially for Sale listings.',
           style: Theme.of(context)
               .textTheme
               .bodySmall
-              ?.copyWith(color: AppColors.textSecondary),
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: AppSpacing.sm),
         Wrap(
@@ -1230,7 +1230,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           style: Theme.of(context)
               .textTheme
               .bodySmall
-              ?.copyWith(color: AppColors.textSecondary),
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: AppSpacing.sm),
         if (_blockedDates.isNotEmpty)
@@ -1428,7 +1428,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         const SizedBox(height: AppSpacing.xs),
         Text(
           'Up to $_maxVideos videos (5 min / 100MB each), any number of photos.',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
         ),
         const SizedBox(height: AppSpacing.sm),
         _MediaReorderList(
@@ -1558,7 +1558,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           SizedBox(
             width: 110,
             child: Text(label,
-                style: const TextStyle(color: AppColors.textSecondary)),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
           Expanded(child: Text(value.isEmpty ? '--' : value)),
         ],
@@ -1594,8 +1594,8 @@ class _StepIndicator extends StatelessWidget {
               builder: (context, value, _) => LinearProgressIndicator(
                 value: value,
                 minHeight: 4,
-                backgroundColor: AppColors.border,
-                valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                backgroundColor: Theme.of(context).colorScheme.outline,
+                valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
               ),
             ),
           ),
@@ -1628,11 +1628,11 @@ class _TypeSelectorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: selected ? AppColors.primaryLight : null,
+      color: selected ? Theme.of(context).colorScheme.primaryContainer : null,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.md),
         side: BorderSide(
-          color: selected ? AppColors.primary : AppColors.border,
+          color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline,
           width: selected ? 2 : 1,
         ),
       ),
@@ -1646,7 +1646,7 @@ class _TypeSelectorCard extends StatelessWidget {
               Icon(icon,
                   size: AppSizing.iconMd,
                   color:
-                      selected ? AppColors.primary : AppColors.textSecondary),
+                      selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
@@ -1654,12 +1654,12 @@ class _TypeSelectorCard extends StatelessWidget {
                   children: [
                     Text(title, style: Theme.of(context).textTheme.titleMedium),
                     Text(subtitle,
-                        style: const TextStyle(color: AppColors.textSecondary)),
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   ],
                 ),
               ),
               if (selected)
-                const Icon(Icons.check_circle, color: AppColors.primary),
+                Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
             ],
           ),
         ),
@@ -1687,7 +1687,7 @@ class _ListingLiveScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
           child: CelebratorySequence(
-            accentColor: AppColors.success,
+            accentColor: Theme.of(context).extension<AppSemanticColors>()!.success,
             supportingContent: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1696,7 +1696,7 @@ class _ListingLiveScreen extends StatelessWidget {
                     textAlign: TextAlign.center),
                 const SizedBox(height: AppSpacing.sm),
                 Text(listing.title,
-                    style: const TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                     textAlign: TextAlign.center),
                 const SizedBox(height: AppSpacing.lg),
                 SizedBox(
@@ -1726,13 +1726,13 @@ class _Banner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.08),
+        color: Theme.of(context).colorScheme.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.error),
+        border: Border.all(color: Theme.of(context).colorScheme.error),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.error, size: AppSizing.iconMd),
+          Icon(icon, color: Theme.of(context).colorScheme.error, size: AppSizing.iconMd),
           const SizedBox(width: AppSpacing.sm),
           Expanded(child: Text(message)),
         ],
@@ -1768,8 +1768,8 @@ class _MediaReorderList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (media.isEmpty) {
-      return const Text('No photos or videos added yet.',
-          style: TextStyle(color: AppColors.textSecondary));
+      return Text('No photos or videos added yet.',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant));
     }
     return ReorderableListView.builder(
       shrinkWrap: true,
@@ -1826,9 +1826,9 @@ class _MediaReorderList extends StatelessWidget {
                   ? Container(
                       width: 48,
                       height: 48,
-                      color: AppColors.surfaceSecondary,
-                      child: const Icon(Icons.videocam,
-                          color: AppColors.textSecondary),
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      child: Icon(Icons.videocam,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant),
                     )
                   : Image.file(
                       File(item.localPath),
@@ -1838,9 +1838,9 @@ class _MediaReorderList extends StatelessWidget {
                       errorBuilder: (context, error, stackTrace) => Container(
                         width: 48,
                         height: 48,
-                        color: AppColors.surfaceSecondary,
-                        child: const Icon(Icons.broken_image_outlined,
-                            color: AppColors.textSecondary),
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        child: Icon(Icons.broken_image_outlined,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ),
             ),
@@ -1850,7 +1850,7 @@ class _MediaReorderList extends StatelessWidget {
               children: [
                 if (!item.isVideo)
                   if (item.isPrimary)
-                    const Icon(Icons.star, color: AppColors.accent)
+                    Icon(Icons.star, color: Theme.of(context).colorScheme.tertiary)
                   else
                     IconButton(
                       icon: const Icon(Icons.star_border),

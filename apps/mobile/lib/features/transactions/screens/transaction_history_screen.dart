@@ -9,7 +9,6 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/list_stagger.dart';
-import '../../../core/widgets/listing_title_text.dart';
 import '../../../core/widgets/skeleton_loader.dart';
 import '../../checkout/data/checkout_repository.dart';
 import '../../checkout/data/transaction_models.dart';
@@ -186,10 +185,17 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   margin: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                   child: ListTile(
-                    // Was `Text('Listing ${txn.listingId}')` -- the raw id.
-                    title: ListingTitleText(
-                      listingId: txn.listingId,
-                      listingRepository: widget.listingRepository,
+                    // Was `Text('Listing ${txn.listingId}')` -- the raw id
+                    // -- then a per-row `ListingTitleText` (a separate
+                    // GET /v1/listings/{id} fetch per row). The backend
+                    // now denormalizes the title directly onto the
+                    // transaction response (transactions.py), so this can
+                    // read it straight off `txn` with no extra network
+                    // call per row.
+                    title: Text(
+                      txn.listingTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     subtitle: Text(
                         '${_statusLabel(txn.status)} • ${_formatDate(txn.createdAt)}'),
@@ -362,6 +368,23 @@ class _ReportIssueSheetState extends State<_ReportIssueSheet> {
           children: [
             Text('Report an issue',
                 style: Theme.of(context).textTheme.titleMedium),
+            // Bug fix: once this sheet covers the transaction row it was
+            // opened from, there was nothing on screen identifying WHICH
+            // transaction/property was being reported -- easy to lose
+            // track of on a long Transaction History list. `listingTitle`
+            // is already denormalized onto TransactionSummary (see that
+            // model's own docstring), so this is a free lookup, not a new
+            // network call.
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              widget.transaction.listingTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'De-Duke staff will review this transaction and follow up. '

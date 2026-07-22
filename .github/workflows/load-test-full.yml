@@ -26,27 +26,37 @@
 # Required GitHub repo configuration, `staging` GitHub Environment:
 #   Secrets (in addition to the ones backend-deploy.yml/infra-terraform.yml
 #   already require for staging):
-#     TF_PAYSTACK_WEBHOOK_SECRET_TEST - staging's test-mode Paystack SECRET
+#     TF_PAYSTACK_SECRET_KEY_TEST      - staging's test-mode Paystack SECRET
 #                                        KEY (sk_test_..., from the Paystack
-#                                        dashboard's API Keys page -- NOT a
-#                                        separate "webhook secret" value,
-#                                        Paystack signs webhooks with your
-#                                        integration's own secret key). Used
-#                                        by scenarios/checkout_payment.js to
+#                                        dashboard's API Keys page). Renamed
+#                                        from the old TF_PAYSTACK_WEBHOOK_SECRET_TEST
+#                                        -- this was always just the secret
+#                                        key (Paystack signs webhooks with
+#                                        your integration's own secret key,
+#                                        not a separate "webhook secret"
+#                                        value; see app/services/
+#                                        payment_service.py's
+#                                        verify_webhook_signature). Used by
+#                                        scenarios/checkout_payment.js to
 #                                        forge signed webhook payloads.
 #                                        IMPORTANT: this value must ALSO be
 #                                        entered manually into staging's
 #                                        `staging/de-duke/app-secrets` AWS
 #                                        Secrets Manager secret
-#                                        (PAYSTACK_SECRET_KEY and
-#                                        PAYSTACK_WEBHOOK_SECRET keys) --
-#                                        see infra/modules/secrets/main.tf's
+#                                        (PAYSTACK_SECRET_KEY key) -- see
+#                                        infra/modules/secrets/main.tf's
 #                                        "populated manually" note. This
 #                                        GitHub secret and that Secrets
 #                                        Manager value must match, or every
 #                                        forged webhook in this scenario
 #                                        will fail signature verification
 #                                        against the real deployed backend.
+#                                        ACTION NEEDED: an operator must
+#                                        rename/re-create this as
+#                                        TF_PAYSTACK_SECRET_KEY_TEST in the
+#                                        `staging` GitHub Environment's
+#                                        secrets -- this workflow file alone
+#                                        cannot rename a GitHub secret.
 #     FIREBASE_SERVICE_ACCOUNT_JSON_STAGING - contents (not a file path) of
 #                                        the staging Firestore project's
 #                                        service account JSON key, used by
@@ -237,7 +247,7 @@ jobs:
         env:
           BASE_URL: http://${{ needs.resolve-staging-environment.outputs.alb_dns_name }}
           K6_ENVIRONMENT: staging
-          PAYSTACK_WEBHOOK_SECRET_TEST: ${{ secrets.TF_PAYSTACK_WEBHOOK_SECRET_TEST }}
+          PAYSTACK_SECRET_KEY_TEST: ${{ secrets.TF_PAYSTACK_SECRET_KEY_TEST }}
           DURATION: ${{ github.event.inputs.test_type == 'soak' && '6h' || '' }}
           RAMP_BEYOND_TARGET: ${{ github.event.inputs.test_type == 'stress' && 'true' || 'false' }}
 

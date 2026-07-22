@@ -17,7 +17,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/badge_pop.dart';
@@ -421,13 +420,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               ListTile(
                 leading: CircleAvatar(
                   radius: 20,
-                  backgroundColor: AppColors.primaryLight,
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                   backgroundImage: profile?.profilePhotoUrl != null
                       ? NetworkImage(profile!.profilePhotoUrl!)
                       : null,
                   child: profile?.profilePhotoUrl == null
-                      ? const Icon(Icons.person_outline,
-                          color: AppColors.primary)
+                      ? Icon(Icons.person_outline,
+                          color: Theme.of(context).colorScheme.primary)
                       : null,
                 ),
                 title: Text(profile?.fullName ?? user.fullName),
@@ -437,8 +436,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     AnimatedOpacity(
                       opacity: _justSavedKey == 'profile:combined' ? 1 : 0,
                       duration: AppDurations.fast,
-                      child: const Icon(Icons.check_circle,
-                          size: 18, color: AppColors.primary),
+                      child: Icon(Icons.check_circle,
+                          size: 18, color: Theme.of(context).colorScheme.primary),
                     ),
                     const SizedBox(width: AppSpacing.xs),
                     const Icon(Icons.edit_outlined, size: 18),
@@ -462,8 +461,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                             AnimatedOpacity(
                               opacity: _justSavedKey == 'profile:email' ? 1 : 0,
                               duration: AppDurations.fast,
-                              child: const Icon(Icons.check_circle,
-                                  size: 18, color: AppColors.primary),
+                              child: Icon(Icons.check_circle,
+                                  size: 18, color: Theme.of(context).colorScheme.primary),
                             ),
                             const SizedBox(width: AppSpacing.xs),
                             const Icon(Icons.edit_outlined, size: 18),
@@ -538,7 +537,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 leading: const Icon(Icons.badge_outlined),
                 title: Text(_roleLabel(user.role)),
                 trailing:
-                    (user.role == 'individual_host' || user.role == 'agency')
+                    (user.role == 'host' || user.role == 'agency')
                         ? TextButton(
                             onPressed: () =>
                                 context.pushNamed(RouteNames.verification),
@@ -665,6 +664,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
+        // FEAT-044 -- Wallet deliberately lives ONLY on the Host/Agency
+        // Dashboard tab (its AppBar action), not here. It's a day-to-day
+        // earnings/withdrawal surface for a payee, not an account-level
+        // setting -- Account Settings stays scoped to profile/security/
+        // preferences, same reasoning that already keeps "My Listings"
+        // and the Agency portfolio off of this screen.
         // screens.md Screen 19 (Transaction History) Entry Points includes
         // "Account Settings" -- previously missing here entirely.
         Card(
@@ -735,10 +740,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   }
 
   String _roleLabel(String role) => switch (role) {
-        'seeker' => 'Individual Seeker',
-        'individual_host' => 'Individual Host',
+        'guest' => 'Guest',
+        'host' => 'Host',
         'agency' => 'Agency',
-        'corporate' => 'Business/Corporate',
         'deduke_staff' => 'De-Duke Staff',
         'deduke_admin' => 'De-Duke Admin',
         _ => role,
@@ -778,7 +782,7 @@ class _PreferenceSwitchRow extends StatelessWidget {
           AnimatedOpacity(
             opacity: justSaved ? 1 : 0,
             duration: AppDurations.fast,
-            child: Icon(Icons.check_circle, size: 18, color: AppColors.primary),
+            child: Icon(Icons.check_circle, size: 18, color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(width: AppSpacing.xs),
           BadgePop(
@@ -949,11 +953,11 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                 children: [
                   CircleAvatar(
                     radius: 40,
-                    backgroundColor: AppColors.primaryLight,
+                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                     backgroundImage: avatarImage,
                     child: avatarImage == null
-                        ? const Icon(Icons.person_outline,
-                            color: AppColors.primary, size: 32)
+                        ? Icon(Icons.person_outline,
+                            color: Theme.of(context).colorScheme.primary, size: 32)
                         : null,
                   ),
                   const CircleAvatar(

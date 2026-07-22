@@ -68,6 +68,9 @@ import '../../features/host_dashboard/data/host_dashboard_repository.dart';
 import '../../features/host_dashboard/screens/host_dashboard_screen.dart';
 import '../../features/push_notifications/data/push_notification_repository.dart';
 import '../../features/push_notifications/data/push_notification_service.dart';
+import '../../features/wallet/data/wallet_repository.dart';
+import '../../features/wallet/screens/payout_settings_screen.dart';
+import '../../features/wallet/screens/wallet_screen.dart';
 import '../api/api_client.dart';
 import '../auth/session_store.dart';
 import '../config/env.dart';
@@ -208,6 +211,12 @@ final ApiClient _agencyApiClient = ApiClient(
   sessionStore: SessionStore(),
 );
 final AgencyRepository _agencyRepository = AgencyRepository(_agencyApiClient);
+
+final ApiClient _walletApiClient = ApiClient(
+  baseUrl: AppConfig.apiBaseUrl,
+  sessionStore: SessionStore(),
+);
+final WalletRepository _walletRepository = WalletRepository(_walletApiClient);
 
 final GoRouter appRouter = GoRouter(
   // screens.md Screen 1 (Sign-Up / Login) documents its own entry point as
@@ -463,6 +472,24 @@ final GoRouter appRouter = GoRouter(
       name: RouteNames.agencyTeam,
       builder: (context, state) =>
           TeamManagementScreen(repository: _agencyRepository),
+    ),
+
+    // -- FEAT-044: Host/Agency Virtual Wallet. Entry point: Account
+    // Settings (host/agency roles only). Pushed full-screen, same
+    // non-tab treatment as Transaction History.
+    GoRoute(
+      path: '/wallet',
+      name: RouteNames.wallet,
+      builder: (context, state) => WalletScreen(repository: _walletRepository),
+      routes: [
+        // -- FEAT-045: Payout Settings.
+        GoRoute(
+          path: 'payout-settings',
+          name: RouteNames.walletPayoutSettings,
+          builder: (context, state) =>
+              PayoutSettingsScreen(repository: _walletRepository),
+        ),
+      ],
     ),
 
     // -- Screens 4/8/12/21: the 4 bottom-nav tab roots, per screens.md

@@ -71,11 +71,11 @@ def _stub_analytics():
 
 
 async def test_create_conversation_report_success(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
 
     report = await report_service.create_report(
         session,
-        reporter_user_id=seeker.id,
+        reporter_user_id=guest.id,
         target_type="conversation",
         target_id="conv-123",
         reason="scam",
@@ -85,16 +85,16 @@ async def test_create_conversation_report_success(session: AsyncSession) -> None
     assert report.status == "open"
     assert report.target_type == "conversation"
     assert report.target_id == "conv-123"
-    assert report.reporter_user_id == seeker.id
+    assert report.reporter_user_id == guest.id
 
 
 async def test_create_report_rejects_invalid_reason(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
 
     with pytest.raises(report_service.ReportError, match="reason must be one of"):
         await report_service.create_report(
             session,
-            reporter_user_id=seeker.id,
+            reporter_user_id=guest.id,
             target_type="conversation",
             target_id="conv-123",
             reason="not_a_real_reason",
@@ -103,12 +103,12 @@ async def test_create_report_rejects_invalid_reason(session: AsyncSession) -> No
 
 
 async def test_create_report_rejects_invalid_target_type(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
 
     with pytest.raises(report_service.ReportError, match="target_type must be"):
         await report_service.create_report(
             session,
-            reporter_user_id=seeker.id,
+            reporter_user_id=guest.id,
             target_type="host",
             target_id="host-123",
             reason="other",
@@ -128,7 +128,7 @@ async def test_create_listing_report_rejects_unknown_listing() -> None:
     with pytest.raises(report_service.ReportError, match="Listing not found"):
         await report_service.create_report(
             session,
-            reporter_user_id="seeker-1",
+            reporter_user_id="guest-1",
             target_type="listing",
             target_id="does-not-exist",
             reason="fake",
@@ -140,11 +140,11 @@ async def test_create_listing_report_rejects_unknown_listing() -> None:
 
 
 async def test_list_reports_cursor_pagination(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
     for i in range(3):
         await report_service.create_report(
             session,
-            reporter_user_id=seeker.id,
+            reporter_user_id=guest.id,
             target_type="conversation",
             target_id=f"conv-{i}",
             reason="other",
@@ -161,11 +161,11 @@ async def test_list_reports_cursor_pagination(session: AsyncSession) -> None:
 
 
 async def test_list_reports_filters_by_status(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
     staff = await _make_user(session, role="deduke_staff")
     open_report = await report_service.create_report(
         session,
-        reporter_user_id=seeker.id,
+        reporter_user_id=guest.id,
         target_type="conversation",
         target_id="conv-open",
         reason="other",
@@ -173,7 +173,7 @@ async def test_list_reports_filters_by_status(session: AsyncSession) -> None:
     )
     to_resolve = await report_service.create_report(
         session,
-        reporter_user_id=seeker.id,
+        reporter_user_id=guest.id,
         target_type="conversation",
         target_id="conv-resolved",
         reason="other",
@@ -196,11 +196,11 @@ async def test_list_reports_filters_by_status(session: AsyncSession) -> None:
 async def test_resolve_report_writes_audit_log_entry(session: AsyncSession) -> None:
     from sqlalchemy import select
 
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
     staff = await _make_user(session, role="deduke_staff")
     report = await report_service.create_report(
         session,
-        reporter_user_id=seeker.id,
+        reporter_user_id=guest.id,
         target_type="conversation",
         target_id="conv-1",
         reason="scam",
@@ -229,11 +229,11 @@ async def test_resolve_report_writes_audit_log_entry(session: AsyncSession) -> N
 
 
 async def test_dismiss_report_writes_audit_log_entry(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
     staff = await _make_user(session, role="deduke_staff")
     report = await report_service.create_report(
         session,
-        reporter_user_id=seeker.id,
+        reporter_user_id=guest.id,
         target_type="conversation",
         target_id="conv-1",
         reason="other",
@@ -249,11 +249,11 @@ async def test_dismiss_report_writes_audit_log_entry(session: AsyncSession) -> N
 
 
 async def test_resolve_already_resolved_report_raises(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
     staff = await _make_user(session, role="deduke_staff")
     report = await report_service.create_report(
         session,
-        reporter_user_id=seeker.id,
+        reporter_user_id=guest.id,
         target_type="conversation",
         target_id="conv-1",
         reason="other",
@@ -273,11 +273,11 @@ async def test_resolve_already_resolved_report_raises(session: AsyncSession) -> 
 
 
 async def test_list_open_reports_for_queue_excludes_resolved(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
     staff = await _make_user(session, role="deduke_staff")
     open_report = await report_service.create_report(
         session,
-        reporter_user_id=seeker.id,
+        reporter_user_id=guest.id,
         target_type="conversation",
         target_id="conv-open",
         reason="other",
@@ -285,7 +285,7 @@ async def test_list_open_reports_for_queue_excludes_resolved(session: AsyncSessi
     )
     resolved_report = await report_service.create_report(
         session,
-        reporter_user_id=seeker.id,
+        reporter_user_id=guest.id,
         target_type="conversation",
         target_id="conv-resolved",
         reason="other",
@@ -319,15 +319,15 @@ def _auth_header(user: User) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def test_seeker_can_report_conversation_via_api(
+async def test_guest_can_report_conversation_via_api(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
 
     response = await client.post(
         "/v1/conversations/conv-abc/report",
         json={"reason": "scam", "detail": "Wanted cash outside the app."},
-        headers=_auth_header(seeker),
+        headers=_auth_header(guest),
     )
 
     assert response.status_code == 201
@@ -337,19 +337,19 @@ async def test_seeker_can_report_conversation_via_api(
     assert body["target_id"] == "conv-abc"
 
 
-async def test_seeker_cannot_list_admin_reports(client: AsyncClient, session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+async def test_guest_cannot_list_admin_reports(client: AsyncClient, session: AsyncSession) -> None:
+    guest = await _make_user(session, role="guest")
 
-    response = await client.get("/v1/admin/reports", headers=_auth_header(seeker))
+    response = await client.get("/v1/admin/reports", headers=_auth_header(guest))
 
     assert response.status_code == 403
 
 
-async def test_seeker_cannot_resolve_reports(client: AsyncClient, session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+async def test_guest_cannot_resolve_reports(client: AsyncClient, session: AsyncSession) -> None:
+    guest = await _make_user(session, role="guest")
     report = await report_service.create_report(
         session,
-        reporter_user_id=seeker.id,
+        reporter_user_id=guest.id,
         target_type="conversation",
         target_id="conv-1",
         reason="other",
@@ -359,7 +359,7 @@ async def test_seeker_cannot_resolve_reports(client: AsyncClient, session: Async
     response = await client.post(
         f"/v1/admin/reports/{report.id}/resolve",
         json={"resolution_note": "n/a"},
-        headers=_auth_header(seeker),
+        headers=_auth_header(guest),
     )
 
     assert response.status_code == 403
@@ -368,11 +368,11 @@ async def test_seeker_cannot_resolve_reports(client: AsyncClient, session: Async
 async def test_staff_can_list_and_resolve_reports_via_api(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
     staff = await _make_user(session, role="deduke_staff")
     report = await report_service.create_report(
         session,
-        reporter_user_id=seeker.id,
+        reporter_user_id=guest.id,
         target_type="conversation",
         target_id="conv-1",
         reason="scam",

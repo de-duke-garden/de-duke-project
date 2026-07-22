@@ -20,11 +20,15 @@ import { hmac } from 'k6/crypto';
 // lib/thresholds.js's identical fix/comment.
 const checkoutTransactionIds = JSON.parse(open('../seed/checkout_transaction_ids.json'));
 
-// Staging-only test-mode Paystack webhook secret -- provisioned as a
-// GitHub Environment secret for `staging` (TF_PAYSTACK_WEBHOOK_SECRET_TEST),
-// distinct from the real secret so this script can legitimately forge
-// signed webhook payloads without ever touching a live payments secret.
-const WEBHOOK_SECRET = __ENV.PAYSTACK_WEBHOOK_SECRET_TEST || '';
+// Staging-only test-mode Paystack SECRET key -- provisioned as a GitHub
+// Environment secret for `staging` (TF_PAYSTACK_SECRET_KEY_TEST). Paystack
+// signs webhook payloads with your account's ordinary secret key, not a
+// separate "webhook secret" (see app/services/payment_service.py's
+// verify_webhook_signature) -- this is staging's own TEST-mode secret key,
+// distinct from any live/production key, so this script can legitimately
+// forge signed webhook payloads without ever touching a live payments
+// secret.
+const PAYSTACK_SECRET_KEY = __ENV.PAYSTACK_SECRET_KEY_TEST || '';
 
 const TARGET_CHECKOUT_RPS = 50; // README Target Scale: peak checkout attempts/sec
 const TARGET_WEBHOOK_RPS = 50; // matching webhook delivery rate, plus deliberate replays below
@@ -96,11 +100,11 @@ export function initiateCheckout() {
 }
 
 export function deliverWebhook() {
-  if (!WEBHOOK_SECRET) {
+  if (!PAYSTACK_SECRET_KEY) {
     // Fails loudly rather than silently skipping signature verification --
     // see README "Running Locally" for how to supply this in CI.
     throw new Error(
-      'PAYSTACK_WEBHOOK_SECRET_TEST is not set -- checkout_payment.js cannot sign webhook payloads without it.',
+      'PAYSTACK_SECRET_KEY_TEST is not set -- checkout_payment.js cannot sign webhook payloads without it.',
     );
   }
 
@@ -113,7 +117,7 @@ export function deliverWebhook() {
       amount: 100000,
     },
   });
-  const signature = hmac('sha512', WEBHOOK_SECRET, payload, 'hex');
+  const signature = hmac('sha512', PAYSTACK_SECRET_KEY, payload, 'hex');
 
   // Signed over `payload`'s exact bytes -- must be sent raw (taggedPostRaw),
   // not re-serialized, or the signature computed above would no longer

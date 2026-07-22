@@ -1,6 +1,6 @@
 """In-App Reporting business logic -- FEAT-009.
 
-Seekers report a listing or a chat conversation from the mobile app
+Guests report a listing or a chat conversation from the mobile app
 (POST /v1/listings/{id}/report, POST /v1/conversations/{id}/report);
 Staff/Admin review, resolve, or dismiss reports via the Admin Web
 Console's Moderation Queue (GET /v1/admin/reports, same queue

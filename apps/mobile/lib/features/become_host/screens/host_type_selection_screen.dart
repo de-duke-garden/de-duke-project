@@ -9,8 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_shadows.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/celebratory_sequence.dart';
 import '../../../core/widgets/illustration.dart';
@@ -72,10 +71,37 @@ class _HostTypeSelectionScreenState extends State<HostTypeSelectionScreen> {
     );
   }
 
+  /// Confirmed real gap: reached two different ways --
+  /// (1) pushed from Account Settings/Host Dashboard (Navigator.canPop()
+  /// is true there, so the AppBar's default back arrow already appears
+  /// automatically -- no fix needed for that path), and
+  /// (2) `context.goNamed(...)` from Role Selection on first sign-up
+  /// (screens.md Flow 2), which REPLACES the route stack rather than
+  /// pushing -- so `canPop()` is false and no back arrow renders. A
+  /// brand-new user who picks Host/Agency then had literally no way out of
+  /// this screen. Routes to Home either way -- there's no real "back" to
+  /// go to (Role Selection is a one-time, already-submitted step), so this
+  /// is a forward exit rather than a true pop.
+  void _leaveToHome(BuildContext context) => context.goNamed(RouteNames.home);
+
   @override
   Widget build(BuildContext context) {
+    final canPop = Navigator.of(context).canPop();
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Become a Host')),
+      appBar: AppBar(
+        title: const Text('Become a Host'),
+        // Default back arrow already covers the pushed-entry case
+        // (automaticallyImplyLeading's default -- `leading: null` here just
+        // leaves that default behavior alone). Only the first-run,
+        // can't-pop case needs an explicit back arrow wired to Home.
+        leading: canPop
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => _leaveToHome(context),
+              ),
+      ),
       body: switch (_state) {
         // screens.md Screen 3a Modernization Notes: loading uses a skeleton
         // block sized to the six-card grid rather than a bare spinner.
@@ -141,6 +167,13 @@ class _TypeSelectionGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Reads from Theme.of(context) -- see AppTheme's doc comment and
+    // role_selection_screen.dart's _RoleCard for the same fix applied
+    // there (this card previously hardcoded AppColors.surface/border,
+    // light-mode only).
+    final colorScheme = Theme.of(context).colorScheme;
+    final shadows = Theme.of(context).extension<AppSemanticColors>()!;
+
     // screens.md Screen 3a Modernization Notes: same Listing Card
     // border/shadow treatment as Screen 2 (`radius-lg`, `shadow-sm`,
     // hairline border), `tap-scale` on press, `list-stagger` on first
@@ -158,11 +191,11 @@ class _TypeSelectionGrid extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadii.lg),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(AppRadii.lg),
                     border: Border.all(
-                        color: AppColors.border.withValues(alpha: 0.6)),
-                    boxShadow: AppShadows.sm,
+                        color: colorScheme.outline.withValues(alpha: 0.6)),
+                    boxShadow: shadows.shadowSm,
                   ),
                   child: ListTile(
                     minVerticalPadding: AppSpacing.sm,
@@ -196,7 +229,7 @@ class _VerifiedStatusView extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: CelebratorySequence(
           icon: Icons.verified,
-          accentColor: AppColors.success,
+          accentColor: Theme.of(context).extension<AppSemanticColors>()!.success,
           supportingContent: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

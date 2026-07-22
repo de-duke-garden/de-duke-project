@@ -53,3 +53,20 @@ variable "cdn_acm_certificate_arn" {
   type        = string
   default     = ""
 }
+
+# CNAME target Vercel gives for staging-admin.de-duke.com -- unique per
+# Vercel project, no shared default. Set via TF_VERCEL_CNAME_TARGET.
+variable "vercel_cname_target" {
+  description = "CNAME target Vercel gives for staging-admin.de-duke.com."
+  type        = string
+  default     = ""
+}
+
+# Unused here -- declared so infra-terraform.yml can pass the same -var
+# flags to every environment without Terraform erroring on an undeclared
+# variable (only production has a marketing apex record).
+variable "vercel_apex_ips" {
+  description = "Unused in this environment."
+  type        = list(string)
+  default     = ["76.76.21.21"]
+}

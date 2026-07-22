@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   collection,
   doc,
@@ -34,7 +35,7 @@ interface ListingSummary {
   addressLine: string;
   city: string;
   state: string;
-  // FEAT-042 -- the same host context a seeker sees on the mobile Listing
+  // FEAT-042 -- the same host context a guest sees on the mobile Listing
   // Detail screen's Host Profile card, surfaced here so staff have it
   // while mediating a conversation without leaving to open the full
   // Listing Detail (Admin View).
@@ -120,12 +121,22 @@ function messageFromSnapshot(id: string, conversationId: string, data: Record<st
  * per firestore.rules's isStaff() rule (both backend roles map to the
  * same "deduke_staff" Firestore claim, chat_service.chat_role_for). */
 export function ChatOversightClient({ currentUserId }: { currentUserId: string }) {
+  // `?listing_id=` (set by the property detail page's "Conversations"
+  // summary card link) pre-fills the existing listing filter box below --
+  // conversations live in Firestore, not a REST-queryable list, so this
+  // reuses the client-side filter that already exists rather than a
+  // server-side query param, same deep-link convention as the other
+  // admin console queue screens.
+  const searchParams = useSearchParams();
+
   const [state, setState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [db, setDb] = useState<Firestore | null>(null);
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
-  const [searchListingId, setSearchListingId] = useState("");
+  const [searchListingId, setSearchListingId] = useState(
+    () => searchParams.get("listing_id") ?? "",
+  );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);

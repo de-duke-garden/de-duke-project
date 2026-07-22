@@ -20,13 +20,13 @@ def test_queue_requires_auth() -> None:
 
 
 def test_queue_rejects_non_staff_role() -> None:
-    token = _token(UserRole.SEEKER)
+    token = _token(UserRole.GUEST)
     response = client.get("/v1/moderation/queue", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 403
 
 
 def test_approve_rejects_non_staff_role() -> None:
-    token = _token(UserRole.INDIVIDUAL_HOST)
+    token = _token(UserRole.HOST)
     response = client.post(
         "/v1/moderation/some-listing-id/approve",
         json={"reason": "looks good"},

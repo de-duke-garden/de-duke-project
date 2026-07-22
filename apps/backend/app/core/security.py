@@ -22,14 +22,13 @@ _optional_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 class UserRole(StrEnum):
-    """Mirrors User.role in schema.md. seeker/individual_host/agency/corporate
+    """Mirrors User.role in schema.md. guest/host/agency
     are self-service roles; deduke_staff/deduke_admin are internal-only,
     never available via self-signup (see FEAT-033)."""
 
-    SEEKER = "seeker"
-    INDIVIDUAL_HOST = "individual_host"
+    GUEST = "guest"
+    HOST = "host"
     AGENCY = "agency"
-    CORPORATE = "corporate"
     DEDUKE_STAFF = "deduke_staff"
     DEDUKE_ADMIN = "deduke_admin"
 
@@ -86,7 +85,7 @@ async def get_current_user_optional(
 ) -> CurrentUser | None:
     """Same decoding as get_current_user, but for public/unauthenticated-
     allowed endpoints (e.g. GET /v1/search/listings, per user_flow.md's
-    Flow 0: a seeker can search before signing up) that still want to
+    Flow 0: a guest can search before signing up) that still want to
     attribute an analytics event to a user WHEN one happens to be signed
     in (FEAT-028 AC), without forcing auth on the endpoint itself. Returns
     None for a missing, malformed, or expired token -- never raises."""

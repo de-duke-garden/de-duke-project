@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { TRANSACTION_TYPE_LABELS } from "./types";
+import { FEE_TYPE_LABELS, TRANSACTION_TYPE_LABELS } from "./types";
+import type { FeeType } from "./types";
 
 interface Props {
   transactionType: string;
+  feeType: FeeType;
   currentRate: number | null;
   onCancel: () => void;
   onConfirm: (newRate: number) => Promise<void>;
@@ -14,8 +16,16 @@ interface Props {
 /** Edit rate modal -- FEAT-027 AC: invalid rates (negative or over 100%)
  * are rejected with a clear error, rate not saved. Setting the same rate
  * as current is allowed (screens.md edge case: flagged as a no-op in the
- * history log server-side, not rejected here). */
-export function EditRateModal({ transactionType, currentRate, onCancel, onConfirm }: Props) {
+ * history log server-side, not rejected here). Edits exactly ONE fee_type
+ * at a time (buyer_fee and owner_commission are independent rates with
+ * independent histories -- see types.ts's own docstring). */
+export function EditRateModal({
+  transactionType,
+  feeType,
+  currentRate,
+  onCancel,
+  onConfirm,
+}: Props) {
   const [value, setValue] = useState(currentRate !== null ? String(currentRate) : "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +55,7 @@ export function EditRateModal({ transactionType, currentRate, onCancel, onConfir
       <h2 id="edit-rate-heading" className="font-heading text-lg font-semibold">
         Edit rate -- {TRANSACTION_TYPE_LABELS[transactionType] ?? transactionType}
       </h2>
+      <p className="mt-xs text-sm text-text-secondary">{FEE_TYPE_LABELS[feeType]}</p>
 
       <label className="mt-md block text-sm font-medium" htmlFor="rate-input">
         New rate (%)

@@ -11,8 +11,7 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_shadows.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -90,8 +89,8 @@ class _LeadAnalyticsScreenState extends State<LeadAnalyticsScreen> {
                 horizontal: AppSpacing.md, vertical: AppSpacing.sm),
             child: Text(
               widget.listingTitle ?? 'Listing ${widget.listingId}',
-              style: AppTypography.bodySmall
-                  .copyWith(color: AppColors.textSecondary),
+              style: AppTypography.bodySmall.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ),
         ),
@@ -220,13 +219,15 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final shadows = Theme.of(context).extension<AppSemanticColors>()!;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppShadows.sm,
+        border: Border.all(color: colorScheme.outline),
+        boxShadow: shadows.shadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,7 +239,7 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(data.label,
               style: AppTypography.bodySmall
-                  .copyWith(color: AppColors.textSecondary)),
+                  .copyWith(color: colorScheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -253,7 +254,7 @@ class _SkeletonMetricCard extends StatelessWidget {
     return Container(
       height: 88,
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondary,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(AppRadii.lg),
       ),
     );

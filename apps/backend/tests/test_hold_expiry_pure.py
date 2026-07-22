@@ -48,7 +48,7 @@ def test_is_hold_active_false_for_terminal_status() -> None:
         gross_amount=100.0,
         commission_amount=0.0,
         net_payout_amount=100.0,
-        status="succeeded",
+        status="payment_received",
         hold_expires_at=datetime.now(UTC) + timedelta(minutes=5),
     )
     assert is_hold_active(txn) is False

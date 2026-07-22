@@ -21,7 +21,7 @@ async def _make_user(session: AsyncSession, **overrides) -> User:
     defaults = {
         "full_name": "Test User",
         "email": "user@example.com",
-        "role": "seeker",
+        "role": "guest",
     }
     defaults.update(overrides)
     user = User(**defaults)

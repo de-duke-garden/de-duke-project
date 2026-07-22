@@ -35,7 +35,7 @@ class ChatRepository {
   /// off of.
   ///
   /// Post-FEAT-001, the mobile app's only users are consumer roles
-  /// (Seeker, Individual Host, Agency, Corporate), and they're already
+  /// (Guest, Host, Agency), and they're already
   /// signed into a REAL Firebase Authentication session (Google/email/
   /// phone) by the time they're logged into De-Duke at all -- there's no
   /// separate chat-specific identity to sign into. What that real

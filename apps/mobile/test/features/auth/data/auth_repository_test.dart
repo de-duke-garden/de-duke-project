@@ -71,7 +71,7 @@ void main() {
               'refresh_token': 'refresh-456',
               'token_type': 'bearer',
               'user_id': 'user-1',
-              'role': 'seeker',
+              'role': 'guest',
               'is_verified_host': false,
               'is_new_user': false,
             },
@@ -83,7 +83,7 @@ void main() {
           email: 'amaka@example.com', password: 'supersecret1');
 
       expect(result.userId, 'user-1');
-      expect(result.role, 'seeker');
+      expect(result.role, 'guest');
       expect(result.isNewUser, isFalse);
       expect(built.sessionStore.savedAccessToken, 'access-123');
       expect(built.sessionStore.savedRefreshToken, 'refresh-456');
@@ -214,7 +214,7 @@ void main() {
               'refresh_token': 'refresh-new',
               'token_type': 'bearer',
               'user_id': 'user-2',
-              'role': 'seeker',
+              'role': 'guest',
               'is_verified_host': false,
               'is_new_user': true,
             },
@@ -267,7 +267,7 @@ void main() {
               'refresh_token': 'refresh-new',
               'token_type': 'bearer',
               'user_id': 'user-2',
-              'role': 'seeker',
+              'role': 'guest',
               'is_verified_host': false,
               'is_new_user': true,
             },
@@ -330,7 +330,7 @@ void main() {
             statusCode: 200,
             body: {
               'user_id': 'user-3',
-              'role': 'seeker',
+              'role': 'guest',
               'is_verified_host': false,
             },
           ),
@@ -404,7 +404,7 @@ void main() {
               'refresh_token': 'phone-refresh',
               'token_type': 'bearer',
               'user_id': 'user-phone',
-              'role': 'seeker',
+              'role': 'guest',
               'is_verified_host': false,
               'is_new_user': true,
             },
@@ -435,7 +435,7 @@ void main() {
               'refresh_token': 'phone-refresh',
               'token_type': 'bearer',
               'user_id': 'user-phone',
-              'role': 'seeker',
+              'role': 'guest',
               'is_verified_host': false,
               'is_new_user': true,
             },
@@ -467,7 +467,7 @@ void main() {
               'refresh_token': 'phone-refresh',
               'token_type': 'bearer',
               'user_id': 'user-phone',
-              'role': 'seeker',
+              'role': 'guest',
               'is_verified_host': false,
               'is_new_user': false,
             },
@@ -505,7 +505,7 @@ void main() {
               'refresh_token': 'phone-refresh',
               'token_type': 'bearer',
               'user_id': 'user-phone',
-              'role': 'seeker',
+              'role': 'guest',
               'is_verified_host': false,
               'is_new_user': true,
             },

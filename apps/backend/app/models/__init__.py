@@ -34,6 +34,7 @@ from app.models.report import Report
 from app.models.saved_search_alert import SavedSearchAlertLog
 from app.models.transaction import Receipt, Transaction
 from app.models.user import User
+from app.models.wallet import PayoutSettings, Wallet, WalletTransaction, WithdrawalRequest
 
 __all__ = [
     "User",
@@ -63,4 +64,8 @@ __all__ = [
     "PushToken",
     "SavedSearchAlertLog",
     "Report",
+    "Wallet",
+    "WalletTransaction",
+    "PayoutSettings",
+    "WithdrawalRequest",
 ]

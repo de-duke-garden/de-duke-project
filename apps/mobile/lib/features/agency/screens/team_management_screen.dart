@@ -8,8 +8,7 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_shadows.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -139,6 +138,8 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       itemCount: _team.length,
       itemBuilder: (context, index) {
+        final colorScheme = Theme.of(context).colorScheme;
+        final shadows = Theme.of(context).extension<AppSemanticColors>()!;
         final member = _team[index];
         return ListStaggerItem(
           index: index,
@@ -147,10 +148,10 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
                 horizontal: AppSpacing.md, vertical: AppSpacing.sm),
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: colorScheme.surface,
               borderRadius: BorderRadius.circular(AppRadii.lg),
-              border: Border.all(color: AppColors.border),
-              boxShadow: AppShadows.sm,
+              border: Border.all(color: colorScheme.outline),
+              boxShadow: shadows.shadowSm,
             ),
             child: Row(
               children: [
@@ -168,7 +169,7 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
                       Text(
                         member.email ?? '',
                         style: AppTypography.bodySmall
-                            .copyWith(color: AppColors.textSecondary),
+                            .copyWith(color: colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -177,13 +178,13 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.sm, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
+                    color: colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(AppRadii.full),
                   ),
                   child: Text(
                     member.agencyRole,
                     style: AppTypography.caption
-                        .copyWith(color: AppColors.primary),
+                        .copyWith(color: colorScheme.onPrimaryContainer),
                   ),
                 ),
               ],

@@ -18,7 +18,7 @@
 //     `uid` IS the De-Duke `User.id` directly, and carries a `role`
 //     claim: "deduke_staff" (mapped server-side from User.role, never
 //     trusted from the client).
-//   - Consumer roles (Seeker, Individual Host, Agency, Corporate --
+//   - Consumer roles (Guest, Host, Agency --
 //     mobile app only) authenticate with their REAL Firebase
 //     Authentication session (Google/email/phone, FEAT-001) -- there is
 //     no separate custom-token identity for them. That session's own

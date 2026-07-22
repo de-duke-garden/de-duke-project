@@ -1,8 +1,8 @@
 /// screens.md Screen 8: Chat Inbox.
 /// Shows all of the current user's conversations, merged across both
 /// possible participant roles (a user could be the client in one
-/// conversation and property management in another -- e.g. an individual
-/// host who is also renting elsewhere as a seeker).
+/// conversation and property management in another -- e.g. a
+/// host who is also renting elsewhere as a guest).
 library;
 
 import 'dart:async';
@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/badge_pop.dart';
 import '../../../core/widgets/branded_refresh_indicator.dart';
@@ -199,7 +198,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
               final tile = _ConversationTile(
                 conversation: conversation,
                 roleLabel: isClient
-                    ? 'You are the seeker'
+                    ? 'You are the guest'
                     : 'You are property management',
                 chatRepository: widget.chatRepository,
                 listingRepository: widget.listingRepository,
@@ -305,8 +304,9 @@ class _ConversationTile extends StatelessWidget {
                         margin: const EdgeInsets.only(top: AppSpacing.xs),
                         width: 8,
                         height: 8,
-                        decoration: const BoxDecoration(
-                            color: AppColors.accent, shape: BoxShape.circle),
+                        decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.tertiary,
+                            shape: BoxShape.circle),
                       ),
                     ),
                 ],

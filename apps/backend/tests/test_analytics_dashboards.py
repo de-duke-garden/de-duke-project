@@ -161,7 +161,7 @@ async def _make_transaction(
         "gross_amount": 10_000.0,
         "commission_amount": 1_000.0,
         "net_payout_amount": 9_000.0,
-        "status": "succeeded",
+        "status": "payment_received",
     }
     defaults.update(overrides)
     txn = Transaction(**defaults)
@@ -177,7 +177,7 @@ async def _make_transaction(
 async def test_moderation_queue_stats_counts_only_moderatable_statuses(
     session: AsyncSession,
 ) -> None:
-    host_user = await _make_user(session, role="individual_host")
+    host_user = await _make_user(session, role="host")
     host_account = await _make_host_account(session, user=host_user, host_type="owner")
     await _make_listing(session, host_account=host_account, status="under_review")
     await _make_listing(session, host_account=host_account, status="flagged")
@@ -191,7 +191,7 @@ async def test_moderation_queue_stats_counts_only_moderatable_statuses(
 
 
 async def test_host_verification_stats_counts_only_in_review(session: AsyncSession) -> None:
-    user1 = await _make_user(session, role="individual_host")
+    user1 = await _make_user(session, role="host")
     user2 = await _make_user(session, role="agency")
     await _make_host_account(session, user=user1, host_type="owner", status="in_review")
     await _make_host_account(session, user=user2, host_type="agent", status="verified")
@@ -204,14 +204,14 @@ async def test_host_verification_stats_counts_only_in_review(session: AsyncSessi
 
 
 async def test_dispute_stats_computes_avg_resolution_time(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
+    txn = await _make_transaction(session, payer=guest, payee=host)
 
     now = datetime.now(UTC)
     resolved = Dispute(
         transaction_id=txn.id,
-        raised_by_id=seeker.id,
+        raised_by_id=guest.id,
         reason="other",
         description="x",
         status="resolved_no_refund",
@@ -220,7 +220,7 @@ async def test_dispute_stats_computes_avg_resolution_time(session: AsyncSession)
     )
     still_open = Dispute(
         transaction_id=txn.id,
-        raised_by_id=seeker.id,
+        raised_by_id=guest.id,
         reason="other",
         description="y",
         status="open",
@@ -239,12 +239,12 @@ async def test_dispute_stats_computes_avg_resolution_time(session: AsyncSession)
 async def test_booking_hold_stats_computes_conversion_and_expiry_rates(
     session: AsyncSession,
 ) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
-    await _make_transaction(session, payer=seeker, payee=host, status="succeeded")
-    await _make_transaction(session, payer=seeker, payee=host, status="succeeded")
-    await _make_transaction(session, payer=seeker, payee=host, status="expired")
-    await _make_transaction(session, payer=seeker, payee=host, status="held")
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
+    await _make_transaction(session, payer=guest, payee=host, status="payment_received")
+    await _make_transaction(session, payer=guest, payee=host, status="payment_received")
+    await _make_transaction(session, payer=guest, payee=host, status="expired")
+    await _make_transaction(session, payer=guest, payee=host, status="held")
 
     stats = await ops_analytics_service.booking_hold_stats(session)
 
@@ -254,15 +254,15 @@ async def test_booking_hold_stats_computes_conversion_and_expiry_rates(
 
 
 async def test_staff_workload_counts_open_assigned_disputes(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
     staff = await _make_user(session, role="deduke_staff")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    txn = await _make_transaction(session, payer=guest, payee=host)
 
     session.add(
         Dispute(
             transaction_id=txn.id,
-            raised_by_id=seeker.id,
+            raised_by_id=guest.id,
             reason="other",
             description="x",
             status="under_review",
@@ -272,7 +272,7 @@ async def test_staff_workload_counts_open_assigned_disputes(session: AsyncSessio
     session.add(
         Dispute(
             transaction_id=txn.id,
-            raised_by_id=seeker.id,
+            raised_by_id=guest.id,
             reason="other",
             description="y",
             status="open",
@@ -299,18 +299,18 @@ async def test_operations_dashboard_support_inbox_is_explicitly_none(
 
 
 async def test_signups_by_role(session: AsyncSession) -> None:
-    await _make_user(session, role="seeker")
-    await _make_user(session, role="seeker")
-    await _make_user(session, role="individual_host")
+    await _make_user(session, role="guest")
+    await _make_user(session, role="guest")
+    await _make_user(session, role="host")
 
     counts = await business_analytics_service.signups_by_role(session)
 
-    assert counts["seeker"] == 2
-    assert counts["individual_host"] == 1
+    assert counts["guest"] == 2
+    assert counts["host"] == 1
 
 
 async def test_active_listings_breakdown(session: AsyncSession) -> None:
-    host_user = await _make_user(session, role="individual_host")
+    host_user = await _make_user(session, role="host")
     host_account = await _make_host_account(session, user=host_user, host_type="owner")
     await _make_listing(
         session,
@@ -334,20 +334,20 @@ async def test_active_listings_breakdown(session: AsyncSession) -> None:
     assert breakdown["by_city"] == {"Lagos": 1}  # only the active one
 
 
-async def test_revenue_breakdown_only_counts_succeeded_transactions(
+async def test_revenue_breakdown_only_counts_payment_received_transactions(
     session: AsyncSession,
 ) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
     await _make_transaction(
         session,
-        payer=seeker,
+        payer=guest,
         payee=host,
-        status="succeeded",
+        status="payment_received",
         gross_amount=100_000.0,
         commission_amount=10_000.0,
     )
-    await _make_transaction(session, payer=seeker, payee=host, status="held", gross_amount=50_000.0)
+    await _make_transaction(session, payer=guest, payee=host, status="held", gross_amount=50_000.0)
 
     revenue = await business_analytics_service.revenue_breakdown(session)
 
@@ -372,7 +372,7 @@ async def test_leakage_rate_computed_from_inquiries_and_transactions(
     """FEAT-016: leakage rate = 1 - (transactions / inquiries), using
     Listing.inquiry_count as the queryable proxy for "chats started" and
     every Transaction row as "converted to an in-app payment"."""
-    host_user = await _make_user(session, role="individual_host")
+    host_user = await _make_user(session, role="host")
     host_account = await _make_host_account(session, user=host_user, host_type="owner")
 
     # 10 inquiries recorded across two listings, 3 transactions actually
@@ -393,7 +393,7 @@ async def test_leakage_rate_clamps_at_zero_when_more_transactions_than_inquiries
     """A listing can receive more Transaction attempts than inquiries
     (retries after an expired hold, FEAT-013 AC) -- must clamp at 0.0
     leakage, never go negative."""
-    host_user = await _make_user(session, role="individual_host")
+    host_user = await _make_user(session, role="host")
     host_account = await _make_host_account(session, user=host_user, host_type="owner")
 
     await _make_listing(session, host_account=host_account, status="active", inquiry_count=1)
@@ -424,11 +424,11 @@ def _auth_header(user: User) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def test_seeker_cannot_view_operations_dashboard(
+async def test_guest_cannot_view_operations_dashboard(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    seeker = await _make_user(session, role="seeker")
-    response = await client.get("/v1/analytics/operations", headers=_auth_header(seeker))
+    guest = await _make_user(session, role="guest")
+    response = await client.get("/v1/analytics/operations", headers=_auth_header(guest))
     assert response.status_code == 403
 
 

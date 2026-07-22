@@ -1,4 +1,4 @@
-/// Repository wrapping POST /v1/disputes (FEAT-026) -- lets a seeker/host
+/// Repository wrapping POST /v1/disputes (FEAT-026) -- lets a guest/host
 /// raise a dispute against one of their own transactions from Transaction
 /// History. Everything else on the Dispute & Refund Management feature
 /// (list/assign/resolve) is Staff/Admin-only and lives in the Admin Web

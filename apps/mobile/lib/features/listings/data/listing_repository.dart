@@ -156,4 +156,26 @@ class ListingRepository {
           .toList(),
     );
   }
+
+  /// FEAT-014's two-sided commission model -- the guest-facing `buyer_fee`
+  /// percentage currently in effect for a transaction type, so the price
+  /// shown BEFORE a hold is created (booking_confirmation_screen.dart's
+  /// pre-confirm summary) already matches what the backend will actually
+  /// charge (listing_price + buyer_fee_amount) once the hold exists. Any
+  /// authenticated user can read this (app/api/v1/commission.py's
+  /// `/current` route is deliberately not Staff/Admin-gated -- it's not
+  /// sensitive, and a guest needs it before confirming). Fails soft (0.0)
+  /// on error -- this is a pre-check display only; the backend's own
+  /// hold-creation computation is the real, authoritative amount either
+  /// way (same fail-open contract as checkAvailability above).
+  Future<double> getCurrentBuyerFeePercentage(String transactionType) async {
+    try {
+      final response = await _apiClient.dio
+          .get('/v1/commission/$transactionType/buyer_fee/current');
+      final data = response.data as Map<String, dynamic>;
+      return (data['rate_percentage'] as num).toDouble();
+    } catch (_) {
+      return 0.0;
+    }
+  }
 }

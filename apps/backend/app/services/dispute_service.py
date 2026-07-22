@@ -1,6 +1,6 @@
 """Dispute & Refund Management business logic -- FEAT-026.
 
-Seekers/hosts raise a dispute against one of their own transactions from
+Guests/hosts raise a dispute against one of their own transactions from
 Transaction History (mobile, POST /v1/disputes); Staff/Admin review,
 assign, and resolve them via the Admin Web Console (screens.md Screen 24,
 same /v1/disputes/* endpoints, role-gated). Resolving with a refund calls
@@ -33,6 +33,37 @@ class DisputeError(Exception):
     """Raised for any dispute-service-level validation failure. Callers
     (app/api/v1/disputes.py) map this to HTTP 400/404 as appropriate --
     never to a 500, since these are all caller-correctable input errors."""
+
+
+# A dispute still under active investigation -- neither resolved
+# (DISPUTE_RESOLUTIONS) nor closed. Mirrors resolve_dispute's own
+# "already resolved" check (`dispute.status in DISPUTE_RESOLUTIONS or
+# dispute.status == 'closed'`), inverted: these are the statuses that
+# check treats as NOT yet resolved.
+OPEN_DISPUTE_STATUSES = ("open", "under_review")
+
+
+async def list_open_dispute_transaction_ids(
+    session: AsyncSession, *, transaction_ids: list[str]
+) -> set[str]:
+    """FEAT-043/FEAT-026 coupling: wallet_service consults this before
+    ever releasing escrowed funds. A `released_to_wallet` transaction
+    can't be refunded through the normal dispute-resolution path (see
+    resolve_dispute's own `released_to_wallet` guard below) -- so funds
+    must never be released while a dispute against that same transaction
+    is still under active investigation, or resolving that dispute fairly
+    (refund vs. no refund) becomes a manual, ad-hoc wallet-clawback
+    problem instead of the ordinary flow. Returns the subset of
+    `transaction_ids` that currently have at least one open dispute.
+    """
+    if not transaction_ids:
+        return set()
+    result = await session.execute(
+        select(Dispute.transaction_id)
+        .where(Dispute.transaction_id.in_(transaction_ids))
+        .where(Dispute.status.in_(OPEN_DISPUTE_STATUSES))
+    )
+    return {row[0] for row in result.all()}
 
 
 async def create_dispute(
@@ -75,15 +106,25 @@ async def create_dispute(
 
 
 async def list_disputes(
-    session: AsyncSession, *, status_filter: str | None = None
+    session: AsyncSession, *, status_filter: str | None = None, listing_id: str | None = None
 ) -> list[Dispute]:
     """Newest first -- matches screens.md Screen 24's table default; staff
     filter by status client-side against this same list (small enough
     volume at this stage not to warrant server-side pagination yet, same
-    call as moderation_service.list_moderation_queue)."""
+    call as moderation_service.list_moderation_queue).
+
+    `listing_id` backs the property detail page's "View all disputes for
+    this listing" deep link -- Dispute has no listing_id column of its own
+    (it's raised against a Transaction), so this filters via a join rather
+    than a direct WHERE.
+    """
     stmt = select(Dispute).order_by(Dispute.created_at.desc())
     if status_filter:
         stmt = stmt.where(Dispute.status == status_filter)
+    if listing_id:
+        stmt = stmt.join(Transaction, Transaction.id == Dispute.transaction_id).where(
+            Transaction.listing_id == listing_id
+        )
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
@@ -157,6 +198,23 @@ async def resolve_dispute(
             raise DisputeError("refund_amount is required to resolve with a refund.")
         if transaction.payment_processor_reference is None:
             raise DisputeError("Transaction has no payment reference to refund.")
+        # schema.md's Escrow model note: a `released_to_wallet` transaction
+        # already had its funds credited into the payee's (possibly
+        # aggregated, possibly already-withdrawn) Wallet balance -- a plain
+        # Paystack refund here would refund the guest from De-Duke's own
+        # settlement account without clawing back anything from the payee's
+        # wallet, silently leaving De-Duke short the full amount. Only a
+        # still-escrowed `payment_received` transaction (funds sitting in
+        # De-Duke's account, never moved to the payee) can be refunded this
+        # simply. A released transaction needs a separate, deliberate
+        # wallet-clawback process this endpoint does not implement -- fail
+        # closed rather than silently do a half-correct refund.
+        if transaction.status == "released_to_wallet":
+            raise DisputeError(
+                "This transaction's funds were already released to the payee's wallet. "
+                "Refunding it requires a separate wallet clawback process, not a standard "
+                "dispute refund -- contact an Admin to handle this manually."
+            )
         try:
             await payment_service.refund_paystack_transaction(
                 reference=transaction.payment_processor_reference,

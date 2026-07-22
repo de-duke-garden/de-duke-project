@@ -208,7 +208,7 @@ def test_staff_can_verify_and_reject_requires_reason(client: TestClient) -> None
 
 def test_non_staff_cannot_access_admin_queue(client: TestClient) -> None:
     """AC: only deduke_staff/deduke_admin can list-for-review/approve/reject."""
-    token, _ = _register_and_login(client, "seeker@example.com")
+    token, _ = _register_and_login(client, "guest@example.com")
     response = client.get("/v1/host-accounts/admin", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 403
 

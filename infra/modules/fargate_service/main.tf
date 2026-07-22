@@ -173,6 +173,7 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "DB_PROXY_ENDPOINT", value = aws_db_proxy.this.endpoint },
         { name = "MEDIA_BUCKET_NAME", value = var.media_bucket_name },
         { name = "MEDIA_CDN_DOMAIN", value = var.media_cdn_domain },
+        { name = "PAYSTACK_FALLBACK_EMAIL", value = var.paystack_fallback_email },
         { name = "AWS_REGION", value = var.aws_region },
         { name = "AWS_SNS_SENDER_ID", value = var.aws_sns_sender_id },
         # Confirmed bug, found via a real staging deploy: this was missing

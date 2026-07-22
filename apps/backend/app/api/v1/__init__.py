@@ -26,6 +26,7 @@ from app.api.v1 import (
     support,
     transactions,
     user,
+    wallet,
 )
 
 router = APIRouter(prefix="/v1")
@@ -57,13 +58,16 @@ router.include_router(disputes.router, prefix="/disputes", tags=["disputes"])
 router.include_router(support.router, prefix="/support", tags=["support"])
 router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 router.include_router(agency.router, prefix="/agency", tags=["agency"])
+# FEAT-043/044/045 -- escrow release (Admin-only), Wallet, Payout Settings,
+# Withdrawal.
+router.include_router(wallet.router, prefix="/wallet", tags=["wallet"])
 # FEAT-020 -- Shareable Listing Summary. listing_share_router adds
 # auth-required generate/revoke endpoints under /listings; public_share_router
 # is the unauthenticated-by-design external view under /share/{token}.
 router.include_router(share.listing_share_router, prefix="/listings", tags=["listings"])
 router.include_router(share.public_share_router, prefix="/share", tags=["share"])
 # FEAT-009 -- In-App Reporting. listing_report_router/conversation_report_router
-# are the seeker-facing report endpoints; router is the staff/admin-facing
+# are the guest-facing report endpoints; router is the staff/admin-facing
 # admin/reports queue, merged into the Moderation Queue by moderation_service.py.
 router.include_router(reports.listing_report_router, prefix="/listings", tags=["reports"])
 router.include_router(reports.conversation_report_router, prefix="/conversations", tags=["reports"])

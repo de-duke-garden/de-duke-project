@@ -7,9 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
-import '../../../core/theme/app_shadows.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/list_stagger.dart';
 import '../../../core/widgets/tap_scale.dart';
@@ -28,14 +27,14 @@ class _RoleOption {
 // SELF_SERVICE_ROLES order/values must match app/schemas/auth.py exactly.
 const _roleOptions = [
   _RoleOption(
-    'seeker',
-    'Individual Seeker',
+    'guest',
+    'Guest',
     'Find and book properties for yourself',
     Icons.person_outline,
   ),
   _RoleOption(
-    'individual_host',
-    'Individual Host',
+    'host',
+    'Host',
     'List your own property',
     Icons.home_outlined,
   ),
@@ -44,12 +43,6 @@ const _roleOptions = [
     'Agency',
     'Manage listings for multiple clients',
     Icons.business_outlined,
-  ),
-  _RoleOption(
-    'corporate',
-    'Business / Corporate',
-    'Book properties on behalf of a company',
-    Icons.apartment_outlined,
   ),
 ];
 
@@ -67,10 +60,10 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   String? _selectedRole;
 
   /// screens.md Data Flow step 3: routes to Become a Host (Host/Agency) or
-  /// Home Feed (Seeker/Corporate) per user_flow.md Flow 2.
+  /// Home Feed (Guest) per user_flow.md Flow 2.
   void _routeAfterSelection(String role) {
     if (!mounted) return;
-    if (role == 'individual_host' || role == 'agency') {
+    if (role == 'host' || role == 'agency') {
       context.goNamed(RouteNames.verification);
     } else {
       context.goNamed(RouteNames.home);
@@ -93,7 +86,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
     }
   }
 
-  void _skip() => _selectRole('seeker');
+  void _skip() => _selectRole('guest');
 
   @override
   Widget build(BuildContext context) {
@@ -185,6 +178,17 @@ class _RoleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Bug fix: this card previously hardcoded the light-mode-only
+    // AppColors.surface/border/primaryLight constants unconditionally, so
+    // in dark mode it rendered as a stark white card with a barely-visible
+    // light border floating on the dark scaffold. Now reads every color
+    // from Theme.of(context) (ColorScheme + the AppSemanticColors
+    // extension for shadows), which is already resolved for the current
+    // brightness by AppTheme.light()/.dark() -- no manual Brightness
+    // branching needed here at all.
+    final colorScheme = Theme.of(context).colorScheme;
+    final shadows = Theme.of(context).extension<AppSemanticColors>()!;
+
     // screens.md Screen 2 Modernization Notes: Listing Card container spec
     // (`radius-lg`, `shadow-sm`, 1px hairline border at 60% opacity), plus
     // `tap-scale` on press and a brief `primary-light` fill wash + emphasis
@@ -197,10 +201,14 @@ class _RoleCard extends StatelessWidget {
         duration: AppDurations.normal,
         curve: AppCurves.easeOutSmooth,
         decoration: BoxDecoration(
-          color: isSaving ? AppColors.primaryLight : AppColors.surface,
+          color: isSaving
+              ? colorScheme.primaryContainer
+              : colorScheme.surface,
           borderRadius: BorderRadius.circular(AppRadii.lg),
-          border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
-          boxShadow: AppShadows.sm,
+          border: Border.all(
+            color: colorScheme.outline.withValues(alpha: 0.6),
+          ),
+          boxShadow: shadows.shadowSm,
         ),
         child: InkWell(
           onTap: onTap,

@@ -10,4 +10,6 @@ locals {
   domain_name = "de-duke.com"
   api_fqdn    = "staging-api.${local.domain_name}"
   cdn_fqdn    = "cdn-staging.${local.domain_name}"
+
+  admin_fqdn = "staging-admin.${local.domain_name}"
 }

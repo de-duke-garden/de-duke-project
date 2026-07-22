@@ -105,8 +105,26 @@ class Settings(BaseSettings):
 
     # -- Third-party providers (all REPLACE_ME until populated from Secrets Manager) --
     paystack_secret_key: str = "REPLACE_ME"
+    # Removed `paystack_webhook_secret` as a separate field -- confirmed
+    # confusing in practice (the "PAYSTACK_WEBHOOK_SECRET" name suggested a
+    # distinct value existed to copy from the Paystack dashboard, but
+    # Paystack signs every webhook payload with your account's ordinary
+    # SECRET key via HMAC-SHA512; there is no separate "webhook secret" it
+    # issues anywhere. `payment_service.verify_webhook_signature` now keys
+    # its HMAC off `paystack_secret_key` directly -- one value to configure,
+    # matching how Paystack itself actually works.
     paystack_public_key: str = "REPLACE_ME"
-    paystack_webhook_secret: str = "REPLACE_ME"
+    # FEAT-013 checkout AC: Paystack's `/transaction/initialize` requires a
+    # real-looking `email` field and 400s on anything else -- but FEAT-001's
+    # Firebase phone/OTP sign-in never collects an email at all, so
+    # `User.email` is genuinely null for some payers (see
+    # app/api/v1/checkout.py's `initiate_checkout`). A plain Settings field
+    # (not a Secrets Manager entry -- this isn't sensitive) rather than a
+    # hardcoded literal, so it's replaceable per environment/at any time
+    # without a code change -- set PAYSTACK_FALLBACK_EMAIL in .env locally,
+    # or as a plain (non-secret) env var on the ECS task definition/GitHub
+    # Environment variable in deployed environments.
+    paystack_fallback_email: str = "info@de-duke.com"
     google_maps_api_key: str = "REPLACE_ME"
     firebase_service_account_json: str = "REPLACE_ME"
     firestore_project_id: str = "REPLACE_ME"
@@ -201,7 +219,6 @@ class Settings(BaseSettings):
             field_by_key = {
                 "PAYSTACK_SECRET_KEY": "paystack_secret_key",
                 "PAYSTACK_PUBLIC_KEY": "paystack_public_key",
-                "PAYSTACK_WEBHOOK_SECRET": "paystack_webhook_secret",
                 "GOOGLE_MAPS_API_KEY": "google_maps_api_key",
                 "FIREBASE_SERVICE_ACCOUNT_JSON": "firebase_service_account_json",
                 "FIRESTORE_PROJECT_ID": "firestore_project_id",

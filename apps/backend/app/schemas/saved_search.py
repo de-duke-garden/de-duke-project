@@ -60,7 +60,7 @@ class SavedSearchOut(BaseModel):
 
 
 class SavedSearchListResponse(BaseModel):
-    """No pagination per screens.md Screen 20 (a seeker's saved search list
+    """No pagination per screens.md Screen 20 (a guest's saved search list
     is small and unpaginated -- unlike listing search results)."""
 
     results: list[SavedSearchOut]

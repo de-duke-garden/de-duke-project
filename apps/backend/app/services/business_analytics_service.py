@@ -98,16 +98,18 @@ async def conversion_funnel(session: AsyncSession) -> dict[str, Any]:
 
 async def revenue_breakdown(session: AsyncSession) -> dict[str, Any]:
     """Gross Transaction Value, commission revenue, and take rate by
-    transaction type (screens.md Screen 30 AC) -- only counts `succeeded`
-    transactions, since a held/failed/expired transaction never actually
-    generated revenue."""
+    transaction type (screens.md Screen 30 AC) -- counts `payment_received`
+    and `released_to_wallet` transactions (schema.md's escrow model: both
+    mean the guest actually paid; only whether a De-Duke Admin has since
+    released the funds to the payee differs), since a held/failed/expired
+    transaction never actually generated revenue."""
     stmt = (
         select(
             Transaction.transaction_type,
             func.coalesce(func.sum(Transaction.gross_amount), 0),
             func.coalesce(func.sum(Transaction.commission_amount), 0),
         )
-        .where(Transaction.status == "succeeded")
+        .where(Transaction.status.in_(("payment_received", "released_to_wallet")))
         .group_by(Transaction.transaction_type)
     )
     rows = (await session.execute(stmt)).all()

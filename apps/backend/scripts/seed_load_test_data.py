@@ -161,7 +161,7 @@ async def seed_users(session, count: int) -> list[str]:
             user = User(
                 email=f"load+{i}@synthetic.de-duke.internal",
                 full_name=f"Load Test User {i}",
-                role="seeker",
+                role="guest",
                 password_hash=hash_password(SYNTHETIC_PASSWORD),
                 is_active=True,
             )

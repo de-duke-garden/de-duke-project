@@ -46,14 +46,14 @@ async def _create_staff_user(
 def test_firebase_exchange_creates_new_user_on_first_sign_in(client: TestClient) -> None:
     """AC: a first-time sign-in via any of the three methods creates a new
     User record and routes to Role Selection (checked here via
-    `role == "seeker"`, the default a brand-new consumer account gets, and
+    `role == "guest"`, the default a brand-new consumer account gets, and
     `is_new_user`, the field the client actually branches routing on)."""
     response = _firebase_signin(client, uid="uid-amaka", email="amaka@example.com")
     assert response.status_code == 200
     body = response.json()
     assert body["access_token"]
     assert body["refresh_token"]
-    assert body["role"] == "seeker"
+    assert body["role"] == "guest"
     assert body["is_new_user"] is True
 
 
@@ -74,7 +74,7 @@ def test_firebase_exchange_supports_phone_identity(client: TestClient) -> None:
     token carries a phone_number claim instead of/alongside email."""
     response = _firebase_signin(client, uid="uid-phone", phone_number="+2348012345678")
     assert response.status_code == 200
-    assert response.json()["role"] == "seeker"
+    assert response.json()["role"] == "guest"
 
 
 def test_firebase_exchange_rejects_invalid_token(client: TestClient) -> None:
@@ -155,7 +155,7 @@ async def test_firebase_exchange_deactivated_account_blocked(
     user = User(
         full_name="Deactivated User",
         email="deactivated@example.com",
-        role="seeker",
+        role="guest",
         auth_provider="firebase",
         firebase_uid="uid-deactivated",
         is_active=False,
@@ -217,7 +217,7 @@ def test_me_returns_current_user_identity(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["email"] == "me-check@example.com"
-    assert body["role"] == "seeker"
+    assert body["role"] == "guest"
     assert body["is_active"] is True
 
 

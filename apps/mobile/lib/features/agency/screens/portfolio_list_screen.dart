@@ -13,8 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_shadows.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -217,8 +216,8 @@ class _PortfolioListScreenState extends State<PortfolioListScreen> {
         children: [
           Expanded(
             child: Text('Agent: ${name ?? 'Unknown'}',
-                style: AppTypography.bodySmall
-                    .copyWith(color: AppColors.textSecondary)),
+                style: AppTypography.bodySmall.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () => _onAgentFilterSelected(null),
@@ -297,6 +296,8 @@ class _PortfolioListScreenState extends State<PortfolioListScreen> {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       itemCount: _listings.length,
       itemBuilder: (context, index) {
+        final colorScheme = Theme.of(context).colorScheme;
+        final shadows = Theme.of(context).extension<AppSemanticColors>()!;
         final listing = _listings[index];
         final selectionMode = _selectedIds.isNotEmpty;
         final isSelected = _selectedIds.contains(listing.id);
@@ -319,13 +320,12 @@ class _PortfolioListScreenState extends State<PortfolioListScreen> {
                   horizontal: AppSpacing.md, vertical: AppSpacing.sm),
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: colorScheme.surface,
                 borderRadius: BorderRadius.circular(AppRadii.lg),
                 border: Border.all(
-                    color:
-                        isSelected ? AppColors.primary : AppColors.border,
+                    color: isSelected ? colorScheme.primary : colorScheme.outline,
                     width: isSelected ? 2 : 1),
-                boxShadow: AppShadows.sm,
+                boxShadow: shadows.shadowSm,
               ),
               child: Row(
                 children: [
@@ -335,8 +335,8 @@ class _PortfolioListScreenState extends State<PortfolioListScreen> {
                           ? Icons.check_circle
                           : Icons.radio_button_unchecked,
                       color: isSelected
-                          ? AppColors.primary
-                          : AppColors.textSecondary,
+                          ? colorScheme.primary
+                          : colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: AppSpacing.sm),
                   ],
@@ -353,21 +353,21 @@ class _PortfolioListScreenState extends State<PortfolioListScreen> {
                               ? 'Unassigned'
                               : 'Agent: ${listing.assignedAgentName}',
                           style: AppTypography.bodySmall
-                              .copyWith(color: AppColors.textSecondary),
+                              .copyWith(color: colorScheme.onSurfaceVariant),
                         ),
                         if (listing.ownerClientName != null &&
                             listing.ownerClientName!.isNotEmpty)
                           Text(
                             'Owner/Client: ${listing.ownerClientName}',
                             style: AppTypography.bodySmall
-                                .copyWith(color: AppColors.textSecondary),
+                                .copyWith(color: colorScheme.onSurfaceVariant),
                           ),
                         Text(
                           '${listing.viewCount} views · ${listing.inquiryCount} inquiries',
                           style: AppTypography.statSmall.copyWith(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -412,12 +412,14 @@ class _BulkActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final shadows = Theme.of(context).extension<AppSemanticColors>()!;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: const Border(top: BorderSide(color: AppColors.border)),
-        boxShadow: AppShadows.sm,
+        color: colorScheme.surface,
+        border: Border(top: BorderSide(color: colorScheme.outline)),
+        boxShadow: shadows.shadowSm,
       ),
       child: Row(
         children: [
@@ -456,36 +458,38 @@ class _StatusBadge extends StatelessWidget {
 
   final String status;
 
-  ({Color color, IconData icon, String label}) _spec() {
+  ({Color color, IconData icon, String label}) _spec(BuildContext context) {
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
+    final error = Theme.of(context).colorScheme.error;
     return switch (status) {
       'active' => (
-          color: AppColors.success,
+          color: semantic.success,
           icon: Icons.check_circle,
           label: 'Active'
         ),
-      'banned' => (color: AppColors.error, icon: Icons.block, label: 'Banned'),
+      'banned' => (color: error, icon: Icons.block, label: 'Banned'),
       'under_review' => (
-          color: AppColors.warning,
+          color: semantic.warning,
           icon: Icons.hourglass_top,
           label: 'Under Review'
         ),
       'unpublished' => (
-          color: AppColors.warning,
+          color: semantic.warning,
           icon: Icons.visibility_off,
           label: 'Unpublished'
         ),
       'closed' => (
-          color: AppColors.warning,
+          color: semantic.warning,
           icon: Icons.lock_outline,
           label: 'Closed'
         ),
-      _ => (color: AppColors.warning, icon: Icons.info_outline, label: status),
+      _ => (color: semantic.warning, icon: Icons.info_outline, label: status),
     };
   }
 
   @override
   Widget build(BuildContext context) {
-    final spec = _spec();
+    final spec = _spec(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

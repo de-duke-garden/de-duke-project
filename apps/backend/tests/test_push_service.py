@@ -21,7 +21,7 @@ from app.services import push_service
 
 
 async def _make_user(session: AsyncSession, **overrides) -> User:
-    defaults = {"full_name": "Test User", "email": "user@example.com", "role": "seeker"}
+    defaults = {"full_name": "Test User", "email": "user@example.com", "role": "guest"}
     defaults.update(overrides)
     user = User(**defaults)
     session.add(user)
@@ -38,7 +38,7 @@ async def _register_token(session: AsyncSession, user_id: str, token: str = "tok
 
 
 def test_new_user_defaults_to_all_categories_enabled() -> None:
-    user = User(full_name="Test", email="a@b.com", role="seeker")
+    user = User(full_name="Test", email="a@b.com", role="guest")
     assert user.push_notification_preferences == DEFAULT_PUSH_NOTIFICATION_PREFERENCES
 
 

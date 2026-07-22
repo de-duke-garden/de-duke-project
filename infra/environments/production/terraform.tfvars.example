@@ -10,3 +10,10 @@ aws_account_suffix = "REPLACE_ME"        # e.g. your AWS account ID, for globall
 # paste its outputs here:
 acm_certificate_arn     = ""  # `terraform output alb_certificate_arn` from environments/global (eu-west-1, ALB HTTPS listener)
 cdn_acm_certificate_arn = ""  # `terraform output cdn_certificate_arn` from environments/global (us-east-1, CloudFront custom domain)
+
+# Admin Web Console (admin.de-duke.com) + Marketing Site (de-duke.com),
+# both Vercel-hosted. vercel_cname_target is unique per Vercel project (get
+# it from Vercel's dashboard); vercel_apex_ips defaults to Vercel's
+# standard IP, override only if Vercel documents a different one.
+# vercel_cname_target = ""
+# vercel_apex_ips     = ["76.76.21.21"]

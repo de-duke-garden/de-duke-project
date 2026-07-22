@@ -56,9 +56,11 @@ async def raise_dispute(
 
 
 async def _to_list_item(session: AsyncSession, dispute) -> DisputeListItemOut:  # noqa: ANN001
+    transaction = await dispute_service.get_transaction_or_none(session, dispute.transaction_id)
     return DisputeListItemOut(
         id=dispute.id,
         transaction_id=dispute.transaction_id,
+        listing_id=transaction.listing_id if transaction is not None else None,
         raised_by_id=dispute.raised_by_id,
         raised_by_name=await dispute_service.get_user_name_or_unknown(
             session, dispute.raised_by_id
@@ -77,10 +79,13 @@ async def _to_list_item(session: AsyncSession, dispute) -> DisputeListItemOut:  
 @router.get("", response_model=list[DisputeListItemOut])
 async def list_disputes(
     status_filter: str | None = None,
+    listing_id: str | None = None,
     _current_user: CurrentUser = Depends(staff_or_admin),
     session: AsyncSession = Depends(get_session),
 ) -> list[DisputeListItemOut]:
-    disputes = await dispute_service.list_disputes(session, status_filter=status_filter)
+    disputes = await dispute_service.list_disputes(
+        session, status_filter=status_filter, listing_id=listing_id
+    )
     return [await _to_list_item(session, d) for d in disputes]
 
 

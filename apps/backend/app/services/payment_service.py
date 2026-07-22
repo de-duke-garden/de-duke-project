@@ -1,10 +1,18 @@
 """FEAT-013 (Paystack Checkout) integration shape.
 
 Built against `app.core.config.Settings.paystack_secret_key` /
-`paystack_public_key` / `paystack_webhook_secret` -- all still `REPLACE_ME`
-locally, so `initiate_paystack_transaction` will raise/fail closed rather
-than silently succeed until real keys are populated from Secrets Manager.
-No real Paystack keys are fabricated anywhere in this module.
+`paystack_public_key` -- both still `REPLACE_ME` locally, so
+`initiate_paystack_transaction` will raise/fail closed rather than
+silently succeed until real keys are populated from Secrets Manager. No
+real Paystack keys are fabricated anywhere in this module.
+
+Webhook signature verification (`verify_webhook_signature` below) is keyed
+off `paystack_secret_key` too, not a separate "webhook secret" -- Paystack
+signs every webhook payload's HMAC with your account's ordinary SECRET
+key; it doesn't issue a distinct value for this anywhere in its dashboard.
+A prior `paystack_webhook_secret` config field suggested otherwise and was
+a real source of confusion, so it was removed rather than kept as a
+second name for the same value.
 
 Idempotency: `InitiateCheckoutRequest.idempotency_key` (client-generated,
 per AGENTS.md Coding Style Conventions) is persisted on first use
@@ -26,6 +34,7 @@ import hashlib
 import hmac
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 
@@ -140,23 +149,182 @@ async def refund_paystack_transaction(*, reference: str, amount_kobo: int | None
         response.raise_for_status()
 
 
+@dataclass
+class ResolvedAccount:
+    account_number: str
+    account_name: str
+
+
+class PaystackAccountResolutionError(Exception):
+    """Raised when Paystack rejects an account number/bank code
+    combination (FEAT-045's Payout Settings AC: "a resolution failure is
+    shown clearly and the record is not saved as 'verified'"). Distinct
+    from `httpx.HTTPError` (a transport/connectivity failure) -- this is
+    Paystack successfully responding that the account itself is invalid."""
+
+
+async def resolve_bank_account(*, account_number: str, bank_code: str) -> ResolvedAccount:
+    """Calls Paystack's `GET /bank/resolve` -- FEAT-045 Payout Settings AC:
+    "Entering an account number + bank in Payout Settings triggers Paystack
+    account resolution and shows the resolved account holder name for
+    explicit confirmation before saving." Never trusts a client-supplied
+    account holder name -- the name shown to the user for confirmation
+    always comes from this call.
+    """
+    _require_configured()
+
+    headers = {"Authorization": f"Bearer {settings.paystack_secret_key}"}
+    params = {"account_number": account_number, "bank_code": bank_code}
+    async with httpx.AsyncClient(
+        base_url=PAYSTACK_BASE_URL, timeout=PAYSTACK_TIMEOUT_SECONDS
+    ) as client:
+        response = await client.get("/bank/resolve", params=params, headers=headers)
+    if response.status_code >= 400:
+        # Paystack returns 4xx with a human-readable `message` for an
+        # invalid account/bank combination -- distinct from a genuine
+        # transport failure, so this maps to PaystackAccountResolutionError
+        # (a caller-correctable "check your details" case) rather than
+        # propagating as httpx.HTTPError (a "the provider is down" case).
+        try:
+            detail = response.json().get("message", "Could not verify this account.")
+        except ValueError:
+            detail = "Could not verify this account."
+        raise PaystackAccountResolutionError(detail)
+
+    data = response.json().get("data", {})
+    return ResolvedAccount(
+        account_number=data.get("account_number", account_number),
+        account_name=data.get("account_name", ""),
+    )
+
+
+@dataclass
+class BankOption:
+    name: str
+    code: str
+
+
+async def list_banks() -> list[BankOption]:
+    """Calls Paystack's `GET /bank` (NGN, active only) -- backs FEAT-045's
+    Payout Settings bank picker so a payee selects from Paystack's own
+    canonical bank list (name + code) rather than typing a bank name/code
+    freehand, which `resolve_bank_account` would then just reject anyway
+    for any mismatch.
+    """
+    _require_configured()
+
+    headers = {"Authorization": f"Bearer {settings.paystack_secret_key}"}
+    params = {"currency": "NGN"}
+    async with httpx.AsyncClient(
+        base_url=PAYSTACK_BASE_URL, timeout=PAYSTACK_TIMEOUT_SECONDS
+    ) as client:
+        response = await client.get("/bank", params=params, headers=headers)
+        response.raise_for_status()
+        body = response.json()
+
+    return [
+        BankOption(name=b.get("name", ""), code=b.get("code", ""))
+        for b in body.get("data", [])
+        if b.get("code")
+    ]
+
+
+async def create_transfer_recipient(
+    *, account_number: str, bank_code: str, account_name: str
+) -> str:
+    """Calls Paystack's `POST /transferrecipient` -- creates (or, if the
+    same details are submitted again, Paystack itself dedupes) the
+    Transfer Recipient a withdrawal's `POST /transfer` call references.
+    Returns the `recipient_code` to store on `PayoutSettings.
+    paystackRecipientCode` (schema.md). Called once when Payout Settings
+    are first saved/changed (FEAT-045), not on every withdrawal.
+    """
+    _require_configured()
+
+    headers = {"Authorization": f"Bearer {settings.paystack_secret_key}"}
+    payload = {
+        "type": "nuban",
+        "name": account_name,
+        "account_number": account_number,
+        "bank_code": bank_code,
+        "currency": "NGN",
+    }
+    async with httpx.AsyncClient(
+        base_url=PAYSTACK_BASE_URL, timeout=PAYSTACK_TIMEOUT_SECONDS
+    ) as client:
+        response = await client.post("/transferrecipient", json=payload, headers=headers)
+        response.raise_for_status()
+        body = response.json()
+
+    return body.get("data", {}).get("recipient_code", "")
+
+
+@dataclass
+class TransferResult:
+    transfer_code: str
+    reference: str
+    status: str
+
+
+async def initiate_transfer(
+    *, recipient_code: str, amount_kobo: int, reference: str, reason: str
+) -> TransferResult:
+    """Calls Paystack's `POST /transfer` -- FEAT-045's automated withdrawal
+    fulfillment. Fire-and-confirm: this call starting successfully does
+    NOT mean the transfer completed -- `withdrawal_service.py` records the
+    wallet debit and moves the WithdrawalRequest to `processing`
+    immediately after this returns, then waits for Paystack's
+    `transfer.success`/`transfer.failed` webhook event (handled in
+    `paystack_webhook_handler.py`) to reach a terminal `paid`/`failed`
+    state, mirroring how `initiate_paystack_transaction` above never
+    itself marks a charge succeeded either.
+    """
+    _require_configured()
+
+    headers = {"Authorization": f"Bearer {settings.paystack_secret_key}"}
+    payload = {
+        "source": "balance",
+        "amount": amount_kobo,
+        "recipient": recipient_code,
+        "reference": reference,
+        "reason": reason,
+    }
+    async with httpx.AsyncClient(
+        base_url=PAYSTACK_BASE_URL, timeout=PAYSTACK_TIMEOUT_SECONDS
+    ) as client:
+        response = await client.post("/transfer", json=payload, headers=headers)
+        response.raise_for_status()
+        body = response.json()
+
+    data: dict[str, Any] = body.get("data", {})
+    return TransferResult(
+        transfer_code=data.get("transfer_code", ""),
+        reference=data.get("reference", reference),
+        status=data.get("status", "pending"),
+    )
+
+
 def verify_webhook_signature(raw_body: bytes, signature_header: str | None) -> bool:
     """Verifies the `x-paystack-signature` header against an HMAC-SHA512
-    of the raw request body, keyed by `paystack_webhook_secret`.
+    of the raw request body, keyed by `paystack_secret_key` -- Paystack
+    signs webhook payloads with your account's SECRET key directly, not a
+    separate value (there is no distinct "webhook secret" anywhere in the
+    Paystack dashboard to configure here).
 
     Per AGENTS.md Payment Correctness, this MUST return True before any
-    webhook payload is used to transition a Transaction to `succeeded`.
+    webhook payload is used to transition a Transaction to
+    `payment_received`.
     """
     if not signature_header:
         return False
-    if settings.paystack_webhook_secret == "REPLACE_ME":
+    if settings.paystack_secret_key == "REPLACE_ME":
         logger.warning(
-            "payment_service: paystack_webhook_secret not configured -- "
+            "payment_service: paystack_secret_key not configured -- "
             "rejecting webhook (fail closed)"
         )
         return False
     computed = hmac.new(
-        settings.paystack_webhook_secret.encode("utf-8"),
+        settings.paystack_secret_key.encode("utf-8"),
         raw_body,
         hashlib.sha512,
     ).hexdigest()

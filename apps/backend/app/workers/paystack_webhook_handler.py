@@ -2,9 +2,18 @@
 it can be unit tested without going through the HTTP layer, and so its
 signature-verification gate is visible and testable in isolation.
 
-Behavior Rule (AGENTS.md): never mark a payment/booking "succeeded" from a
+Behavior Rule (AGENTS.md): never mark a payment "received" from a
 client-reported result alone -- only a verified, signature-checked Paystack
-webhook (this module) may transition a Transaction to `succeeded`.
+webhook (this module) may transition a Transaction to `payment_received`.
+
+Escrow model note (schema.md, FEAT-043): a successful charge here only
+means the money landed in De-Duke's own Paystack settlement account -- it
+does NOT mean the host/agency has been paid. `HOST_PAYOUT_SUMMARY` is
+deliberately NOT sent from this module anymore (see wallet_service.py's
+`release_transaction` instead) -- sending a "payout summary" the instant a
+guest pays would tell the host they'd been paid before a De-Duke Admin has
+actually released anything to their Wallet, exactly the ambiguity this
+whole escrow model exists to remove.
 """
 
 from __future__ import annotations
@@ -14,16 +23,12 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.transaction import Receipt, Transaction
+from app.models.transaction import Transaction
 from app.services import analytics_service, push_service
-from app.services.commission_service import compute_breakdown, get_effective_rate
-from app.services.email_service import (
-    HOST_PAYOUT_SUMMARY,
-    PAYMENT_FAILED,
-    PAYMENT_SUCCEEDED,
-    notify_user,
-)
+from app.services.email_service import PAYMENT_FAILED, PAYMENT_SUCCEEDED, notify_user
 from app.services.payment_service import verify_webhook_signature
+from app.services.receipt_service import ensure_receipt
+from app.services.withdrawal_service import handle_transfer_webhook
 
 
 class WebhookVerificationError(Exception):
@@ -38,13 +43,21 @@ async def handle_paystack_webhook(
     signature_header: str | None,
     event: str,
     data: dict,
-) -> Transaction | None:
+):
     if not verify_webhook_signature(raw_body, signature_header):
         raise WebhookVerificationError("Invalid Paystack webhook signature")
 
     reference = data.get("reference")
     if not reference:
         return None
+
+    # FEAT-045: transfer.success/transfer.failed are withdrawal-fulfillment
+    # events, not charge events -- distinct handling path (WithdrawalRequest,
+    # not Transaction), routed to withdrawal_service rather than the
+    # charge.success/else branching below.
+    if event in ("transfer.success", "transfer.failed"):
+        async with session.begin():
+            return await handle_transfer_webhook(session, event=event, reference=reference)
 
     result = await session.execute(
         select(Transaction)
@@ -56,25 +69,31 @@ async def handle_paystack_webhook(
         return None
 
     # Idempotent: a webhook may be delivered more than once by Paystack.
-    if txn.status in ("succeeded", "failed", "refunded"):
+    if txn.status in ("payment_received", "released_to_wallet", "failed", "refunded"):
         return txn
 
     if event == "charge.success" and data.get("status") == "success":
-        rate = await get_effective_rate(session, txn.transaction_type, as_of=txn.created_at)
-        commission_amount, net_payout_amount = compute_breakdown(txn.gross_amount, rate)
-        txn.status = "succeeded"
+        # Two-sided commission model (product decision): gross_amount/
+        # commission_amount/net_payout_amount are already final, snapshotted
+        # at hold-creation time (booking_service.confirm_booking) -- the
+        # charge amount itself had to include the buyer fee before checkout
+        # could even initiate the Paystack transaction, so recomputing the
+        # breakdown here (the old single-rate model's behavior) would be
+        # both redundant and wrong (it would ignore listing_price/
+        # buyer_fee_amount entirely). This handler only flips status/paid_at.
+        txn.status = "payment_received"
         txn.paid_at = datetime.now(UTC)
-        txn.commission_amount = commission_amount
-        txn.net_payout_amount = net_payout_amount
         session.add(txn)
-
-        receipt = Receipt(
-            transaction_id=txn.id,
-            receipt_number=f"RCPT-{txn.id[:8].upper()}",
-            pdf_url="",  # TODO(payments): generate/store real receipt PDF in S3
-        )
-        session.add(receipt)
         await session.commit()
+
+        # Upgrades the hold-confirmation PDF `bookings.py` generated when
+        # this transaction was first created into a full payment receipt
+        # (same Receipt row, now-final commission breakdown) -- called
+        # AFTER the commit above so the PDF reflects the just-committed
+        # payment_received/paid_at/commission values, not values about to
+        # be rolled back if this function raised before reaching here. See
+        # receipt_service.py's module docstring.
+        await ensure_receipt(session, txn)
 
         payment_success_context = {
             "transaction_id": txn.id,
@@ -82,32 +101,24 @@ async def handle_paystack_webhook(
             "commission_amount": txn.commission_amount,
             "net_payout_amount": txn.net_payout_amount,
         }
+        # Only the PAYER is notified here -- the money hasn't gone
+        # anywhere yet as far as the payee is concerned (it's sitting in
+        # De-Duke's own settlement account as escrow, per schema.md's
+        # Escrow model). The payee's own notification
+        # (HOST_PAYOUT_SUMMARY) now fires from wallet_service.py's
+        # `release_transaction`, at the point a De-Duke Admin actually
+        # releases funds to their Wallet (FEAT-043) -- see this module's
+        # docstring for why sending it here would be actively misleading.
         await notify_user(
             session,
             user_id=txn.payer_id,
             template=PAYMENT_SUCCEEDED,
             context=payment_success_context,
         )
-        # FEAT-022: push shares this trigger event with email -- see
-        # bookings.py's identical comment for the shared rationale. Only
-        # the payer's PAYMENT_SUCCEEDED gets a push, not the host's payout
-        # summary -- FEAT-022's AC scope is "payment success/failure" from
-        # the payer's perspective, not the payout-summary detail email is
-        # the durable record for (FEAT-024's own, email-specific AC).
         await push_service.notify_user(
             session,
             user_id=txn.payer_id,
             template=push_service.PAYMENT_SUCCEEDED,
-            context=payment_success_context,
-        )
-        # FEAT-024 AC: "Host receives an email payout summary (gross,
-        # commission, net) when a transaction involving their listing
-        # completes." payee_id is the host being paid out (payer_id is the
-        # seeker who paid) -- see Transaction.payerId/payeeId in schema.md.
-        await notify_user(
-            session,
-            user_id=txn.payee_id,
-            template=HOST_PAYOUT_SUMMARY,
             context=payment_success_context,
         )
         # FEAT-028: no raw payment gateway details (no

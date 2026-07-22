@@ -53,3 +53,17 @@ variable "cdn_acm_certificate_arn" {
   type        = string
   default     = ""
 }
+
+# CNAME target Vercel gives for admin.de-duke.com -- unique per Vercel
+# project, no shared default. Set via TF_VERCEL_CNAME_TARGET.
+variable "vercel_cname_target" {
+  description = "CNAME target Vercel gives for admin.de-duke.com."
+  type        = string
+  default     = ""
+}
+
+variable "vercel_apex_ips" {
+  description = "IP address(es) Vercel gives for the Marketing Site's bare de-duke.com apex (A record, not CNAME)."
+  type        = list(string)
+  default     = ["76.76.21.21"]
+}

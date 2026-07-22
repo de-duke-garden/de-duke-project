@@ -13,4 +13,7 @@ locals {
   domain_name = "de-duke.com"
   api_fqdn    = "api.${local.domain_name}"
   cdn_fqdn    = "cdn.${local.domain_name}"
+
+  admin_fqdn     = "admin.${local.domain_name}"
+  marketing_fqdn = local.domain_name
 }

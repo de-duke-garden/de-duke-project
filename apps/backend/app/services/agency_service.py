@@ -35,8 +35,12 @@ from app.schemas.agency import (
 
 # Transaction.status values that represent a closed deal for time-to-close
 # purposes -- mirrors dispute_service.py's own reuse of Transaction.status
-# string values rather than inventing a parallel enum.
-_CLOSED_TRANSACTION_STATUSES = ("succeeded",)
+# string values rather than inventing a parallel enum. A closed deal is
+# "the guest paid," not "De-Duke has released funds to the host" -- both
+# payment_received (escrow) and released_to_wallet count, since the escrow
+# model (schema.md) only changes *when the payee is credited*, not whether
+# the deal itself closed.
+_CLOSED_TRANSACTION_STATUSES = ("payment_received", "released_to_wallet")
 
 
 class AgencyError(Exception):

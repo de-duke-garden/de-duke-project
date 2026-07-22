@@ -27,9 +27,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
-import '../../../core/theme/app_shadows.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/badge_pop.dart';
@@ -318,10 +317,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
         top: false,
         bottom: false,
@@ -331,14 +328,13 @@ class _AuthScreenState extends State<AuthScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _HeroSection(opacity: _heroOpacity, isDark: isDark),
+                _HeroSection(opacity: _heroOpacity),
                 Transform.translate(
                   offset: const Offset(0, -AppSpacing.lg),
                   child: Padding(
                     padding:
                         const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                     child: _AuthCard(
-                      isDark: isDark,
                       phase: _phase,
                       errorMessage: _errorMessage,
                       mode: _mode,
@@ -377,9 +373,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: Text(
                     'By continuing you agree to our Terms of Service and Privacy Policy.',
                     style: AppTypography.bodySmall.copyWith(
-                      color: isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondary,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -398,13 +392,13 @@ class _AuthScreenState extends State<AuthScreen> {
 /// placement), holding the onboarding-tier illustration + wordmark
 /// lockup + tagline.
 class _HeroSection extends StatelessWidget {
-  const _HeroSection({required this.opacity, required this.isDark});
+  const _HeroSection({required this.opacity});
 
   final double opacity;
-  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(
@@ -413,9 +407,7 @@ class _HeroSection extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: isDark
-              ? [AppColors.surfaceDark, AppColors.primaryLightDark]
-              : [AppColors.surface, AppColors.primaryLight],
+          colors: [colorScheme.surface, colorScheme.primaryContainer],
         ),
       ),
       child: AnimatedOpacity(
@@ -430,9 +422,7 @@ class _HeroSection extends StatelessWidget {
               'Verified property. Real conversations. Deals that close.',
               textAlign: TextAlign.center,
               style: AppTypography.body.copyWith(
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondary,
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -448,7 +438,6 @@ class _HeroSection extends StatelessWidget {
 /// edge.
 class _AuthCard extends StatelessWidget {
   const _AuthCard({
-    required this.isDark,
     required this.phase,
     required this.errorMessage,
     required this.mode,
@@ -470,7 +459,6 @@ class _AuthCard extends StatelessWidget {
     required this.onHaveInviteLink,
   });
 
-  final bool isDark;
   final _Phase phase;
   final String? errorMessage;
   final _Mode mode;
@@ -493,15 +481,16 @@ class _AuthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = (isDark ? AppColors.borderDark : AppColors.border)
-        .withValues(alpha: 0.6);
+    final colorScheme = Theme.of(context).colorScheme;
+    final shadows = Theme.of(context).extension<AppSemanticColors>()!;
+    final borderColor = colorScheme.outline.withValues(alpha: 0.6);
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surface,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadii.lg),
         border: Border.all(color: borderColor),
-        boxShadow: AppShadows.of(AppShadows.lg, AppShadows.lgDark, isDark),
+        boxShadow: shadows.shadowLg,
       ),
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
@@ -512,18 +501,13 @@ class _AuthCard extends StatelessWidget {
               icon: Icons.wifi_off,
               message: errorMessage ??
                   "You're offline. Check your connection and try again.",
-              isDark: isDark,
             ),
           if (phase == _Phase.error && errorMessage != null)
-            _Banner(
-                icon: Icons.error_outline,
-                message: errorMessage!,
-                isDark: isDark),
+            _Banner(icon: Icons.error_outline, message: errorMessage!),
           if (phase == _Phase.accountDeactivated && errorMessage != null)
             _Banner(
               icon: Icons.block,
               message: errorMessage!,
-              isDark: isDark,
               retryable: false,
             ),
           // -- "Continue with Google" -- first and most prominent action,
@@ -547,10 +531,9 @@ class _AuthCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          _DividerRow(isDark: isDark),
+          const _DividerRow(),
           const SizedBox(height: AppSpacing.md),
-          _MethodToggle(
-              method: method, isDark: isDark, onSwitch: onSwitchMethod),
+          _MethodToggle(method: method, onSwitch: onSwitchMethod),
           const SizedBox(height: AppSpacing.md),
           // AnimatedSwitcher alone only crossfades -- the surrounding
           // Column still jumps straight to the new child's height the
@@ -576,8 +559,7 @@ class _AuthCard extends StatelessWidget {
                         // on (see AuthRepository's module docstring), so
                         // this toggle is hidden entirely when Phone is
                         // selected rather than shown-but-inert.
-                        _ModeToggle(
-                            mode: mode, isDark: isDark, onSwitch: onSwitchMode),
+                        _ModeToggle(mode: mode, onSwitch: onSwitchMode),
                         const SizedBox(height: AppSpacing.md),
                         _EmailFields(
                           mode: mode,
@@ -653,10 +635,9 @@ class _AuthCard extends StatelessWidget {
 /// itself doesn't need to branch on it (OAuth resolves new-vs-returning
 /// identity on its own).
 class _ModeToggle extends StatelessWidget {
-  const _ModeToggle({required this.mode, required this.isDark, this.onSwitch});
+  const _ModeToggle({required this.mode, this.onSwitch});
 
   final _Mode mode;
-  final bool isDark;
   final void Function(_Mode)? onSwitch;
 
   @override
@@ -675,38 +656,33 @@ class _ModeToggle extends StatelessWidget {
 }
 
 class _DividerRow extends StatelessWidget {
-  const _DividerRow({required this.isDark});
-  final bool isDark;
+  const _DividerRow();
 
   @override
   Widget build(BuildContext context) {
-    final color = isDark ? AppColors.borderDark : AppColors.border;
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Expanded(child: Divider(color: color)),
+        Expanded(child: Divider(color: colorScheme.outline)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
           child: Text(
             'or',
             style: AppTypography.caption.copyWith(
-              color: isDark
-                  ? AppColors.textSecondaryDark
-                  : AppColors.textSecondary,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
         ),
-        Expanded(child: Divider(color: color)),
+        Expanded(child: Divider(color: colorScheme.outline)),
       ],
     );
   }
 }
 
 class _MethodToggle extends StatelessWidget {
-  const _MethodToggle(
-      {required this.method, required this.isDark, this.onSwitch});
+  const _MethodToggle({required this.method, this.onSwitch});
 
   final _Method method;
-  final bool isDark;
   final void Function(_Method)? onSwitch;
 
   @override
@@ -875,20 +851,17 @@ class _Banner extends StatelessWidget {
   const _Banner({
     required this.icon,
     required this.message,
-    required this.isDark,
     this.retryable = true,
   });
 
   final IconData icon;
   final String message;
-  final bool isDark;
   final bool retryable;
 
   @override
   Widget build(BuildContext context) {
-    final color = retryable
-        ? AppColors.error
-        : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondary);
+    final colorScheme = Theme.of(context).colorScheme;
+    final color = retryable ? colorScheme.error : colorScheme.onSurfaceVariant;
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.all(AppSpacing.sm),
@@ -905,8 +878,7 @@ class _Banner extends StatelessWidget {
             child: Text(
               message,
               style: AppTypography.bodySmall.copyWith(
-                color:
-                    isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                color: colorScheme.onSurface,
               ),
             ),
           ),

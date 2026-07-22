@@ -275,7 +275,7 @@ async def update_role(
     Additionally refuses the call entirely for a caller who is ALREADY
     deduke_staff/deduke_admin -- those accounts don't go through
     self-service role selection at all (they're created via invite/CLI
-    bootstrap, FEAT-033), and a staff member self-demoting to "seeker"
+    bootstrap, FEAT-033), and a staff member self-demoting to "guest"
     through this endpoint would be a real, unintended privilege change,
     not a normal product-experience choice.
 

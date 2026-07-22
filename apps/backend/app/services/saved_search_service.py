@@ -1,7 +1,7 @@
 """Business logic for Saved Searches & Listing Alerts -- FEAT-023.
 
 Two responsibilities live here:
-1. CRUD for a seeker's own `SavedSearch` rows (backs Screen 20 + Screen 5's
+1. CRUD for a guest's own `SavedSearch` rows (backs Screen 20 + Screen 5's
    "Save this search" exit point).
 2. The pure matching predicate (`listing_matches_saved_search`) used by
    `app/workers/saved_search_alert_job.py` to decide whether a newly
@@ -74,7 +74,7 @@ async def get_owned_saved_search(
     session: AsyncSession, *, user_id: str, saved_search_id: str
 ) -> SavedSearch:
     """Fetches a saved search, enforcing ownership server-side (AGENTS.md:
-    "Enforce role/permission checks server-side") -- a seeker may only
+    "Enforce role/permission checks server-side") -- a guest may only
     view/edit/delete their own saved searches, never another user's by ID
     guessing. Raises 404 (not 403) for both "doesn't exist" and "exists but
     isn't yours" so the response doesn't leak which IDs are valid."""

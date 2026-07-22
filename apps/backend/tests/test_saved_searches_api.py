@@ -31,7 +31,7 @@ def _register_and_login(client: TestClient, email: str) -> str:
     """FEAT-001: consumer sign-in is Firebase-only now -- see
     tests.conftest.mock_firebase_verify for why this fakes an ID-token
     exchange instead of a backend-hosted register endpoint."""
-    with mock_firebase_verify(uid=f"uid-{email}", email=email, name="Test Seeker"):
+    with mock_firebase_verify(uid=f"uid-{email}", email=email, name="Test Guest"):
         response = client.post("/v1/auth/firebase-exchange", json={"id_token": "fake-token"})
     return response.json()["access_token"]
 
@@ -41,7 +41,7 @@ def _auth_headers(token: str) -> dict[str, str]:
 
 
 def test_create_and_list_saved_search(client: TestClient) -> None:
-    token = _register_and_login(client, "seeker1@example.com")
+    token = _register_and_login(client, "guest1@example.com")
 
     create_response = client.post(
         "/v1/searches/saved",
@@ -69,8 +69,8 @@ def test_create_and_list_saved_search(client: TestClient) -> None:
 
 
 def test_list_saved_searches_is_scoped_to_current_user(client: TestClient) -> None:
-    token_a = _register_and_login(client, "seeker-a@example.com")
-    token_b = _register_and_login(client, "seeker-b@example.com")
+    token_a = _register_and_login(client, "guest-a@example.com")
+    token_b = _register_and_login(client, "guest-b@example.com")
 
     client.post(
         "/v1/searches/saved",
@@ -85,7 +85,7 @@ def test_list_saved_searches_is_scoped_to_current_user(client: TestClient) -> No
 
 def test_toggle_alerts_switch_via_patch(client: TestClient) -> None:
     """Screen 20's alert `Switch` PATCHes just `alerts_enabled`."""
-    token = _register_and_login(client, "seeker2@example.com")
+    token = _register_and_login(client, "guest2@example.com")
     created = client.post(
         "/v1/searches/saved",
         headers=_auth_headers(token),
@@ -109,7 +109,7 @@ def test_toggle_alerts_switch_via_patch(client: TestClient) -> None:
 
 
 def test_edit_filters_via_patch(client: TestClient) -> None:
-    token = _register_and_login(client, "seeker3@example.com")
+    token = _register_and_login(client, "guest3@example.com")
     created = client.post(
         "/v1/searches/saved",
         headers=_auth_headers(token),
@@ -133,7 +133,7 @@ def test_edit_filters_via_patch(client: TestClient) -> None:
 
 
 def test_delete_saved_search(client: TestClient) -> None:
-    token = _register_and_login(client, "seeker4@example.com")
+    token = _register_and_login(client, "guest4@example.com")
     created = client.post(
         "/v1/searches/saved",
         headers=_auth_headers(token),
@@ -150,8 +150,8 @@ def test_delete_saved_search(client: TestClient) -> None:
 
 
 def test_cannot_edit_or_delete_another_users_saved_search(client: TestClient) -> None:
-    token_a = _register_and_login(client, "seeker-c@example.com")
-    token_b = _register_and_login(client, "seeker-d@example.com")
+    token_a = _register_and_login(client, "guest-c@example.com")
+    token_b = _register_and_login(client, "guest-d@example.com")
 
     created = client.post(
         "/v1/searches/saved",
@@ -181,7 +181,7 @@ def test_create_requires_authentication(client: TestClient) -> None:
 
 
 def test_create_geocodes_location_query(client: TestClient, _fake_geocoding) -> None:
-    token = _register_and_login(client, "seeker5@example.com")
+    token = _register_and_login(client, "guest5@example.com")
 
     response = client.post(
         "/v1/searches/saved",
@@ -194,7 +194,7 @@ def test_create_geocodes_location_query(client: TestClient, _fake_geocoding) -> 
 
 
 def test_editing_location_query_re_geocodes(client: TestClient, _fake_geocoding) -> None:
-    token = _register_and_login(client, "seeker6@example.com")
+    token = _register_and_login(client, "guest6@example.com")
     created = client.post(
         "/v1/searches/saved",
         headers=_auth_headers(token),
@@ -214,7 +214,7 @@ def test_editing_location_query_re_geocodes(client: TestClient, _fake_geocoding)
 def test_editing_without_changing_location_query_does_not_re_geocode(
     client: TestClient, _fake_geocoding
 ) -> None:
-    token = _register_and_login(client, "seeker7@example.com")
+    token = _register_and_login(client, "guest7@example.com")
     created = client.post(
         "/v1/searches/saved",
         headers=_auth_headers(token),
@@ -235,7 +235,7 @@ def test_create_degrades_gracefully_when_geocoding_fails(client: TestClient) -> 
     """A Google Geocoding outage/unconfigured key must never block saving a
     search -- geocode_address returning None just leaves the coordinates
     null (degraded substring-matching path)."""
-    token = _register_and_login(client, "seeker8@example.com")
+    token = _register_and_login(client, "guest8@example.com")
 
     with patch("app.services.saved_search_service.geocode_address", AsyncMock(return_value=None)):
         response = client.post(

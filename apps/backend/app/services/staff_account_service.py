@@ -41,7 +41,7 @@ class AccountNotFoundError(StaffAccountError):
 
 class InvalidAccountRoleError(StaffAccountError):
     """Raised when an action is attempted against an account that is not a
-    staff/admin account (e.g. targeting a seeker/host account)."""
+    staff/admin account (e.g. targeting a guest/host account)."""
 
 
 class LastActiveAdminError(StaffAccountError):

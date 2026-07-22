@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { getAdminSession } from "@/lib/auth";
 import { DisputesClient } from "@/components/disputes/DisputesClient";
 
@@ -29,7 +31,11 @@ export default async function DisputesPage() {
         Payment disputes and refund requests raised against real transactions.
       </p>
       <div className="mt-lg">
-        <DisputesClient />
+        {/* useSearchParams (reading ?listing_id= from a property detail
+            page deep link) requires a Suspense boundary in the App Router. */}
+        <Suspense fallback={null}>
+          <DisputesClient />
+        </Suspense>
       </div>
     </main>
   );

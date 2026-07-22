@@ -31,7 +31,7 @@ class DisputeCreateRequest(BaseModel):
 class DisputeOut(BaseModel):
     """Returned to the mobile client after raising a dispute -- just
     enough to confirm what was recorded, not the full admin-facing shape
-    (no assignment/resolution fields a seeker/host has no reason to see
+    (no assignment/resolution fields a guest/host has no reason to see
     here; they'd learn the outcome via DISPUTE_RESOLVED push/email)."""
 
     id: str
@@ -44,6 +44,10 @@ class DisputeOut(BaseModel):
 class DisputeListItemOut(BaseModel):
     id: str
     transaction_id: str
+    # Denormalized from the linked Transaction -- lets the Disputes table
+    # link straight to the property detail page (/properties/:id) without
+    # a second round-trip per row.
+    listing_id: str | None
     raised_by_id: str
     raised_by_name: str
     reason: str
@@ -58,7 +62,6 @@ class DisputeDetailOut(DisputeListItemOut):
     resolution_notes: str | None
     refund_amount: float | None
     resolved_at: datetime | None
-    listing_id: str
     transaction_gross_amount: float
     transaction_status: str
 

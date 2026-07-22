@@ -164,7 +164,11 @@ async def booking_hold_stats(session: AsyncSession) -> dict[str, Any]:
     rows = dict((await session.execute(stmt)).all())
 
     total_holds = sum(rows.values())
-    succeeded = rows.get("succeeded", 0)
+    # A hold that converted to payment is 'payment_received' or, once a
+    # De-Duke Admin has released its funds, 'released_to_wallet'
+    # (schema.md's escrow model) -- both count as "paid" for conversion
+    # purposes; only whether the payee has been credited yet differs.
+    succeeded = rows.get("payment_received", 0) + rows.get("released_to_wallet", 0)
     expired = rows.get("expired", 0)
 
     return {

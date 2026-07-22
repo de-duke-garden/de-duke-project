@@ -137,12 +137,12 @@ class UpdateNotificationPreferencesRequest(BaseModel):
     payments: bool | None = None
 
 
-# FEAT-003 (Role Selection) -- the four self-service values a user may set
+# FEAT-003 (Role Selection) -- the three self-service values a user may set
 # on themselves. Deliberately a closed set, NOT the full UserRole enum --
 # self-service callers must never be able to set deduke_staff/deduke_admin
 # on their own account (those are internal-only, see
 # app.core.security.UserRole's docstring and FEAT-033).
-SELF_SERVICE_ROLES = ("seeker", "individual_host", "agency", "corporate")
+SELF_SERVICE_ROLES = ("guest", "host", "agency")
 
 
 class UpdateRoleRequest(BaseModel):
@@ -174,7 +174,7 @@ class AuthTokenResponse(BaseModel):
     # True only for POST /firebase-exchange's first-ever sign-in for a given
     # Firebase identity (see auth_service.exchange_firebase_token's
     # docstring for why the client can't safely infer this from `role`
-    # alone -- a returning user can still legitimately be role "seeker").
+    # alone -- a returning user can still legitimately be role "guest").
     # Always False for login/refresh/accept-invite, which by construction
     # only ever resolve an existing account. FEAT-001 AC: routes a
     # first-time sign-in to Role Selection, a returning identity to Home

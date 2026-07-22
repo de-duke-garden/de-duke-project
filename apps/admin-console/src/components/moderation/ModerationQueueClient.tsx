@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+
 import { ModerationDecisionDialog } from "./ModerationDecisionDialog";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { ResolvingRow } from "@/components/ui/ResolvingRow";
@@ -12,8 +15,9 @@ const API_BASE_URL = "/api/backend/v1";
 
 type LoadState = "loading" | "loaded" | "empty" | "error";
 
-async function fetchQueue(): Promise<ModerationQueueItem[]> {
-  const response = await fetch(`${API_BASE_URL}/moderation/queue`);
+async function fetchQueue(listingId: string | null): Promise<ModerationQueueItem[]> {
+  const query = listingId ? `?listing_id=${listingId}` : "";
+  const response = await fetch(`${API_BASE_URL}/moderation/queue${query}`);
   if (!response.ok) {
     throw new Error(`Failed to load moderation queue (${response.status})`);
   }
@@ -45,6 +49,9 @@ async function submitDecision(
  * under_review/flagged listings first (see moderation_service.py), and
  * requires a reason for every approve/ban decision. */
 export function ModerationQueueClient() {
+  const searchParams = useSearchParams();
+  const listingIdFilter = searchParams.get("listing_id");
+
   const [state, setState] = useState<LoadState>("loading");
   const [items, setItems] = useState<ModerationQueueItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -57,14 +64,14 @@ export function ModerationQueueClient() {
   const load = useCallback(async () => {
     setState("loading");
     try {
-      const data = await fetchQueue();
+      const data = await fetchQueue(listingIdFilter);
       setItems(data);
       setState(data.length === 0 ? "empty" : "loaded");
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : "Something went wrong.");
       setState("error");
     }
-  }, []);
+  }, [listingIdFilter]);
 
   useEffect(() => {
     void load();
@@ -96,7 +103,7 @@ export function ModerationQueueClient() {
   }
 
   if (state === "loading") {
-    return <TableSkeleton rows={6} columns={6} />;
+    return <TableSkeleton rows={6} columns={7} />;
   }
 
   if (state === "error") {
@@ -124,14 +131,24 @@ export function ModerationQueueClient() {
 
   return (
     <>
-      {/* Responsive: a table this wide (6 columns) overflows narrow
+      {listingIdFilter && (
+        <div className="mb-md rounded-md border border-primary bg-primary/5 p-sm text-sm">
+          Showing the moderation queue for property {listingIdFilter}.{" "}
+          <Link href="/moderation-queue" className="underline">
+            Clear filter
+          </Link>
+        </div>
+      )}
+
+      {/* Responsive: a table this wide (7 columns) overflows narrow
           viewports -- scrolls horizontally within its own container
           instead of forcing the whole page wider than the viewport. */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] border-collapse text-sm">
+        <table className="w-full min-w-[820px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-text-secondary">
               <th className="py-sm pr-md">Item</th>
+              <th className="py-sm pr-md">Property</th>
               <th className="py-sm pr-md">Type</th>
               <th className="py-sm pr-md">Host type</th>
               <th className="py-sm pr-md">Status</th>
@@ -191,6 +208,15 @@ export function ModerationQueueClient() {
                           </p>
                         )}
                       </div>
+                    )}
+                  </td>
+                  <td className="py-sm pr-md">
+                    {item.listing_id ? (
+                      <Link href={`/properties/${item.listing_id}`} className="underline">
+                        View property
+                      </Link>
+                    ) : (
+                      "--"
                     )}
                   </td>
                   <td className="py-sm pr-md capitalize">

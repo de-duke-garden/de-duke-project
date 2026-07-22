@@ -10,6 +10,14 @@
 # matrix entry); see that file's header for the full list, including why
 # TF_STATE_BUCKET_REGION and AWS_REGION are two separate variables.
 #
+# Two additional Variables, used by modules/dns for the Vercel-hosted
+# Admin Web Console + Marketing Site's DNS records -- see infra/README.md's
+# "DNS & certificates" section:
+#   TF_VERCEL_CNAME_TARGET - required, unique per Vercel project (no
+#                            default -- get it from the Vercel dashboard)
+#   TF_VERCEL_APEX_IPS     - HCL list literal, e.g. ["76.76.21.21"];
+#                            defaults to Vercel's standard apex IP if unset
+#
 # Environment matrix
 # -------------------
 # All three environments are scaffolded with real .tf files (see
@@ -93,12 +101,21 @@ jobs:
         run: terraform validate
 
       - name: terraform plan
+        # vercel_apex_ips is a list(string) with a non-empty default -- an
+        # unset TF_VERCEL_APEX_IPS would render as "", which can't parse
+        # as a list, so it's only passed when actually set.
         run: |
+          VERCEL_ARGS=()
+          if [ -n "${{ vars.TF_VERCEL_APEX_IPS }}" ]; then
+            VERCEL_ARGS+=(-var="vercel_apex_ips=${{ vars.TF_VERCEL_APEX_IPS }}")
+          fi
           terraform plan \
             -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
             -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
             -var="cdn_acm_certificate_arn=${{ vars.TF_CDN_ACM_CERTIFICATE_ARN }}" \
+            -var="vercel_cname_target=${{ vars.TF_VERCEL_CNAME_TARGET }}" \
+            "${VERCEL_ARGS[@]}" \
             -var="image_tag=${{ steps.current-tag.outputs.value }}" \
             -out=tfplan
 
@@ -171,12 +188,20 @@ jobs:
 
       - name: terraform plan
         if: steps.filter.outputs.backend == 'false'
+        # See the plan-preview job's identical step for why vercel_apex_ips
+        # is conditionally passed.
         run: |
+          VERCEL_ARGS=()
+          if [ -n "${{ vars.TF_VERCEL_APEX_IPS }}" ]; then
+            VERCEL_ARGS+=(-var="vercel_apex_ips=${{ vars.TF_VERCEL_APEX_IPS }}")
+          fi
           terraform plan \
             -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
             -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
             -var="cdn_acm_certificate_arn=${{ vars.TF_CDN_ACM_CERTIFICATE_ARN }}" \
+            -var="vercel_cname_target=${{ vars.TF_VERCEL_CNAME_TARGET }}" \
+            "${VERCEL_ARGS[@]}" \
             -var="image_tag=${{ steps.current-tag.outputs.value }}" \
             -out=tfplan
 

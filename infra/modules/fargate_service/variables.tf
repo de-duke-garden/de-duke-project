@@ -45,6 +45,19 @@ variable "db_proxy_role_arn" { type = string }
 variable "media_bucket_name" { type = string }
 variable "media_cdn_domain" { type = string }
 
+# Plain env var, not a secret -- checkout's Paystack `email` fallback for
+# accounts with no email on file (Firebase phone/OTP sign-in never
+# collects one; see app/api/v1/checkout.py's `initiate_checkout` and
+# app/core/config.py's Settings.paystack_fallback_email). Defaulted so no
+# environment's main.tf needs to set this explicitly, but still a real
+# Terraform variable -- overridable per environment (or via a
+# workflow_dispatch input / repo variable feeding `-var`) without any app
+# code change or redeploy of a new image.
+variable "paystack_fallback_email" {
+  type    = string
+  default = "info@de-duke.com"
+}
+
 # module.cache's primary_endpoint output (infra/modules/redis/outputs.tf) --
 # threaded through so this module can set REDIS_URL in the container's
 # environment. See this module's main.tf REDIS_URL comment for why this

@@ -33,7 +33,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8
 /**
  * Reads the session cookie (if any) and resolves it against the backend.
  * Returns null if there is no cookie, the token is invalid/expired, or the
- * account's role is not deduke_staff/deduke_admin (e.g. a seeker/host
+ * account's role is not deduke_staff/deduke_admin (e.g. a guest/host
  * token should never grant access to this console, even if somehow
  * presented here).
  */

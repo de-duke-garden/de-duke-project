@@ -22,10 +22,9 @@ from app.services import chat_service as svc
 
 
 def test_chat_role_for_maps_all_roles() -> None:
-    assert svc.chat_role_for(UserRole.SEEKER) == "client"
-    assert svc.chat_role_for(UserRole.INDIVIDUAL_HOST) == "property_management"
+    assert svc.chat_role_for(UserRole.GUEST) == "client"
+    assert svc.chat_role_for(UserRole.HOST) == "property_management"
     assert svc.chat_role_for(UserRole.AGENCY) == "property_management"
-    assert svc.chat_role_for(UserRole.CORPORATE) == "property_management"
     assert svc.chat_role_for(UserRole.DEDUKE_STAFF) == "deduke_staff"
     assert svc.chat_role_for(UserRole.DEDUKE_ADMIN) == "deduke_staff"
 
@@ -46,7 +45,7 @@ def test_issue_custom_token_raises_when_unconfigured() -> None:
         patch.object(svc, "_is_configured", return_value=False),
         pytest.raises(svc.ChatServiceUnavailableError),
     ):
-        svc.issue_custom_token(uid="user-1", role=UserRole.SEEKER)
+        svc.issue_custom_token(uid="user-1", role=UserRole.GUEST)
 
 
 def test_issue_custom_token_calls_admin_sdk_with_role_claim() -> None:
@@ -190,7 +189,7 @@ def _clear_overrides():
 def test_issue_chat_token_endpoint_returns_503_when_unconfigured(client: TestClient) -> None:
     # Same rationale as test_issue_custom_token_raises_when_unconfigured above
     # -- force-patch _is_configured rather than trust ambient .env state.
-    _override_current_user(UserRole.SEEKER)
+    _override_current_user(UserRole.GUEST)
     svc._firebase_app = None
 
     with patch.object(svc, "_is_configured", return_value=False):
@@ -200,7 +199,7 @@ def test_issue_chat_token_endpoint_returns_503_when_unconfigured(client: TestCli
 
 
 def test_issue_chat_token_endpoint_success(client: TestClient) -> None:
-    _override_current_user(UserRole.SEEKER)
+    _override_current_user(UserRole.GUEST)
 
     with patch.object(svc, "issue_custom_token", return_value="signed-token"):
         response = client.post("/v1/chat/token")
@@ -213,7 +212,7 @@ def test_issue_chat_token_endpoint_success(client: TestClient) -> None:
 
 
 def test_start_conversation_endpoint_404_for_missing_listing(client: TestClient) -> None:
-    _override_current_user(UserRole.SEEKER)
+    _override_current_user(UserRole.GUEST)
 
     async def fake_create_conversation(*args, **kwargs):  # noqa: ANN002, ANN003
         raise svc.ListingNotFoundError("Listing missing-listing not found")
@@ -226,9 +225,9 @@ def test_start_conversation_endpoint_404_for_missing_listing(client: TestClient)
 
 def test_resolve_chat_user_names_endpoint_requires_staff(client: TestClient) -> None:
     """Chat Oversight (screens.md Screen 22) is staff/admin-only, same as
-    Firestore's own isStaff() rule -- a seeker requesting other users'
+    Firestore's own isStaff() rule -- a guest requesting other users'
     names must get a 403, not a leaked directory."""
-    _override_current_user(UserRole.SEEKER)
+    _override_current_user(UserRole.GUEST)
 
     response = client.get("/v1/chat/users", params={"ids": "user-1,user-2"})
 
@@ -260,7 +259,7 @@ def test_start_conversation_endpoint_success(client: TestClient) -> None:
 
     from app.firestore_models import ChatConversation
 
-    _override_current_user(UserRole.SEEKER)
+    _override_current_user(UserRole.GUEST)
 
     conversation = ChatConversation(
         id="conv-1",
@@ -300,9 +299,9 @@ async def test_sync_consumer_claims_sets_deduke_user_id_and_role_on_firebase_acc
     from app.models.user import User
 
     user = User(
-        full_name="Amaka Seeker",
+        full_name="Amaka Guest",
         email="amaka-claims@example.com",
-        role="seeker",
+        role="guest",
         auth_provider="firebase",
         firebase_uid="firebase-uid-amaka",
     )
@@ -356,7 +355,7 @@ async def test_sync_consumer_claims_no_op_when_user_not_found(session) -> None:
 
 
 def test_sync_chat_claims_endpoint_returns_204(client: TestClient) -> None:
-    _override_current_user(UserRole.SEEKER)
+    _override_current_user(UserRole.GUEST)
 
     with patch.object(svc, "sync_consumer_claims", AsyncMock(return_value=None)):
         response = client.post("/v1/chat/sync-claims")
@@ -365,7 +364,7 @@ def test_sync_chat_claims_endpoint_returns_204(client: TestClient) -> None:
 
 
 def test_sync_chat_claims_endpoint_returns_503_when_unconfigured(client: TestClient) -> None:
-    _override_current_user(UserRole.SEEKER)
+    _override_current_user(UserRole.GUEST)
 
     with patch.object(
         svc, "sync_consumer_claims", AsyncMock(side_effect=svc.ChatServiceUnavailableError("nope"))

@@ -77,7 +77,7 @@ async def _make_transaction(
         "commission_amount": 5_000.0,
         "net_payout_amount": 45_000.0,
         "payment_processor_reference": f"ref-{uuid.uuid4()}",
-        "status": "succeeded",
+        "status": "payment_received",
     }
     defaults.update(overrides)
     txn = Transaction(**defaults)
@@ -103,43 +103,43 @@ def _stub_notifications():
 
 
 async def test_create_dispute_success(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
+    txn = await _make_transaction(session, payer=guest, payee=host)
 
     dispute = await dispute_service.create_dispute(
         session,
         transaction_id=txn.id,
-        raised_by_id=seeker.id,
+        raised_by_id=guest.id,
         reason="incorrect_charge",
         description="I was charged twice for the same booking.",
     )
 
     assert dispute.status == "open"
     assert dispute.transaction_id == txn.id
-    assert dispute.raised_by_id == seeker.id
+    assert dispute.raised_by_id == guest.id
 
 
 async def test_create_dispute_rejects_invalid_reason(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
+    txn = await _make_transaction(session, payer=guest, payee=host)
 
     with pytest.raises(dispute_service.DisputeError, match="reason must be one of"):
         await dispute_service.create_dispute(
             session,
             transaction_id=txn.id,
-            raised_by_id=seeker.id,
+            raised_by_id=guest.id,
             reason="not_a_real_reason",
             description="...",
         )
 
 
 async def test_create_dispute_rejects_non_participant(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
-    bystander = await _make_user(session, role="seeker")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
+    bystander = await _make_user(session, role="guest")
+    txn = await _make_transaction(session, payer=guest, payee=host)
 
     with pytest.raises(dispute_service.DisputeError, match="your own transaction"):
         await dispute_service.create_dispute(
@@ -152,13 +152,13 @@ async def test_create_dispute_rejects_non_participant(session: AsyncSession) -> 
 
 
 async def test_create_dispute_rejects_unknown_transaction(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+    guest = await _make_user(session, role="guest")
 
     with pytest.raises(dispute_service.DisputeError, match="Transaction not found"):
         await dispute_service.create_dispute(
             session,
             transaction_id="does-not-exist",
-            raised_by_id=seeker.id,
+            raised_by_id=guest.id,
             reason="other",
             description="...",
         )
@@ -168,18 +168,18 @@ async def test_create_dispute_rejects_unknown_transaction(session: AsyncSession)
 
 
 async def test_list_disputes_filters_by_status(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
+    txn = await _make_transaction(session, payer=guest, payee=host)
 
     open_dispute = await dispute_service.create_dispute(
-        session, transaction_id=txn.id, raised_by_id=seeker.id, reason="other", description="a"
+        session, transaction_id=txn.id, raised_by_id=guest.id, reason="other", description="a"
     )
-    other_txn = await _make_transaction(session, payer=seeker, payee=host)
+    other_txn = await _make_transaction(session, payer=guest, payee=host)
     other_dispute = await dispute_service.create_dispute(
         session,
         transaction_id=other_txn.id,
-        raised_by_id=seeker.id,
+        raised_by_id=guest.id,
         reason="other",
         description="b",
     )
@@ -202,12 +202,12 @@ async def test_list_disputes_filters_by_status(session: AsyncSession) -> None:
 
 
 async def test_assign_dispute_sets_under_review_and_staff(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
     staff = await _make_user(session, role="deduke_staff")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    txn = await _make_transaction(session, payer=guest, payee=host)
     dispute = await dispute_service.create_dispute(
-        session, transaction_id=txn.id, raised_by_id=seeker.id, reason="other", description="x"
+        session, transaction_id=txn.id, raised_by_id=guest.id, reason="other", description="x"
     )
 
     updated = await dispute_service.assign_dispute(
@@ -219,11 +219,11 @@ async def test_assign_dispute_sets_under_review_and_staff(session: AsyncSession)
 
 
 async def test_assign_dispute_rejects_non_staff_target(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
+    txn = await _make_transaction(session, payer=guest, payee=host)
     dispute = await dispute_service.create_dispute(
-        session, transaction_id=txn.id, raised_by_id=seeker.id, reason="other", description="x"
+        session, transaction_id=txn.id, raised_by_id=guest.id, reason="other", description="x"
     )
 
     with pytest.raises(dispute_service.DisputeError, match="Staff or Admin"):
@@ -236,12 +236,12 @@ async def test_assign_dispute_rejects_non_staff_target(session: AsyncSession) ->
 
 
 async def test_resolve_dispute_without_refund(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
     staff = await _make_user(session, role="deduke_staff")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    txn = await _make_transaction(session, payer=guest, payee=host)
     dispute = await dispute_service.create_dispute(
-        session, transaction_id=txn.id, raised_by_id=seeker.id, reason="other", description="x"
+        session, transaction_id=txn.id, raised_by_id=guest.id, reason="other", description="x"
     )
 
     resolved = await dispute_service.resolve_dispute(
@@ -258,20 +258,20 @@ async def test_resolve_dispute_without_refund(session: AsyncSession) -> None:
     assert resolved.refund_amount is None
 
     refreshed_txn = await dispute_service.get_transaction_or_none(session, txn.id)
-    assert refreshed_txn.status == "succeeded"  # untouched
+    assert refreshed_txn.status == "payment_received"  # untouched
 
 
 async def test_resolve_dispute_with_refund_calls_paystack_and_marks_transaction_refunded(
     session: AsyncSession,
 ) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
     staff = await _make_user(session, role="deduke_staff")
-    txn = await _make_transaction(session, payer=seeker, payee=host, gross_amount=20_000.0)
+    txn = await _make_transaction(session, payer=guest, payee=host, gross_amount=20_000.0)
     dispute = await dispute_service.create_dispute(
         session,
         transaction_id=txn.id,
-        raised_by_id=seeker.id,
+        raised_by_id=guest.id,
         reason="property_not_as_described",
         description="x",
     )
@@ -300,12 +300,12 @@ async def test_resolve_dispute_with_refund_calls_paystack_and_marks_transaction_
 
 
 async def test_resolve_dispute_refund_requires_amount(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
     staff = await _make_user(session, role="deduke_staff")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    txn = await _make_transaction(session, payer=guest, payee=host)
     dispute = await dispute_service.create_dispute(
-        session, transaction_id=txn.id, raised_by_id=seeker.id, reason="other", description="x"
+        session, transaction_id=txn.id, raised_by_id=guest.id, reason="other", description="x"
     )
 
     with pytest.raises(dispute_service.DisputeError, match="refund_amount is required"):
@@ -322,12 +322,12 @@ async def test_resolve_dispute_refund_requires_amount(session: AsyncSession) -> 
 async def test_resolve_dispute_paystack_failure_leaves_dispute_open(
     session: AsyncSession,
 ) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
     staff = await _make_user(session, role="deduke_staff")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    txn = await _make_transaction(session, payer=guest, payee=host)
     dispute = await dispute_service.create_dispute(
-        session, transaction_id=txn.id, raised_by_id=seeker.id, reason="other", description="x"
+        session, transaction_id=txn.id, raised_by_id=guest.id, reason="other", description="x"
     )
 
     with patch(
@@ -353,12 +353,12 @@ async def test_resolve_dispute_paystack_failure_leaves_dispute_open(
 
 
 async def test_resolve_already_resolved_dispute_raises(session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
     staff = await _make_user(session, role="deduke_staff")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    txn = await _make_transaction(session, payer=guest, payee=host)
     dispute = await dispute_service.create_dispute(
-        session, transaction_id=txn.id, raised_by_id=seeker.id, reason="other", description="x"
+        session, transaction_id=txn.id, raised_by_id=guest.id, reason="other", description="x"
     )
     await dispute_service.resolve_dispute(
         session,
@@ -400,12 +400,12 @@ def _auth_header(user: User) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def test_seeker_can_raise_dispute_via_api(
+async def test_guest_can_raise_dispute_via_api(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
+    txn = await _make_transaction(session, payer=guest, payee=host)
 
     response = await client.post(
         "/v1/disputes",
@@ -414,35 +414,35 @@ async def test_seeker_can_raise_dispute_via_api(
             "reason": "service_issue",
             "description": "Property management was unresponsive.",
         },
-        headers=_auth_header(seeker),
+        headers=_auth_header(guest),
     )
 
     assert response.status_code == 201
     assert response.json()["status"] == "open"
 
 
-async def test_seeker_cannot_list_disputes(client: AsyncClient, session: AsyncSession) -> None:
-    seeker = await _make_user(session, role="seeker")
+async def test_guest_cannot_list_disputes(client: AsyncClient, session: AsyncSession) -> None:
+    guest = await _make_user(session, role="guest")
 
-    response = await client.get("/v1/disputes", headers=_auth_header(seeker))
+    response = await client.get("/v1/disputes", headers=_auth_header(guest))
 
     assert response.status_code == 403
 
 
-async def test_seeker_cannot_resolve_disputes(
+async def test_guest_cannot_resolve_disputes(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
+    txn = await _make_transaction(session, payer=guest, payee=host)
     dispute = await dispute_service.create_dispute(
-        session, transaction_id=txn.id, raised_by_id=seeker.id, reason="other", description="x"
+        session, transaction_id=txn.id, raised_by_id=guest.id, reason="other", description="x"
     )
 
     response = await client.patch(
         f"/v1/disputes/{dispute.id}/resolve",
         json={"resolution": "resolved_no_refund", "resolution_notes": "n/a"},
-        headers=_auth_header(seeker),
+        headers=_auth_header(guest),
     )
 
     assert response.status_code == 403
@@ -451,12 +451,12 @@ async def test_seeker_cannot_resolve_disputes(
 async def test_staff_can_list_and_resolve_disputes_via_api(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    seeker = await _make_user(session, role="seeker")
-    host = await _make_user(session, role="individual_host")
+    guest = await _make_user(session, role="guest")
+    host = await _make_user(session, role="host")
     staff = await _make_user(session, role="deduke_staff")
-    txn = await _make_transaction(session, payer=seeker, payee=host)
+    txn = await _make_transaction(session, payer=guest, payee=host)
     dispute = await dispute_service.create_dispute(
-        session, transaction_id=txn.id, raised_by_id=seeker.id, reason="other", description="x"
+        session, transaction_id=txn.id, raised_by_id=guest.id, reason="other", description="x"
     )
 
     list_response = await client.get("/v1/disputes", headers=_auth_header(staff))

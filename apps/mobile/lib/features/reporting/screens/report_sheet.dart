@@ -11,7 +11,7 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../data/report_repository.dart';
 
@@ -125,7 +125,7 @@ class _ReportSheetState extends State<_ReportSheet> {
           children: [
             Row(
               children: [
-                const Icon(Icons.flag_outlined, color: AppColors.error),
+                Icon(Icons.flag_outlined, color: Theme.of(context).colorScheme.error),
                 const SizedBox(width: AppSpacing.sm),
                 Text(title, style: Theme.of(context).textTheme.titleLarge),
               ],
@@ -164,12 +164,13 @@ class _ReportSheetState extends State<_ReportSheet> {
               const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [
-                  const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                  Icon(Icons.error_outline,
+                      color: Theme.of(context).colorScheme.error, size: 20),
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Text(
                       _errorMessage ?? 'Something went wrong.',
-                      style: const TextStyle(color: AppColors.error),
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
                     ),
                   ),
                 ],
@@ -177,12 +178,19 @@ class _ReportSheetState extends State<_ReportSheet> {
             ],
             if (_state == _SubmitState.success) ...[
               const SizedBox(height: AppSpacing.sm),
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.check_circle_outline, color: AppColors.success, size: 20),
-                  SizedBox(width: AppSpacing.xs),
+                  Icon(Icons.check_circle_outline,
+                      color: Theme.of(context)
+                          .extension<AppSemanticColors>()!
+                          .success,
+                      size: 20),
+                  const SizedBox(width: AppSpacing.xs),
                   Text("Thanks, we'll review this.",
-                      style: TextStyle(color: AppColors.success)),
+                      style: TextStyle(
+                          color: Theme.of(context)
+                              .extension<AppSemanticColors>()!
+                              .success)),
                 ],
               ),
             ],

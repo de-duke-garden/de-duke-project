@@ -1,6 +1,6 @@
 """Report -- FEAT-009 (In-App Reporting).
 
-A seeker-raised report against either a Listing or a chat conversation
+A guest-raised report against either a Listing or a chat conversation
 (ChatConversation lives in Firestore, not the Primary Database -- see
 app/models/__init__.py's header docstring -- so `target_id` for a
 `conversation` report is a Firestore conversation document id, not an FK;

@@ -9,8 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/badge_pop.dart';
 import '../../../core/widgets/branded_refresh_indicator.dart';
@@ -142,7 +142,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
       floatingActionButton: state.status == SearchStatus.loaded
           ? FloatingActionButton.extended(
               onPressed: () => _saveSearch(context),
-              backgroundColor: AppColors.primary,
+              backgroundColor: Theme.of(context).colorScheme.primary,
               icon:
                   const Icon(Icons.bookmark_add_outlined, color: Colors.white),
               label: const Text('Save this search',
@@ -221,7 +221,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
       child: Chip(
           label: Text(label),
           onDeleted: onDeleted,
-          deleteIconColor: AppColors.textSecondary),
+          deleteIconColor: Theme.of(context).colorScheme.onSurfaceVariant),
     );
   }
 
@@ -375,7 +375,7 @@ class _OfflineBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      color: AppColors.warning,
+      color: Theme.of(context).extension<AppSemanticColors>()!.warning,
       padding: const EdgeInsets.symmetric(
           vertical: AppSpacing.sm, horizontal: AppSpacing.md),
       child: const Row(

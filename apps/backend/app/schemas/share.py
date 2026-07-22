@@ -24,7 +24,7 @@ class ShareRevokeOut(BaseModel):
 class SharedListingSummaryOut(BaseModel):
     """Screen 18's public, no-login summary panel -- deliberately narrow:
     only the fields screens.md Screen 18 lists (price, location, key terms,
-    verification status), never seeker/host PII, per Screen 18's Edge Case
+    verification status), never guest/host PII, per Screen 18's Edge Case
     ("no sensitive personal data... beyond what's already public")."""
 
     listing_id: str

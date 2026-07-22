@@ -10,3 +10,7 @@ aws_account_suffix = "REPLACE_ME"        # e.g. your AWS account ID, for globall
 # paste its outputs here:
 acm_certificate_arn     = ""  # `terraform output alb_certificate_arn` from environments/global (eu-west-1, ALB HTTPS listener)
 cdn_acm_certificate_arn = ""  # `terraform output cdn_certificate_arn` from environments/global (us-east-1, CloudFront custom domain)
+
+# Admin Web Console (staging-admin.de-duke.com), Vercel-hosted -- unique
+# CNAME target per Vercel project, get it from Vercel's dashboard.
+# vercel_cname_target = ""

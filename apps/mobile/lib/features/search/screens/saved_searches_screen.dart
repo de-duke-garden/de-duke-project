@@ -6,7 +6,6 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/list_stagger.dart';
@@ -129,7 +128,7 @@ class _SavedSearchRow extends StatelessWidget {
       key: ValueKey('dismissible-${search.id}'),
       direction: DismissDirection.endToStart,
       background: Container(
-        color: AppColors.error,
+        color: Theme.of(context).colorScheme.error,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
         child: const Icon(Icons.delete_outline, color: Colors.white),

@@ -7,11 +7,13 @@
 /// Commercial listings without a possession period" rule.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
-import '../../../core/theme/app_colors.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../listings/data/listing_models.dart';
@@ -46,6 +48,20 @@ class _BookingScreenState extends State<BookingScreen> {
   DateTime? _checkInDate;
   DateTime? _checkOutDate;
 
+  // Bug fix: the date picker previously let a guest select ANY date in
+  // the next year, including ones already booked (by another confirmed
+  // transaction) or blocked by the host -- discovered only after they'd
+  // picked dates, filled out the rest of the form, and hit a hold-
+  // creation error telling them to start over. Pre-fetching the full set
+  // of unavailable dates for the visible window and graying them out via
+  // `selectableDayPredicate` (below) stops that dead-end before it
+  // happens, using the exact same `is_listing_available` conflict logic
+  // the backend enforces at hold-creation time -- this is a UX
+  // pre-check, not a new source of truth; the backend still validates
+  // for real (and must, to close the race between two guests picking the
+  // same date concurrently) when the hold is actually created.
+  Set<DateTime> _unavailableDates = {};
+
   @override
   void initState() {
     super.initState();
@@ -62,12 +78,42 @@ class _BookingScreenState extends State<BookingScreen> {
         _listing = listing;
         _state = _LoadState.loaded;
       });
+      // Best-effort, independent of the critical listing fetch above --
+      // if this fails (e.g. offline), the picker just falls back to
+      // allowing every date, same as before this fix; the backend's own
+      // hold-creation check is still the real, authoritative guard.
+      if (_needsDateSelection) {
+        unawaited(_loadUnavailableDates());
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _state = _LoadState.error;
         _errorMessage = 'Could not load this listing.';
       });
+    }
+  }
+
+  Future<void> _loadUnavailableDates() async {
+    try {
+      final today = DateTime.now();
+      final windowStart = DateTime(today.year, today.month, today.day);
+      final windowEnd = windowStart.add(const Duration(days: 365));
+      final result = await widget.listingRepository.checkAvailability(
+        widget.listingId,
+        start: windowStart,
+        end: windowEnd,
+      );
+      if (!mounted) return;
+      setState(() {
+        _unavailableDates = result.conflictingDates
+            .map(DateTime.parse)
+            .map((d) => DateTime(d.year, d.month, d.day))
+            .toSet();
+      });
+    } catch (_) {
+      // Fail open (see this field's own docstring above) -- the backend
+      // still enforces availability for real at hold-creation time.
     }
   }
 
@@ -89,6 +135,27 @@ class _BookingScreenState extends State<BookingScreen> {
     return '₦${listing.shortlet!.nightlyPrice.toStringAsFixed(0)} / night';
   }
 
+  // Raw numeric pricing, so BookingConfirmationScreen can compute and
+  // render an actual nightly-rate x nights = total breakdown (FEAT-032's
+  // Confirm Booking Details) rather than just echoing a pre-formatted
+  // per-unit string with no total. Exactly one of these two is non-null
+  // for any given listing (Commercial vs. Shortlet are mutually exclusive
+  // per schema.md), matching `_priceSummary`'s own branching above.
+  double? get _nightlyRate => _listing?.shortlet?.nightlyPrice;
+  double? get _flatPrice => _listing?.commercial?.price;
+  String? get _dealType => _listing?.commercial?.dealType;
+
+  /// Mirrors booking_service.transaction_type_for_listing's own branching
+  /// exactly -- FEAT-014's two-sided commission model looks up the
+  /// buyer_fee rate by this same value, so it must match what the backend
+  /// will actually compute the transaction_type as.
+  String get _transactionType {
+    final listing = _listing!;
+    if (listing.shortlet != null) return 'shortlet_booking';
+    if (listing.commercial!.dealType == 'sale') return 'sale_reservation';
+    return 'lease_deposit';
+  }
+
   Future<void> _pickDates() async {
     final range = await showDateRangePicker(
       context: context,
@@ -97,6 +164,17 @@ class _BookingScreenState extends State<BookingScreen> {
       initialDateRange: (_checkInDate != null && _checkOutDate != null)
           ? DateTimeRange(start: _checkInDate!, end: _checkOutDate!)
           : null,
+      // Grays out (disables tapping) every already-booked/blocked date --
+      // see `_unavailableDates`'s own docstring for why this exists and
+      // what it does/doesn't guarantee. `showDateRangePicker`'s predicate
+      // signature also receives the in-progress start/end selection
+      // (unlike `showDatePicker`'s single-DateTime one) -- unused here,
+      // since a date's own availability doesn't depend on what else is
+      // currently selected.
+      selectableDayPredicate: _unavailableDates.isEmpty
+          ? null
+          : (day, selectedStart, selectedEnd) => !_unavailableDates.contains(
+              DateTime(day.year, day.month, day.day)),
     );
     if (range == null) return;
     setState(() {
@@ -148,7 +226,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.sm),
               Text(_priceSummary,
-                  style: AppTypography.statDisplay.copyWith(color: AppColors.primary)),
+                  style: AppTypography.statDisplay.copyWith(color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: AppSpacing.lg),
               OutlinedButton.icon(
                 onPressed: _pickDates,
@@ -166,6 +244,11 @@ class _BookingScreenState extends State<BookingScreen> {
       listingId: widget.listingId,
       listingTitle: _listing!.title,
       priceSummary: _priceSummary,
+      transactionType: _transactionType,
+      listingRepository: widget.listingRepository,
+      nightlyRate: _nightlyRate,
+      flatPrice: _flatPrice,
+      dealType: _dealType,
       checkInDate: _checkInDate,
       checkOutDate: _checkOutDate,
       onProceedToCheckout: (BookingHold hold) {
@@ -174,6 +257,24 @@ class _BookingScreenState extends State<BookingScreen> {
           pathParameters: {'transactionId': hold.transactionId},
         );
       },
+      // Confirmed real gap: a failed booking attempt (e.g. the dates were
+      // taken by someone else in the meantime) previously just reset the
+      // controller in place and re-showed THIS SAME confirm screen with
+      // the SAME dates -- offering no way to actually change anything
+      // before an all-but-guaranteed second failure. For date-bound
+      // listings (Shortlet/Lease), clearing the chosen dates here makes
+      // `build()` fall back into the Select Dates step above instead, so
+      // "Try again" genuinely lets the user pick different dates rather
+      // than just resubmitting the same ones.
+      onTryAgain: _needsDateSelection
+          ? () {
+              widget.bookingController.restart();
+              setState(() {
+                _checkInDate = null;
+                _checkOutDate = null;
+              });
+            }
+          : null,
     );
   }
 }

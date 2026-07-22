@@ -209,6 +209,28 @@ class ListingOut(BaseModel):
     shortlet: dict | None = None
 
 
+class ListingSummaryOut(BaseModel):
+    """One row in the Admin Web Console's `/properties` list -- deliberately
+    lighter than ListingOut (no media/commercial/shortlet detail blobs);
+    the full detail is only fetched once staff drill into a single
+    property via GET /v1/listings/:id (same endpoint the mobile app uses).
+    """
+
+    id: str
+    title: str
+    listing_type: str
+    status: str
+    status_reason: str | None
+    location_city: str
+    location_state: str
+    primary_image_url: str | None = None
+
+
+class ListingListResponse(BaseModel):
+    items: list[ListingSummaryOut]
+    next_cursor: str | None
+
+
 class AvailabilityQueryIn(BaseModel):
     start_date: str
     end_date: str

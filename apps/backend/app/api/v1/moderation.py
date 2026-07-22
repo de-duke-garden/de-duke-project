@@ -38,9 +38,16 @@ staff_or_admin = require_roles(UserRole.DEDUKE_STAFF, UserRole.DEDUKE_ADMIN)
 
 @router.get("/queue", response_model=list[ModerationQueueItemOut])
 async def get_moderation_queue(
+    listing_id: str | None = None,
     session: AsyncSession = Depends(get_session),
     _current_user: CurrentUser = Depends(staff_or_admin),
 ) -> list[ModerationQueueItemOut]:
+    """`listing_id` backs the property detail page's "View moderation
+    history" deep link -- filtered client-side against the merged
+    new-listing-review + report items below (same small-volume reasoning
+    as list_moderation_queue's own docstring), since a listing_report item
+    always carries a listing_id but a conversation_report item never does
+    (and is correctly excluded when filtering by a specific listing)."""
     listings = await list_moderation_queue(session)
     items: list[ModerationQueueItemOut] = []
     for listing in listings:
@@ -121,6 +128,9 @@ async def get_moderation_queue(
                     reporter_name=reporter_name,
                 )
             )
+
+    if listing_id:
+        items = [item for item in items if item.listing_id == listing_id]
 
     return items
 
