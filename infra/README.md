@@ -55,7 +55,12 @@ What Terraform *does* create:
   requirement, not the ALB's). After applying it, copy its two outputs —
   `alb_certificate_arn` and `cdn_certificate_arn` — into every
   environment's `terraform.tfvars` (`acm_certificate_arn` and
-  `cdn_acm_certificate_arn` respectively).
+  `cdn_acm_certificate_arn` respectively). Applied via
+  `.github/workflows/infra-global.yml` (Actions tab -> "Infra Global
+  (DNS/Cert Bootstrap)" -> Run workflow -> choose `plan` to preview or
+  `apply` to run for real) — manual dispatch only, deliberately not part
+  of `infra-terraform.yml`'s push-triggered matrix, since this affects
+  shared account-level resources rather than one deploy environment.
 - **Each environment's `module "dns"`** (`modules/dns`) — creates that
   environment's public subdomain alias records once the corresponding cert
   var is populated:

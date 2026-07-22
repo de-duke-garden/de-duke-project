@@ -1,0 +1,94 @@
+# Infrastructure -- environments/global (account-level DNS/cert bootstrap).
+# Companion to infra-terraform.yml, deliberately kept out of that workflow's
+# development -> staging -> production matrix: `global` isn't a deploy
+# environment (see infra/environments/global/main.tf's header) and only
+# needs to run when the shared hosted-zone/cert plumbing itself changes,
+# not on every environment push. Manual dispatch only, with an explicit
+# plan/apply choice, so an operator always sees the diff before anything
+# touching the shared ALB-facing certificate is applied -- see
+# infra/README.md's "DNS & certificates" section for what this actually
+# provisions.
+#
+# Required GitHub repo configuration -- same AWS OIDC role and state-bucket
+# variables as infra-terraform.yml (see that file's header for the full
+# list): AWS_ROLE_TO_ASSUME (secret), AWS_REGION, TF_STATE_BUCKET,
+# TF_STATE_BUCKET_REGION (vars). No GCP/image-tag inputs -- `global` has no
+# google provider and deploys nothing to ECS.
+name: Infra Global (DNS/Cert Bootstrap)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "terraform plan (preview only) or apply"
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+        default: plan
+
+permissions:
+  id-token: write # required for AWS OIDC federation (no static access keys)
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    # Dedicated GitHub Environment -- lets this be gated with required
+    # reviewers (Settings -> Environments -> global) independently of the
+    # per-deploy-environment gates infra-terraform.yml uses, since an
+    # `apply` here can affect every environment's DNS/cert at once.
+    environment: global
+    concurrency:
+      group: terraform-global
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: infra/environments/global
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive
+
+      - name: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=global/terraform.tfstate" \
+            -backend-config="region=${{ vars.TF_STATE_BUCKET_REGION }}" \
+            -backend-config="use_lockfile=true"
+
+      - name: terraform validate
+        run: terraform validate
+
+      - name: terraform plan
+        run: terraform plan -out=tfplan
+
+      - name: terraform show (plan summary)
+        run: terraform show -no-color tfplan
+
+      - name: terraform apply
+        if: inputs.action == 'apply'
+        run: terraform apply -auto-approve tfplan
+
+      - name: Show outputs
+        if: inputs.action == 'apply'
+        run: |
+          echo "Copy these into every environment's terraform.tfvars:"
+          terraform output
