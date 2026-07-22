@@ -42,12 +42,14 @@ variable "image_tag" {
   default     = ""
 }
 
-variable "tf_state_bucket" {
-  description = "Name of the shared Terraform state S3 bucket (same bucket every environment's backend.hcl points at) -- used here to read environments/global's outputs via terraform_remote_state, not to configure this environment's own backend (that's backend.hcl/-backend-config, kept separate on purpose so backend config never needs a plan-time variable)."
+variable "acm_certificate_arn" {
+  description = "eu-west-1 ACM cert ARN for the ALB HTTPS listener -- copy from `terraform output alb_certificate_arn` in environments/global (see infra/README.md's \"DNS & certificates\" section). Leave blank until that's been applied (ALB serves HTTP-only until then, see modules/fargate_service's has_certificate gate)."
   type        = string
+  default     = ""
 }
 
-variable "tf_state_bucket_region" {
-  description = "Region the Terraform state S3 bucket itself lives in (may differ from aws_region -- see infra/README.md's AWS_REGION vs TF_STATE_BUCKET_REGION note)."
+variable "cdn_acm_certificate_arn" {
+  description = "us-east-1 ACM cert ARN for the media CDN's CloudFront distribution -- copy from `terraform output cdn_certificate_arn` in environments/global. Leave blank until that's been applied (CloudFront falls back to its default *.cloudfront.net cert/domain, see modules/s3_cdn's has_custom_domain gate)."
   type        = string
+  default     = ""
 }
