@@ -31,10 +31,12 @@ module "secrets" {
 }
 
 module "media" {
-  source         = "../../modules/s3_cdn"
-  environment    = var.environment
-  account_suffix = var.aws_account_suffix
-  tags           = local.common_tags
+  source                        = "../../modules/s3_cdn"
+  environment                   = var.environment
+  account_suffix                = var.aws_account_suffix
+  cdn_domain_name               = local.cdn_fqdn
+  acm_certificate_arn_us_east_1 = var.cdn_acm_certificate_arn
+  tags                          = local.common_tags
 }
 
 module "tasks_queue" {
@@ -129,4 +131,34 @@ module "waf" {
   environment = var.environment
   alb_arn     = module.backend.alb_arn
   tags        = local.common_tags
+}
+
+# Existing, externally-managed Route53 hosted zone -- looked up by name
+# (not imported into this state), so this config can create/update the
+# subdomain records below without ever having the ability to delete or
+# recreate the zone itself. See environments/global for the one-time
+# ALB-facing cert bootstrap that this environment's acm_certificate_arn
+# variable depends on.
+data "aws_route53_zone" "primary" {
+  name         = local.domain_name
+  private_zone = false
+}
+
+module "dns" {
+  source = "../../modules/dns"
+
+  zone_id = data.aws_route53_zone.primary.zone_id
+
+  api_fqdn     = local.api_fqdn
+  alb_dns_name = module.backend.alb_dns_name
+  alb_zone_id  = module.backend.alb_zone_id
+
+  # Only created once the CloudFront distribution actually has a matching
+  # alias configured (module.media.cdn_domain_name reflects the real
+  # *.cloudfront.net domain either way, but the alias record must not
+  # exist until CloudFront itself recognizes cdn_fqdn as one of its own
+  # aliases -- see modules/s3_cdn's has_custom_domain gate).
+  create_cdn_record = var.cdn_acm_certificate_arn != ""
+  cdn_fqdn          = local.cdn_fqdn
+  cdn_domain_name   = module.media.cdn_domain_name
 }

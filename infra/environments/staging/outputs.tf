@@ -33,3 +33,13 @@ output "db_secret_arn" {
   description = "RDS-managed master user secret ARN (username/password JSON) -- see modules/rds_postgres's manage_master_user_password."
   value       = module.rds.writer_secret_arn
 }
+
+output "api_fqdn" {
+  description = "Public backend API domain for this environment, once module.dns has applied."
+  value       = module.dns.api_fqdn
+}
+
+output "cdn_fqdn" {
+  description = "Public media CDN domain for this environment."
+  value       = module.dns.cdn_fqdn
+}

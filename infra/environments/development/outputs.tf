@@ -18,3 +18,13 @@ output "private_subnet_ids" {
 output "service_security_group_id" {
   value = aws_security_group.backend_service.id
 }
+
+output "api_fqdn" {
+  description = "Public backend API domain for this environment, once module.dns has applied."
+  value       = module.dns.api_fqdn
+}
+
+output "cdn_fqdn" {
+  description = "Public media CDN domain for this environment."
+  value       = module.dns.cdn_fqdn
+}

@@ -39,10 +39,19 @@ resource "aws_cloudfront_origin_access_control" "media" {
   signing_protocol                  = "sigv4"
 }
 
+# Mirrors modules/fargate_service/main.tf's has_certificate gate: a custom
+# domain requires a real cert (CloudFront rejects `aliases` without a
+# matching non-default viewer_certificate), so both are only wired up once
+# an ACM cert ARN has actually been supplied.
+locals {
+  has_custom_domain = var.cdn_domain_name != "" && var.acm_certificate_arn_us_east_1 != ""
+}
+
 resource "aws_cloudfront_distribution" "media" {
   enabled             = true
   default_root_object = ""
   comment             = "De-Duke media CDN (${var.environment})"
+  aliases             = local.has_custom_domain ? [var.cdn_domain_name] : []
 
   origin {
     domain_name              = aws_s3_bucket.media.bucket_regional_domain_name
@@ -73,7 +82,10 @@ resource "aws_cloudfront_distribution" "media" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = local.has_custom_domain ? null : true
+    acm_certificate_arn            = local.has_custom_domain ? var.acm_certificate_arn_us_east_1 : null
+    ssl_support_method             = local.has_custom_domain ? "sni-only" : null
+    minimum_protocol_version       = local.has_custom_domain ? "TLSv1.2_2021" : null
   }
 
   tags = var.tags

@@ -98,6 +98,7 @@ jobs:
             -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
             -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
+            -var="cdn_acm_certificate_arn=${{ vars.TF_CDN_ACM_CERTIFICATE_ARN }}" \
             -var="image_tag=${{ steps.current-tag.outputs.value }}" \
             -out=tfplan
 
@@ -175,6 +176,7 @@ jobs:
             -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
             -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
+            -var="cdn_acm_certificate_arn=${{ vars.TF_CDN_ACM_CERTIFICATE_ARN }}" \
             -var="image_tag=${{ steps.current-tag.outputs.value }}" \
             -out=tfplan
 

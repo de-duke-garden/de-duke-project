@@ -5,5 +5,11 @@
 gcp_project_id     = "REPLACE_ME"        # GCP project hosting Firestore for this environment
 aws_account_suffix = "REPLACE_ME"        # e.g. your AWS account ID, for globally-unique bucket naming
 
-# Leave blank until a domain + ACM certificate exist for this environment.
-acm_certificate_arn = ""
+# ACM cert ARNs (ALB + CDN) are NOT set here -- they're read live from
+# environments/global's state via terraform_remote_state (see main.tf).
+# Run `terraform apply` in environments/global BEFORE this environment's
+# very first apply. tf_state_bucket/tf_state_bucket_region below just
+# locate that state file (same bucket every environment's own backend.hcl
+# points at).
+tf_state_bucket        = "REPLACE_ME" # same bucket as backend.hcl's `bucket`
+tf_state_bucket_region = "REPLACE_ME" # same region as backend.hcl's `region`

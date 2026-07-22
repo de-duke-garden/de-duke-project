@@ -27,12 +27,49 @@ infra/
 │   ├── secrets/          # App-level secret container (REPLACE_ME placeholders)
 │   ├── ecr/              # Container registry for the Backend API Service image
 │   ├── fargate_service/  # ALB, ECS cluster/service/task, RDS Proxy, autoscaling
-│   └── waf/              # Web Application Firewall in front of the ALB
+│   ├── waf/              # Web Application Firewall in front of the ALB
+│   └── dns/              # Per-environment Route53 alias records (api./cdn. subdomains)
 └── environments/
-    ├── development/      # Smallest footprint: single-AZ RDS, no read replicas, 1 Redis node
-    ├── staging/          # Not yet configured — mirror development, then scale up per architecture.md
-    └── production/       # Not yet configured — Multi-AZ everywhere, read replicas from launch
+    ├── global/            # NOT a deploy environment -- one-time DNS/cert bootstrap
+    │                      # shared by every environment below (see its own main.tf header)
+    ├── development/       # Smallest footprint: single-AZ RDS, no read replicas, 1 Redis node
+    ├── staging/           # Not yet configured — mirror development, then scale up per architecture.md
+    └── production/        # Not yet configured — Multi-AZ everywhere, read replicas from launch
 ```
+
+## DNS & certificates (de-duke.com)
+
+`de-duke.com`'s Route53 hosted zone and its `*.de-duke.com` ACM certificate
+(us-east-1, used for CloudFront) already exist in AWS -- both created
+outside Terraform. This project only ever **reads** them as data sources
+(`data "aws_route53_zone"` / `data "aws_acm_certificate"`); nothing here
+can delete or recreate either one.
+
+What Terraform *does* create:
+
+- **`environments/global`** — a one-time bootstrap, applied once (not part
+  of the development → staging → production matrix). It issues and
+  DNS-validates a second wildcard cert in **eu-west-1**, because ACM
+  certificates attached to an ALB listener must live in the same region as
+  the ALB, and the existing wildcard cert is us-east-1-only (CloudFront's
+  requirement, not the ALB's). After applying it, copy its two outputs —
+  `alb_certificate_arn` and `cdn_certificate_arn` — into every
+  environment's `terraform.tfvars` (`acm_certificate_arn` and
+  `cdn_acm_certificate_arn` respectively).
+- **Each environment's `module "dns"`** (`modules/dns`) — creates that
+  environment's public subdomain alias records once the corresponding cert
+  var is populated:
+  | Environment | API subdomain | CDN subdomain |
+  |---|---|---|
+  | production | `api.de-duke.com` | `cdn.de-duke.com` |
+  | staging | `staging-api.de-duke.com` | `cdn-staging.de-duke.com` |
+  | development | `dev-api.de-duke.com` | `cdn-dev.de-duke.com` |
+
+  The API record is always created (points at the ALB, which always
+  exists). The CDN record is only created once `cdn_acm_certificate_arn`
+  is set — CloudFront rejects traffic for a hostname that isn't yet
+  configured as one of its own `aliases`, so the DNS record must not exist
+  ahead of that.
 
 Each environment stores its state remotely in a pre-existing, externally
 managed S3 bucket (not provisioned by this Terraform config -- the bucket
@@ -66,7 +103,12 @@ its way out. Requires Terraform `>= 1.11.0`.
 
 1. Copy `environments/<env>/terraform.tfvars.example` to
    `terraform.tfvars` (gitignored) and fill in the `REPLACE_ME` values
-   (GCP project ID, AWS account suffix, ACM certificate ARN once available).
+   (GCP project ID, AWS account suffix, and the two ACM certificate ARNs
+   from `environments/global`'s outputs — see "DNS & certificates" above).
+   `environments/global` itself has no `REPLACE_ME` values to fill in
+   (its `variables.tf` defaults already match this project's real domain/
+   region); only its `backend.hcl` needs to be copied and filled in per
+   step 2 below.
 2. Copy `environments/<env>/backend.hcl.example` to `backend.hcl`
    (gitignored) and fill in `bucket` (the name of the already-existing S3
    state bucket) and `region`.
