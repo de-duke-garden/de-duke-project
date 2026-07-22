@@ -100,13 +100,17 @@ export function AdminNav({
         }`}
       >
         <div className="flex items-start justify-between p-md">
-          <div>
-            <span className="font-heading text-lg font-bold text-primary dark:text-primary-dark">
-              De-Duke
-            </span>
-            <p className="mt-xs text-xs text-text-secondary dark:text-text-secondary-dark">
-              Admin Console
-            </p>
+          <div className="flex items-center gap-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="" className="h-8 w-8" />
+            <div>
+              <span className="font-heading text-lg font-bold text-primary dark:text-primary-dark">
+                De-Duke
+              </span>
+              <p className="mt-xs text-xs text-text-secondary dark:text-text-secondary-dark">
+                Admin Console
+              </p>
+            </div>
           </div>
           <button
             type="button"

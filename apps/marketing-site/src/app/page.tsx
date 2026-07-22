@@ -5,6 +5,8 @@
 export default function HomePage() {
   return (
     <main style={{ padding: "2rem" }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo.png" alt="De-Duke" style={{ height: 64, width: 64 }} />
       <h1>De-Duke</h1>
       <p>Verified property. Real conversations. Deals that close.</p>
       <p>

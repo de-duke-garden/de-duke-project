@@ -98,7 +98,7 @@ class _BookingScreenState extends State<BookingScreen> {
     try {
       final today = DateTime.now();
       final windowStart = DateTime(today.year, today.month, today.day);
-      final windowEnd = windowStart.add(const Duration(days: 365));
+      final windowEnd = windowStart.add(Duration(days: _pickerWindowDays));
       final result = await widget.listingRepository.checkAvailability(
         widget.listingId,
         start: windowStart,
@@ -115,6 +115,20 @@ class _BookingScreenState extends State<BookingScreen> {
       // Fail open (see this field's own docstring above) -- the backend
       // still enforces availability for real at hold-creation time.
     }
+  }
+
+  /// Bug fix: the date range picker's outer bound was hardcoded to 365
+  /// days, but a shortlet's own `minimumStayNights` can exceed that (e.g.
+  /// a long-term/annual shortlet) -- in that case there was no possible
+  /// checkout date far enough out to ever satisfy the minimum stay, so
+  /// the picker was unusable for that listing. The window grows to cover
+  /// `minimumStayNights` plus a month of slack (so there's still real
+  /// flexibility in which check-in date to pick, not just exactly one
+  /// valid combination) -- never shrinks below the original 365-day
+  /// default for every other listing.
+  int get _pickerWindowDays {
+    final minimumStayNights = _listing?.shortlet?.minimumStayNights ?? 0;
+    return minimumStayNights > 365 ? minimumStayNights + 30 : 365;
   }
 
   bool get _needsDateSelection {
@@ -160,7 +174,7 @@ class _BookingScreenState extends State<BookingScreen> {
     final range = await showDateRangePicker(
       context: context,
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: DateTime.now().add(Duration(days: _pickerWindowDays)),
       initialDateRange: (_checkInDate != null && _checkOutDate != null)
           ? DateTimeRange(start: _checkInDate!, end: _checkOutDate!)
           : null,

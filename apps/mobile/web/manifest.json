@@ -1,11 +1,11 @@
 {
-    "name": "de_duke_mobile",
-    "short_name": "de_duke_mobile",
+    "name": "De-Duke",
+    "short_name": "De-Duke",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#EBEBEB",
+    "theme_color": "#0D6B2D",
+    "description": "Verified property. Real conversations. Deals that close.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
