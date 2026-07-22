@@ -178,11 +178,19 @@ jobs:
             -backend-config="use_lockfile=true"
 
       - name: terraform plan
+        # vercel_apex_ips is a list(string) -- only passed when set (see
+        # infra-terraform.yml's identical step).
         run: |
+          VERCEL_ARGS=()
+          if [ -n "${{ vars.TF_VERCEL_APEX_IPS }}" ]; then
+            VERCEL_ARGS+=(-var="vercel_apex_ips=${{ vars.TF_VERCEL_APEX_IPS }}")
+          fi
           terraform plan \
             -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
             -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
+            -var="vercel_cname_target=${{ vars.TF_VERCEL_CNAME_TARGET }}" \
+            "${VERCEL_ARGS[@]}" \
             -var="image_tag=${{ needs.build-and-push.outputs.image_tag }}" \
             -out=tfplan
 
@@ -289,8 +297,14 @@ jobs:
         # cross-job `needs.*.outputs` reference once more than one
         # environment is active in the matrix.
         run: |
+          VERCEL_ARGS=()
+          if [ -n "${{ vars.TF_VERCEL_APEX_IPS }}" ]; then
+            VERCEL_ARGS+=(-var="vercel_apex_ips=${{ vars.TF_VERCEL_APEX_IPS }}")
+          fi
           terraform apply -auto-approve \
             -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
             -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
+            -var="vercel_cname_target=${{ vars.TF_VERCEL_CNAME_TARGET }}" \
+            "${VERCEL_ARGS[@]}" \
             -var="image_tag=${{ steps.previous-tag.outputs.value }}"
