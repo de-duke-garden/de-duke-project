@@ -41,8 +41,17 @@ data "aws_route53_zone" "primary" {
 # distributions. Looked up by domain name rather than hardcoding an ARN so
 # this keeps working if the cert is ever renewed/reissued (ACM auto-renews
 # in place, but a manually reissued cert would get a new ARN).
+#
+# `domain` here must be the certificate's PRIMARY domain_name, not any of
+# its Subject Alternative Names -- the aws_acm_certificate data source only
+# matches against domain_name, never against the SAN list. This account's
+# existing cert was issued with de-duke.com as the primary name and
+# *.de-duke.com as a SAN (confirmed via `aws acm list-certificates
+# --region us-east-1`), so filtering on "*.${var.domain_name}" returned
+# "empty result" even though the cert -- and its wildcard SAN -- both
+# exist. var.domain_name (the apex) is the correct filter.
 data "aws_acm_certificate" "cdn_wildcard" {
-  domain      = "*.${var.domain_name}"
+  domain      = var.domain_name
   statuses    = ["ISSUED"]
   most_recent = true
 
