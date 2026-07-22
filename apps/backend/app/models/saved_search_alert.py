@@ -13,7 +13,8 @@ feature's file-boundary instructions) rather than editing it directly.
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, UniqueConstraint
+from app.core.db_types import UTCDateTime
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -34,5 +35,5 @@ class SavedSearchAlertLog(SQLModel, table=True):
     saved_search_id: str = Field(foreign_key="saved_searches.id", index=True)
     listing_id: str = Field(foreign_key="listings.id", index=True)
     notified_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )

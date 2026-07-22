@@ -3,7 +3,8 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, Column, DateTime
+from app.core.db_types import UTCDateTime
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
 # FEAT-024 AC: "User can manage email notification preferences per
@@ -80,13 +81,13 @@ class User(SQLModel, table=True):
         sa_column=Column(JSON),
     )
 
-    # sa_type=DateTime(timezone=True) -- every datetime in this codebase is
+    # sa_type=UTCDateTime -- every datetime in this codebase is
     # timezone-aware UTC (datetime.now(UTC)); without this, SQLModel maps
     # plain `datetime` to TIMESTAMP WITHOUT TIME ZONE, and asyncpg refuses
     # to encode a tz-aware value into a tz-naive column at insert time.
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )

@@ -255,7 +255,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   }
 
   String _statusLabel(String status) => switch (status) {
-        'succeeded' => 'Paid',
+        'payment_received' => 'Paid',
+        'released_to_wallet' => 'Paid',
         'held' => 'Held',
         'pending_payment' => 'Processing',
         'failed' => 'Failed',

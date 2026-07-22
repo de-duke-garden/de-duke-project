@@ -1,6 +1,17 @@
 /// Data models mirroring apps/backend/app/schemas/transaction.py.
 library;
 
+// Bug fix: `Transaction.status`'s old 'succeeded' value was renamed to
+// 'payment_received' (plus a new 'released_to_wallet' status added) when
+// the escrow/wallet model shipped on the backend -- every mobile screen
+// still checking for the literal string 'succeeded' silently stopped
+// recognizing a paid transaction as paid. Both values below mean "the
+// guest's payment succeeded" from this app's point of view (the
+// difference between them is purely about whether a De-Duke Admin has
+// since released the payee's funds, not about payment outcome) -- use
+// this shared set instead of re-typing the status list per screen.
+const paidTransactionStatuses = {'payment_received', 'released_to_wallet'};
+
 class TransactionSummary {
   const TransactionSummary({
     required this.id,
@@ -26,7 +37,8 @@ class TransactionSummary {
   /// receipts stay accessible even then).
   final String listingTitle;
   final String transactionType;
-  // held | pending_payment | succeeded | failed | expired | refunded
+  // held | pending_payment | payment_received | released_to_wallet |
+  // failed | expired | refunded
   final String status;
   final double grossAmount;
   final double commissionAmount;

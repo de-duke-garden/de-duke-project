@@ -23,7 +23,8 @@ from uuid import uuid4
 
 from geoalchemy2 import Geography
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import JSON, Column, DateTime, Index
+from app.core.db_types import UTCDateTime
+from sqlalchemy import JSON, Column, Index
 from sqlmodel import Field, SQLModel
 
 # Single source of truth for the embedding column's width -- must stay in
@@ -87,15 +88,15 @@ class Listing(SQLModel, table=True):
     # started against this listing (schema.md's Conversation.listing_id).
     inquiry_count: int = Field(default=0)
 
-    # sa_type=DateTime(timezone=True) -- every datetime in this codebase is
+    # sa_type=UTCDateTime -- every datetime in this codebase is
     # timezone-aware UTC (datetime.now(UTC)); without this, SQLModel maps
     # plain `datetime` to TIMESTAMP WITHOUT TIME ZONE, and asyncpg refuses
     # to encode a tz-aware value into a tz-naive column at insert time.
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), index=True, sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), index=True, sa_type=UTCDateTime
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
 
     # FEAT-031 -- see module docstring. Populated asynchronously by
@@ -105,7 +106,7 @@ class Listing(SQLModel, table=True):
         default=None,
         sa_column=Column(Vector(EMBEDDING_DIMENSIONS), nullable=True),
     )
-    embedding_updated_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    embedding_updated_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
 
     # Explicit GiST index for location_point -- required for ST_DWithin/<->
     # performance at scale (FEAT-006/007); not something SQLModel's plain
@@ -152,7 +153,7 @@ class ListingMedia(SQLModel, table=True):
     display_order: int
     is_primary: bool = Field(default=False)
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
 
 

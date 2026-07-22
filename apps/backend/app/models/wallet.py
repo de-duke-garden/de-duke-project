@@ -23,7 +23,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime
+from app.core.db_types import UTCDateTime
 from sqlmodel import Field, SQLModel
 
 
@@ -42,10 +42,10 @@ class Wallet(SQLModel, table=True):
     currency: str = Field(default="NGN")
 
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
 
 
@@ -79,7 +79,7 @@ class WalletTransaction(SQLModel, table=True):
     # Ledger entries are immutable -- never updated/deleted after creation
     # (schema.md, mirrors AuditLogEntry).
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
 
 
@@ -107,10 +107,10 @@ class PayoutSettings(SQLModel, table=True):
     paystack_recipient_code: str | None = Field(default=None)
 
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
 
 
@@ -126,7 +126,7 @@ class WithdrawalRequest(SQLModel, table=True):
     status: str = Field(default="requested", index=True)
 
     requested_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
     requested_by_id: str = Field(foreign_key="users.id")
 
@@ -136,5 +136,5 @@ class WithdrawalRequest(SQLModel, table=True):
 
     # Null while 'requested'/'processing'; set when a terminal outcome
     # ('paid'/'failed') is reached (schema.md).
-    fulfilled_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    fulfilled_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
     failure_reason: str | None = Field(default=None)

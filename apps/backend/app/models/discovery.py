@@ -3,10 +3,10 @@
 from datetime import UTC, date, datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime
+from app.core.db_types import UTCDateTime
 from sqlmodel import Field, SQLModel
 
-# sa_type=DateTime(timezone=True) throughout this module -- every datetime
+# sa_type=UTCDateTime throughout this module -- every datetime
 # here is timezone-aware UTC (datetime.now(UTC)); without it, SQLModel maps
 # plain `datetime` to TIMESTAMP WITHOUT TIME ZONE and asyncpg refuses to
 # encode a tz-aware value into a tz-naive column at insert time.
@@ -35,7 +35,7 @@ class SavedSearch(SQLModel, table=True):
     location_latitude: float | None = Field(default=None)
     location_longitude: float | None = Field(default=None)
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
 
 
@@ -47,9 +47,9 @@ class ShareableSummary(SQLModel, table=True):
     created_by_id: str = Field(foreign_key="users.id")
     share_token: str = Field(unique=True, index=True)
     is_revoked: bool = Field(default=False)
-    expires_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    expires_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
 
 
@@ -63,4 +63,4 @@ class ListingAnalytics(SQLModel, table=True):
     view_count: int = Field(default=0)
     inquiry_count: int = Field(default=0)
     average_response_time_minutes: float | None = Field(default=None)
-    closed_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    closed_at: datetime | None = Field(default=None, sa_type=UTCDateTime)

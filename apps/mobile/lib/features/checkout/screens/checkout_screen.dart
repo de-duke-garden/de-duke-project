@@ -115,7 +115,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
   void _applyTransaction(TransactionDetail txn) {
     setState(() {
       _transaction = txn;
-      if (txn.status == 'succeeded') {
+      if (paidTransactionStatuses.contains(txn.status)) {
         _state = _ScreenState.ready; // transient, build() redirects below
       } else if (txn.status == 'held' || txn.status == 'pending_payment') {
         _state = _ScreenState.ready;
@@ -205,7 +205,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     final semantic = Theme.of(context).extension<AppSemanticColors>()!;
     final txn = _transaction;
 
-    if (txn != null && txn.status == 'succeeded') {
+    if (txn != null && paidTransactionStatuses.contains(txn.status)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           context.goNamed(

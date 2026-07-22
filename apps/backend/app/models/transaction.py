@@ -3,10 +3,10 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime
+from app.core.db_types import UTCDateTime
 from sqlmodel import Field, SQLModel
 
-# sa_type=DateTime(timezone=True) throughout this module -- every datetime
+# sa_type=UTCDateTime throughout this module -- every datetime
 # here is timezone-aware UTC (datetime.now(UTC)); without it, SQLModel maps
 # plain `datetime` to TIMESTAMP WITHOUT TIME ZONE and asyncpg refuses to
 # encode a tz-aware value into a tz-naive column at insert time.
@@ -73,24 +73,24 @@ class Transaction(SQLModel, table=True):
     status: str = Field(default="held", index=True)
 
     hold_expires_at: datetime | None = Field(
-        default=None, index=True, sa_type=DateTime(timezone=True)
+        default=None, index=True, sa_type=UTCDateTime
     )
-    paid_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    paid_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
     # Set only when status transitions to 'released_to_wallet' -- always a
     # manual Admin action (FEAT-043), never automated. Null otherwise.
-    released_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    released_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
     # References the deduke_admin User who performed the release. Only
     # ever a User with role deduke_admin -- Staff cannot release funds.
     released_by_admin_id: str | None = Field(default=None, foreign_key="users.id")
     possession_period_start_date: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
+        default=None, sa_type=UTCDateTime
     )
     possession_period_end_date: datetime | None = Field(
-        default=None, index=True, sa_type=DateTime(timezone=True)
+        default=None, index=True, sa_type=UTCDateTime
     )
 
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
 
 
@@ -102,5 +102,5 @@ class Receipt(SQLModel, table=True):
     receipt_number: str = Field(unique=True, index=True)
     pdf_url: str
     issued_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )

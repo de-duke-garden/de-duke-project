@@ -11,7 +11,7 @@ account) -- this is deliberately NOT a single column on User.
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime
+from app.core.db_types import UTCDateTime
 from sqlmodel import Field, SQLModel
 
 
@@ -33,8 +33,8 @@ class PushToken(SQLModel, table=True):
     platform: str
 
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=DateTime(timezone=True)
+        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
     )

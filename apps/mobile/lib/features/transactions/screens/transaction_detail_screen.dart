@@ -221,7 +221,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             // failed/expired/refunded transaction, which is why those
             // remain excluded entirely rather than just risking a
             // permanent "not ready yet".
-            if (txn.status == 'succeeded' ||
+            if (paidTransactionStatuses.contains(txn.status) ||
                 txn.status == 'held' ||
                 txn.status == 'pending_payment') ...[
               const SizedBox(height: AppSpacing.lg),
@@ -230,7 +230,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _downloadReceipt,
                   icon: const Icon(Icons.picture_as_pdf_outlined),
-                  label: Text(txn.status == 'succeeded'
+                  label: Text(paidTransactionStatuses.contains(txn.status)
                       ? 'Download PDF Receipt'
                       : 'Download Hold Confirmation'),
                 ),
@@ -246,7 +246,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final semantic = Theme.of(context).extension<AppSemanticColors>()!;
     final (label, color) = switch (status) {
-      'succeeded' => ('Paid', semantic.success),
+      'payment_received' => ('Paid', semantic.success),
+      'released_to_wallet' => ('Paid', semantic.success),
       'held' => ('Held', semantic.warning),
       'pending_payment' => ('Processing', semantic.info),
       'failed' => ('Failed', colorScheme.error),
