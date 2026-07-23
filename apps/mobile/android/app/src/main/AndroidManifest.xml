@@ -62,14 +62,14 @@
             </intent-filter>
             <!-- Android App Links: after Paystack checkout, the guest's
                  browser is redirected to https://de-duke.com/payment-complete
-                 (Settings.marketing_site_url + the callback_url built in
+                 (Settings.marketing_site_url plus the callback_url built in
                  apps/backend/app/api/v1/checkout.py's initiate_checkout).
                  `autoVerify="true"` makes Android confirm this app is the
                  registered handler for that host via
                  apps/marketing-site/public/.well-known/assetlinks.json
                  (Digital Asset Links) at install time, then intercepts any
-                 matching https:// navigation -- including one opened by
-                 url_launcher's external-browser checkout flow -- and opens
+                 matching https:// navigation, including one opened by
+                 url_launcher's external-browser checkout flow, and opens
                  THIS app directly instead of ever rendering the marketing
                  site's fallback page. go_router's '/payment-complete' route
                  (app_router.dart) receives the full URI (path + query
@@ -78,7 +78,7 @@
                  be updated with this app's real release-signing
                  certificate fingerprint (`keytool -list -v -keystore
                  <release-keystore> | grep SHA256`) before this verifies in
-                 production -- see that file's own comment. -->
+                 production; see that file's own comment. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
