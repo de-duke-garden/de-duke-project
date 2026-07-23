@@ -190,23 +190,25 @@ def _build_pdf_bytes(
     # gross_amount - commission_amount always equals net_payout_amount
     # arithmetically, but a reader comparing against the LISTING price
     # (not shown at all previously) would compute listing_price -
-    # commission_amount instead, which double-counts the buyer's fee
+    # commission_amount instead, which double-counts the guest-side fee
     # against the host. Only owner_commission_amount is ever deducted
     # from listing_price for the payout -- buyer_fee_amount is a
     # guest-side surcharge on top of listing_price that never touches it.
     # Listing this split explicitly makes that self-evident on the
-    # document itself.
+    # document itself. Labels: "Service fee"/"Host commission" instead of
+    # the backend field names ("Buyer"/"Owner") -- "buyer" wrongly implies
+    # a purchase (this covers rent/lease too), and the party hosting a
+    # listing isn't necessarily its "Owner". Parenthetical clarifications
+    # dropped per feedback (too cluttered) -- row order/grouping alone now
+    # carries that meaning.
     amount_rows = [("Listing price", _money(txn.listing_price or 0.0))]
     if is_paid:
         amount_rows += [
-            ("Buyer fee (added to guest charge)", _money(txn.buyer_fee_amount or 0.0)),
-            ("Gross amount (charged to guest)", _money(txn.gross_amount)),
-            (
-                "Owner commission (deducted from payout)",
-                _money(txn.owner_commission_amount or 0.0),
-            ),
+            ("Service fee", _money(txn.buyer_fee_amount or 0.0)),
+            ("Gross amount", _money(txn.gross_amount)),
+            ("Host commission", _money(txn.owner_commission_amount or 0.0)),
             ("Net payout to host", _money(txn.net_payout_amount)),
-            ("Total De-Duke commission", _money(txn.commission_amount)),
+            ("Total commission", _money(txn.commission_amount)),
         ]
     else:
         amount_rows.append(("Amount due at checkout", _money(txn.gross_amount)))

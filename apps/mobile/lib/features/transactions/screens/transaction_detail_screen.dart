@@ -248,36 +248,46 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     _row('Transaction type', txn.transactionType),
                     const Divider(height: AppSpacing.lg),
                     // Bug fix (reported confusion): this used to show only
-                    // "Gross amount" / "Commission" (the COMBINED buyer
-                    // fee + owner commission total) / "Net payout", with
-                    // no listing price row at all. That made
+                    // "Gross amount" / "Commission" (the COMBINED service
+                    // fee + host commission total) / "Net payout", with no
+                    // listing price row at all. That made
                     // `netPayoutAmount` look wrong at a glance -- e.g. a
                     // ₦10,000 listing at 4%/6% shows Gross ₦10,400,
                     // Commission ₦1,000, Net payout ₦9,400, and
                     // ₦10,000 - ₦1,000 = ₦9,000 looks like the "obvious"
                     // expected payout. That arithmetic is wrong: only the
-                    // OWNER's commission share (₦600 here) is ever
-                    // deducted from the listing price to produce the
-                    // payout -- the buyer fee (₦400) is a guest-side
-                    // surcharge on top of the listing price that never
-                    // touches the host's payout at all (two-sided
-                    // commission model, commission_service.
-                    // compute_price_breakdown). Showing the full split
-                    // makes `netPayoutAmount = listingPrice -
-                    // ownerCommissionAmount` self-evident instead of
+                    // HOST's commission share (₦600 here) is ever deducted
+                    // from the listing price to produce the payout -- the
+                    // service fee (₦400) is a guest-side surcharge on top
+                    // of the listing price that never touches the host's
+                    // payout at all (two-sided commission model,
+                    // commission_service.compute_price_breakdown). Showing
+                    // the full split makes `netPayoutAmount = listingPrice
+                    // - ownerCommissionAmount` self-evident instead of
                     // needing this explanation.
+                    //
+                    // Label choices: "Buyer fee"/"Owner commission" (the
+                    // backend's own field names, mirrored in an earlier
+                    // pass at this screen) read wrong to an actual user --
+                    // "buyer" implies a purchase (this covers rent/lease
+                    // too), and the party hosting a listing is a "Host"
+                    // throughout this app's UI (Host Dashboard, Become a
+                    // Host), not necessarily an "Owner". "Service fee"/
+                    // "Host commission" read correctly regardless of
+                    // transaction_type. Parenthetical clarifications
+                    // ("(charged to guest)" etc.) removed per feedback --
+                    // the Divider grouping (service-fee rows above one
+                    // divider, payout rows below) now carries that meaning
+                    // instead of prose.
                     _row('Listing price', formatNairaDecimal(txn.listingPrice)),
-                    _row('Buyer fee (added to guest charge)',
-                        formatNairaDecimal(txn.buyerFeeAmount)),
-                    _row('Gross amount (charged to guest)',
-                        formatNairaDecimal(txn.grossAmount)),
+                    _row('Service fee', formatNairaDecimal(txn.buyerFeeAmount)),
+                    _row('Gross amount', formatNairaDecimal(txn.grossAmount)),
                     const Divider(height: AppSpacing.lg),
-                    _row('Owner commission (deducted from payout)',
+                    _row('Host commission',
                         formatNairaDecimal(txn.ownerCommissionAmount)),
-                    _row('Net payout (paid to host)',
-                        formatNairaDecimal(txn.netPayoutAmount)),
+                    _row('Net payout', formatNairaDecimal(txn.netPayoutAmount)),
                     const Divider(height: AppSpacing.lg),
-                    _row('Total De-Duke commission',
+                    _row('Total commission',
                         formatNairaDecimal(txn.commissionAmount)),
                     const Divider(height: AppSpacing.lg),
                     _row('Payer', txn.payerId),
