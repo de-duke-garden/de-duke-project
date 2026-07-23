@@ -67,6 +67,18 @@ class AppTheme {
       outline: AppColors.border,
       outlineVariant: AppColors.border,
       shadow: Colors.black,
+      // Bug fix: left unspecified, so Flutter's `ColorScheme` constructor
+      // filled these with its own fixed defaults instead of anything
+      // derived from this theme's actual dark palette -- Material 3's
+      // default `SnackBar` reads `inverseSurface`/`onInverseSurface`
+      // specifically, so every SnackBar in the app rendered with those
+      // un-themed defaults regardless of light/dark mode. Light theme's
+      // "inverse" surface is simply this app's own dark palette (and vice
+      // versa in dark() below) -- not a separate token set.
+      inverseSurface: AppColors.surfaceDark,
+      onInverseSurface: AppColors.textPrimaryDark,
+      inversePrimary: AppColors.primaryDark,
+      surfaceTint: Colors.transparent,
     );
 
     return _buildTheme(
@@ -101,6 +113,12 @@ class AppTheme {
       outline: AppColors.borderDark,
       outlineVariant: AppColors.borderDark,
       shadow: Colors.black,
+      // See light()'s matching comment -- dark theme's "inverse" is this
+      // app's own light palette.
+      inverseSurface: AppColors.surface,
+      onInverseSurface: AppColors.textPrimary,
+      inversePrimary: AppColors.primary,
+      surfaceTint: Colors.transparent,
     );
 
     return _buildTheme(
@@ -167,6 +185,20 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppRadii.md),
           borderSide: BorderSide(color: colorScheme.outline),
         ),
+      ),
+      // Explicit rather than left to Material 3's default (which reads
+      // colorScheme.inverseSurface/onInverseSurface itself) -- stated here
+      // for clarity now that those two roles are themed correctly above,
+      // and so this stays correct even if a future ColorScheme role
+      // default ever changes upstream.
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: colorScheme.inverseSurface,
+        contentTextStyle:
+            AppTypography.body.copyWith(color: colorScheme.onInverseSurface),
+        actionTextColor: colorScheme.inversePrimary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.md)),
       ),
     );
   }

@@ -1,11 +1,16 @@
 /// Skeleton loading system -- branding.md "Empty & Loading States". Content
 /// lists and detail screens load with shimmering placeholders shaped like
 /// the real content, instead of a bare `CircularProgressIndicator`.
+///
+/// Every color here comes from `Theme.of(context).colorScheme` -- never a
+/// bare `AppColors.X` constant. Bug fix: this file previously read
+/// `AppColors.surfaceSecondary`/`.border` directly with no brightness
+/// handling at all, so every skeleton (the loading animation shown while
+/// listings/rows/chat load) rendered light-mode colors even in dark mode.
 library;
 
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 
@@ -42,8 +47,9 @@ class _SkeletonBoxState extends State<SkeletonBox>
 
   @override
   Widget build(BuildContext context) {
-    final base = AppColors.surfaceSecondary;
-    final highlight = AppColors.border.withValues(alpha: 0.5);
+    final colorScheme = Theme.of(context).colorScheme;
+    final base = colorScheme.surfaceContainerHighest;
+    final highlight = colorScheme.outlineVariant.withValues(alpha: 0.5);
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
@@ -77,13 +83,15 @@ class SkeletonListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+        border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.6)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(

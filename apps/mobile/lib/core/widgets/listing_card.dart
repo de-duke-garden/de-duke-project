@@ -2,20 +2,31 @@
 /// shared visual container used by Home Feed, Search Results, Host/Agency
 /// dashboards, Portfolio, and Leads wherever a listing/lead/metric is
 /// summarized in card form.
+///
+/// Every color here comes from `Theme.of(context)` (`colorScheme` for
+/// surfaces/borders/text/primary, `AppSemanticColors` for shadows) -- never
+/// a bare `AppColors.X` constant and never a manual
+/// `Theme.of(context).brightness == Brightness.dark` branch to pick between
+/// a light/dark pair. `ColorScheme`/`AppSemanticColors` are already
+/// resolved for the active theme (see app_theme.dart's own docstring), so
+/// picking colors by hand here is exactly the bug class that left this
+/// card and its skeleton loader rendering light-mode colors in dark mode.
 library;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
-import '../theme/app_shadows.dart';
+import '../theme/app_semantic_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import 'tap_scale.dart';
 
 /// Bottom-to-top scrim gradient over image-topped cards so overlaid
 /// text/badges stay legible without a separate opaque chip (branding.md
-/// Shadows & Elevation, "Image-topped cards").
+/// Shadows & Elevation, "Image-topped cards"). Deliberately a fixed
+/// black-based scrim (not theme-derived) -- it sits over a photo, not a
+/// themed surface, so it must stay dark in both light and dark mode for
+/// the overlaid white text to remain legible.
 class ListingImageScrim extends StatelessWidget {
   const ListingImageScrim({super.key});
 
@@ -40,13 +51,15 @@ class ListingImagePlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      color: AppColors.surfaceSecondary,
+      color: colorScheme.surfaceContainerHighest,
       alignment: Alignment.center,
       child: FractionallySizedBox(
         widthFactor: 0.4,
         heightFactor: 0.4,
-        child: Icon(Icons.home_work_outlined, color: AppColors.primaryLight),
+        child: Icon(Icons.home_work_outlined,
+            color: colorScheme.primaryContainer),
       ),
     );
   }
@@ -102,19 +115,19 @@ class ListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
     return TapScale(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceDark : AppColors.surface,
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(AppRadii.lg),
           border: Border.all(
-              color: (isDark ? AppColors.borderDark : AppColors.border)
-                  .withValues(alpha: 0.6)),
-          boxShadow: AppShadows.of(AppShadows.sm, AppShadows.smDark, isDark),
+              color: colorScheme.outlineVariant.withValues(alpha: 0.6)),
+          boxShadow: semantic.shadowSm,
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -148,27 +161,28 @@ class ListingCard extends StatelessWidget {
                   Text(title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.h3),
+                      style: AppTypography.h3
+                          .copyWith(color: colorScheme.onSurface)),
                   const SizedBox(height: AppSpacing.xs),
                   Row(
                     children: [
                       Icon(Icons.location_on,
                           size: AppSizing.iconSm,
-                          color: AppColors.textSecondary),
+                          color: colorScheme.onSurfaceVariant),
                       const SizedBox(width: AppSpacing.xs),
                       Expanded(
                         child: Text(subtitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTypography.bodySmall
-                                .copyWith(color: AppColors.textSecondary)),
+                            style: AppTypography.bodySmall.copyWith(
+                                color: colorScheme.onSurfaceVariant)),
                       ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(priceLabel,
                       style: AppTypography.statSmall
-                          .copyWith(color: AppColors.primary)),
+                          .copyWith(color: colorScheme.primary)),
                 ],
               ),
             ),
@@ -182,6 +196,13 @@ class ListingCard extends StatelessWidget {
 /// Featured/Hero Card variant -- the one card per screen allowed to feel
 /// more premium. Larger image, `stat-display` price, subtle primary-light
 /// gradient overlay, `shadow-md` at rest -> `shadow-xl` on press.
+///
+/// Bug fix: previously built its `BoxDecoration` from bare `AppColors.surface`/
+/// `.primaryLight`/`.border` constants with no brightness handling at all
+/// (unlike `ListingCard` above), so this specific card -- the "Near You"
+/// hero card on Home Feed -- rendered with a light background/gradient
+/// even in dark mode. Now sourced from `Theme.of(context)` like every
+/// other widget in this file.
 class FeaturedListingCard extends StatefulWidget {
   const FeaturedListingCard({
     super.key,
@@ -211,6 +232,8 @@ class _FeaturedListingCardState extends State<FeaturedListingCard> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
     return GestureDetector(
       onTap: widget.onTap,
       onTapDown: (_) => setState(() => _pressed = true),
@@ -222,14 +245,15 @@ class _FeaturedListingCardState extends State<FeaturedListingCard> {
             horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadii.lg),
-          border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
-          gradient: const LinearGradient(
+          border: Border.all(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.6)),
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [AppColors.surface, AppColors.primaryLight],
-            stops: [0.7, 1.0],
+            colors: [colorScheme.surface, colorScheme.primaryContainer],
+            stops: const [0.7, 1.0],
           ),
-          boxShadow: _pressed ? AppShadows.xl : AppShadows.md,
+          boxShadow: _pressed ? semantic.shadowXl : semantic.shadowMd,
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -266,15 +290,16 @@ class _FeaturedListingCardState extends State<FeaturedListingCard> {
                   Text(widget.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.h2),
+                      style:
+                          AppTypography.h2.copyWith(color: colorScheme.onSurface)),
                   const SizedBox(height: AppSpacing.xs),
                   Text(widget.subtitle,
                       style: AppTypography.bodySmall
-                          .copyWith(color: AppColors.textSecondary)),
+                          .copyWith(color: colorScheme.onSurfaceVariant)),
                   const SizedBox(height: AppSpacing.sm),
                   Text(widget.priceLabel,
                       style: AppTypography.statDisplay
-                          .copyWith(color: AppColors.primary)),
+                          .copyWith(color: colorScheme.primary)),
                 ],
               ),
             ),
@@ -290,21 +315,23 @@ class _VerifiedBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
-        color: AppColors.primaryLight,
+        color: colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(AppRadii.full),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.verified, size: AppSizing.iconSm, color: AppColors.primary),
+          Icon(Icons.verified,
+              size: AppSizing.iconSm, color: colorScheme.onPrimaryContainer),
           const SizedBox(width: AppSpacing.xs),
           Text('VERIFIED HOST',
-              style:
-                  AppTypography.caption.copyWith(color: AppColors.primary)),
+              style: AppTypography.caption
+                  .copyWith(color: colorScheme.onPrimaryContainer)),
         ],
       ),
     );
@@ -316,15 +343,17 @@ class _FeaturedBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
-        color: AppColors.accentLight,
+        color: colorScheme.tertiaryContainer,
         borderRadius: BorderRadius.circular(AppRadii.full),
       ),
       child: Text('FEATURED',
-          style: AppTypography.caption.copyWith(color: AppColors.accent)),
+          style: AppTypography.caption
+              .copyWith(color: colorScheme.onTertiaryContainer)),
     );
   }
 }
