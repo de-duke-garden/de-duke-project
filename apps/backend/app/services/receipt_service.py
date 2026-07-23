@@ -43,6 +43,7 @@ import io
 import logging
 from datetime import UTC, datetime
 
+import anyio
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
@@ -251,12 +252,25 @@ async def ensure_receipt(session: AsyncSession, txn: Transaction) -> Receipt | N
     )
 
     try:
-        pdf_bytes = _build_pdf_bytes(
-            txn=txn,
-            receipt_number=receipt_number,
-            listing_title=listing.title if listing is not None else "Listing no longer available",
-            payer=payer,
-            payee=payee,
+        # `_build_pdf_bytes` is synchronous, CPU-bound reportlab rendering
+        # (canvas drawing, no I/O) -- calling it directly here would block
+        # the single asyncio event loop for its entire duration, stalling
+        # every OTHER concurrent request this worker is serving, not just
+        # this one (the exact same class of bug `upload_bytes` below
+        # already avoids for its own synchronous boto3 call, via
+        # anyio.to_thread). Offloaded the same way for consistency, even
+        # though a single-page render is normally fast -- "normally fast"
+        # is not a substitute for "never blocks the loop" per AGENTS.md.
+        pdf_bytes = await anyio.to_thread.run_sync(
+            lambda: _build_pdf_bytes(
+                txn=txn,
+                receipt_number=receipt_number,
+                listing_title=listing.title
+                if listing is not None
+                else "Listing no longer available",
+                payer=payer,
+                payee=payee,
+            )
         )
         pdf_url = await upload_bytes(
             pdf_bytes,

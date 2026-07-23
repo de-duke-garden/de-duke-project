@@ -55,6 +55,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   _ScreenState _state = _ScreenState.loading;
   TransactionDetail? _transaction;
   String? _errorMessage;
+  // Bug fix: pressing "Download Hold Confirmation"/"Download PDF Receipt"
+  // could appear to freeze the screen -- `_downloadReceipt` awaited
+  // `launchUrl` with no timeout and no loading state, so a slow-to-resolve
+  // URL (e.g. a local-dev LocalStack `http://` PDF link the OS takes a
+  // while to hand off, or simply no app registered to open it) left the
+  // button doing nothing with zero visual feedback, indistinguishable from
+  // a hang. Guards against a second tap piling on a second launch attempt
+  // while one is already in flight, same as any other in-flight action in
+  // this app.
+  bool _downloadingReceipt = false;
 
   @override
   void initState() {
@@ -93,6 +103,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   /// detail (the primary experience the Hero now lands on), same
   /// `url_launcher` hand-off to the OS share sheet/file viewer as before.
   Future<void> _downloadReceipt() async {
+    if (_downloadingReceipt) return; // already in flight -- see field doc.
     final txn = _transaction;
     // Bug fix: previously null-checked `receiptUrl` alone, but the backend
     // (paystack_webhook_handler.py) seeds `pdf_url` as `""` (empty string,
@@ -110,8 +121,39 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       return;
     }
     final uri = Uri.tryParse(txn.receiptUrl!);
-    if (uri != null) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This receipt link looks invalid.')),
+      );
+      return;
+    }
+    setState(() => _downloadingReceipt = true);
+    try {
+      // Bounded timeout (AGENTS.md Behavior Rules: every external hand-off
+      // must fail fast rather than hang indefinitely) -- `launchUrl`
+      // itself has no built-in timeout, so a device with no browser/PDF
+      // viewer able to resolve the intent (or, in local dev, a
+      // `http://localhost:...` LocalStack URL the OS is slow to hand off)
+      // previously left this awaited Future pending forever with the
+      // button showing no feedback at all, indistinguishable from the app
+      // having frozen.
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication)
+          .timeout(const Duration(seconds: 10), onTimeout: () => false);
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  "Couldn't open the receipt -- no app available to view it.")),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't open the receipt.")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _downloadingReceipt = false);
     }
   }
 
@@ -179,6 +221,24 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 padding: const EdgeInsets.all(AppSpacing.md),
                 child: Column(
                   children: [
+                    // Bug fix: this screen showed every other identifying
+                    // field (listing, type, parties, timestamps) but never
+                    // the transaction's own id -- the one value a user
+                    // needs to reference when contacting support about a
+                    // specific payment/hold, and the same id the receipt
+                    // PDF's own header row already prints (see
+                    // receipt_service._build_pdf_bytes's `header_rows`).
+                    // Monospace + selectable so it can actually be copied,
+                    // matching how a raw id is usually presented.
+                    _rowWidget(
+                      'Transaction ID',
+                      SelectableText(
+                        txn.id,
+                        textAlign: TextAlign.right,
+                        style: AppTypography.bodySmall
+                            .copyWith(fontFamily: 'monospace'),
+                      ),
+                    ),
                     // Was `_row('Listing', txn.listingId)` -- the raw id --
                     // then a `ListingTitleText` fetch. The backend now
                     // denormalizes the title directly onto the transaction
@@ -229,8 +289,17 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: _downloadReceipt,
-                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  // Disabled (rather than merely no-op-ing) while a launch
+                  // is in flight so the button itself visibly reflects
+                  // "working on it" instead of looking frozen/unresponsive.
+                  onPressed: _downloadingReceipt ? null : _downloadReceipt,
+                  icon: _downloadingReceipt
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.picture_as_pdf_outlined),
                   label: Text(paidTransactionStatuses.contains(txn.status)
                       ? 'Download PDF Receipt'
                       : 'Download Hold Confirmation'),

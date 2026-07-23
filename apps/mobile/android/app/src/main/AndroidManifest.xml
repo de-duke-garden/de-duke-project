@@ -109,5 +109,20 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="https"/>
         </intent>
+        <!-- Bug fix: local dev's receipt PDF URLs are plain http (LocalStack,
+             see docker-compose.yml's MEDIA_LOCAL_PUBLIC_BASE_URL/
+             AWS_ENDPOINT_URL; every deployed environment's are https via
+             CloudFront, already covered above). Without this, Android 11+
+             package visibility can hide every browser from url_launcher's
+             resolution query for an http link specifically, so launchUrl's
+             underlying intent had nothing to resolve against and the
+             awaited call in transaction_detail_screen.dart's
+             _downloadReceipt effectively went nowhere with no error
+             surfaced, which is what looked like the screen freezing when
+             testing a local build. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
+        </intent>
     </queries>
 </manifest>
