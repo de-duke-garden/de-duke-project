@@ -16,6 +16,7 @@ import '../../../core/routing/route_names.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../listings/data/listing_models.dart';
 import '../../listings/data/listing_repository.dart';
 import '../data/booking_api.dart';
@@ -144,9 +145,9 @@ class _BookingScreenState extends State<BookingScreen> {
     final listing = _listing!;
     if (listing.commercial != null) {
       final suffix = listing.commercial!.dealType == 'lease' ? ' / lease' : '';
-      return '₦${listing.commercial!.price.toStringAsFixed(0)}$suffix';
+      return '${formatNaira(listing.commercial!.price)}$suffix';
     }
-    return '₦${listing.shortlet!.nightlyPrice.toStringAsFixed(0)} / night';
+    return '${formatNaira(listing.shortlet!.nightlyPrice)} / night';
   }
 
   // Raw numeric pricing, so BookingConfirmationScreen can compute and

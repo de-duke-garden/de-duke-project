@@ -16,6 +16,7 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/skeleton_loader.dart';
 import '../data/wallet_models.dart';
@@ -204,7 +205,7 @@ class _BalanceCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            '₦${wallet.balance.toStringAsFixed(0)}',
+            formatNaira(wallet.balance),
             style: AppTypography.h1
                 .copyWith(color: colorScheme.onPrimaryContainer),
           ),
@@ -253,7 +254,7 @@ class _LedgerTile extends StatelessWidget {
         style: AppTypography.bodySmall,
       ),
       trailing: Text(
-        '${isCredit ? '+' : '-'}₦${entry.amount.toStringAsFixed(0)}',
+        '${isCredit ? '+' : '-'}${formatNaira(entry.amount)}',
         style: AppTypography.bodySmall.copyWith(
           color: tone,
           fontWeight: FontWeight.w600,

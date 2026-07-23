@@ -14,6 +14,7 @@ import '../../../core/config/env.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../listings/data/listing_models.dart';
 import '../data/share_models.dart';
 import '../data/share_repository.dart';
@@ -183,9 +184,9 @@ class _ShareSummarySheetState extends State<ShareSummarySheet> {
     final commercial = listing.commercial;
     final shortlet = listing.shortlet;
     final priceLabel = commercial != null
-        ? '₦${commercial.price.toStringAsFixed(0)}${commercial.dealType == 'lease' ? ' / lease' : ''}'
+        ? '${formatNaira(commercial.price)}${commercial.dealType == 'lease' ? ' / lease' : ''}'
         : shortlet != null
-            ? '₦${shortlet.nightlyPrice.toStringAsFixed(0)} / night'
+            ? '${formatNaira(shortlet.nightlyPrice)} / night'
             : '';
 
     final colorScheme = Theme.of(context).colorScheme;

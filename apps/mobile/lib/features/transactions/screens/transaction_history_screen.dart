@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/list_stagger.dart';
 import '../../../core/widgets/skeleton_loader.dart';
@@ -210,7 +211,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                           child: Material(
                             type: MaterialType.transparency,
                             child: Text(
-                              '₦${txn.grossAmount.toStringAsFixed(0)}',
+                              formatNaira(txn.grossAmount),
                               style: AppTypography.statSmall,
                             ),
                           ),

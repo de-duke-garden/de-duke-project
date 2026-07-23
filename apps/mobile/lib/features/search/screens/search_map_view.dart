@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/currency_format.dart';
 import '../data/search_models.dart';
 
 class SearchMapView extends StatefulWidget {
@@ -60,7 +61,7 @@ class _SearchMapViewState extends State<SearchMapView> {
                   infoWindow: InfoWindow(
                     title: result.title,
                     snippet: result.displayPrice != null
-                        ? '₦${result.displayPrice!.toStringAsFixed(0)}'
+                        ? formatNaira(result.displayPrice!)
                         : null,
                     onTap: () => widget.onMarkerTap(result.id),
                   ),

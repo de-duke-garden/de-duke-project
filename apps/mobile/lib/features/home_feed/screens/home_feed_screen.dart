@@ -32,6 +32,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../../core/widgets/branded_refresh_indicator.dart';
 import '../../../core/widgets/de_duke_logo.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -332,8 +333,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
 
   String _priceLabel(ListingSearchResult result) {
     if (result.displayPrice == null) return 'Price unavailable';
-    final formatted = result.displayPrice!.toStringAsFixed(0);
-    return result.nightlyPrice != null ? '₦$formatted/night' : '₦$formatted';
+    final formatted = formatNaira(result.displayPrice!);
+    return result.nightlyPrice != null ? '$formatted/night' : formatted;
   }
 }
 

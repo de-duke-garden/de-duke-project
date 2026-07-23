@@ -20,6 +20,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../checkout/data/checkout_repository.dart';
 import '../../checkout/data/transaction_models.dart';
 import '../../listings/data/listing_repository.dart';
@@ -164,7 +165,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     child: Material(
                       type: MaterialType.transparency,
                       child: Text(
-                        '₦${txn.grossAmount.toStringAsFixed(2)}',
+                        formatNairaDecimal(txn.grossAmount),
                         style: AppTypography.statDisplay,
                       ),
                     ),
@@ -187,11 +188,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     _row('Transaction type', txn.transactionType),
                     const Divider(height: AppSpacing.lg),
                     _row('Gross amount',
-                        '₦${txn.grossAmount.toStringAsFixed(2)}'),
+                        formatNairaDecimal(txn.grossAmount)),
                     _row('Commission',
-                        '₦${txn.commissionAmount.toStringAsFixed(2)}'),
+                        formatNairaDecimal(txn.commissionAmount)),
                     _row('Net payout',
-                        '₦${txn.netPayoutAmount.toStringAsFixed(2)}'),
+                        formatNairaDecimal(txn.netPayoutAmount)),
                     const Divider(height: AppSpacing.lg),
                     _row('Payer', txn.payerId),
                     _row('Payee', txn.payeeId),

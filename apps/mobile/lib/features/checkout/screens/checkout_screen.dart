@@ -16,6 +16,7 @@ import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../../core/widgets/skeleton_loader.dart';
 import '../data/checkout_repository.dart';
 import '../data/transaction_models.dart';
@@ -331,12 +332,12 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: AppSpacing.sm),
                   _row(context, 'Amount',
-                      '₦${txn.grossAmount.toStringAsFixed(2)}',
+                      formatNairaDecimal(txn.grossAmount),
                       isStat: true),
                   _row(context, 'Commission (platform fee)',
-                      '₦${txn.commissionAmount.toStringAsFixed(2)}'),
+                      formatNairaDecimal(txn.commissionAmount)),
                   _row(context, 'Net to host',
-                      '₦${txn.netPayoutAmount.toStringAsFixed(2)}'),
+                      formatNairaDecimal(txn.netPayoutAmount)),
                 ],
               ),
             ),
@@ -386,7 +387,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                   : FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        'Pay ₦${txn.grossAmount.toStringAsFixed(0)} Now',
+                        'Pay ${formatNaira(txn.grossAmount)} Now',
                         style: AppTypography.statDisplay
                             .copyWith(color: Colors.white, fontSize: 20),
                       ),

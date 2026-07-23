@@ -25,6 +25,7 @@ import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../../core/utils/enum_display.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/listing_card.dart';
@@ -362,9 +363,9 @@ class _ListingBodyState extends State<_ListingBody> {
     final commercial = listing.commercial;
     final shortlet = listing.shortlet;
     final priceLabel = commercial != null
-        ? '₦${commercial.price.toStringAsFixed(0)}${commercial.dealType == 'lease' ? ' / lease' : ''}'
+        ? '${formatNaira(commercial.price)}${commercial.dealType == 'lease' ? ' / lease' : ''}'
         : shortlet != null
-            ? '₦${shortlet.nightlyPrice.toStringAsFixed(0)} / night'
+            ? '${formatNaira(shortlet.nightlyPrice)} / night'
             : '';
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),

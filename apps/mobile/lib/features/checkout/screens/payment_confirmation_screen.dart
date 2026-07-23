@@ -10,6 +10,7 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../../core/widgets/celebratory_sequence.dart';
 import '../data/checkout_repository.dart';
 import '../data/transaction_models.dart';
@@ -99,11 +100,11 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
                               _row(
                                 context,
                                 'Amount paid',
-                                '₦${_transaction!.grossAmount.toStringAsFixed(2)}',
+                                formatNairaDecimal(_transaction!.grossAmount),
                                 isStat: true,
                               ),
                               _row(context, 'Commission',
-                                  '₦${_transaction!.commissionAmount.toStringAsFixed(2)}'),
+                                  formatNairaDecimal(_transaction!.commissionAmount)),
                             ],
                           ),
                         ),

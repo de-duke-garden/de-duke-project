@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/currency_format.dart';
 import '../data/wallet_models.dart';
 import '../data/wallet_repository.dart';
 
@@ -97,7 +98,7 @@ class _WithdrawSheetState extends State<WithdrawSheet> {
           Text('Withdraw', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Available balance: ₦${widget.wallet.balance.toStringAsFixed(0)}',
+            'Available balance: ${formatNaira(widget.wallet.balance)}',
             style: AppTypography.bodySmall,
           ),
           const SizedBox(height: AppSpacing.md),

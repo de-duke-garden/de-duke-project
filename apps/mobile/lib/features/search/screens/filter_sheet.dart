@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/currency_format.dart';
 import '../data/search_models.dart';
 
 Future<void> showSearchFilterSheet({
@@ -209,7 +210,7 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
         max: 500000000,
         divisions: 50,
         values: RangeValues(min, max),
-        labels: RangeLabels(min.toStringAsFixed(0), max.toStringAsFixed(0)),
+        labels: RangeLabels(formatAmount(min), formatAmount(max)),
         activeColor: Theme.of(context).colorScheme.primary,
         onChanged: (values) => setState(() {
           _draft =

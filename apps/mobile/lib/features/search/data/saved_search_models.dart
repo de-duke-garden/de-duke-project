@@ -3,6 +3,8 @@
 /// with that file if either side changes.
 library;
 
+import '../../../core/utils/currency_format.dart';
+
 class SavedSearch {
   const SavedSearch({
     required this.id,
@@ -54,8 +56,8 @@ class SavedSearch {
       parts.add(listingType == 'shortlet' ? 'Shortlet' : 'Commercial');
     }
     if (minPrice != null || maxPrice != null) {
-      final min = minPrice?.toStringAsFixed(0) ?? '0';
-      final max = maxPrice?.toStringAsFixed(0) ?? '∞';
+      final min = minPrice != null ? formatAmount(minPrice!) : '0';
+      final max = maxPrice != null ? formatAmount(maxPrice!) : '∞';
       parts.add('₦$min–₦$max');
     }
     if (verifiedOnly) parts.add('Verified only');
