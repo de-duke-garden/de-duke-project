@@ -3,8 +3,10 @@ receipt access."""
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
@@ -47,8 +49,20 @@ async def list_transactions(
     current_user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> TransactionListResponse:
-    """Cursor-based (keyset) pagination on `id`, per AGENTS.md -- never
-    offset/page-number pagination."""
+    """Cursor-based (keyset) pagination, per AGENTS.md -- never
+    offset/page-number pagination.
+
+    Bug fix: previously ordered (and keyset-paginated) by `Transaction.id`
+    alone -- a random per-row UUID with no chronological relationship to
+    when the transaction was created, so Transaction History effectively
+    showed transactions in an arbitrary order instead of the expected
+    most-recent-first. Now orders by `created_at DESC`, with `id DESC` as
+    a tiebreaker only for the rare case of two transactions sharing the
+    exact same timestamp (keyset pagination needs a fully-deterministic
+    order, not just "mostly by date"). The cursor is therefore now a
+    composite `"<created_at isoformat>_<id>"` rather than a bare id --
+    opaque to the client either way, just carried through verbatim.
+    """
     limit = max(1, min(limit, 100))
     query = (
         select(Transaction)
@@ -56,15 +70,38 @@ async def list_transactions(
             (Transaction.payer_id == current_user.user_id)
             | (Transaction.payee_id == current_user.user_id)
         )
-        .order_by(Transaction.id)
+        .order_by(Transaction.created_at.desc(), Transaction.id.desc())
         .limit(limit + 1)
     )
     if cursor:
-        query = query.where(Transaction.id > cursor)
+        cursor_created_at_raw, _, cursor_id = cursor.rpartition("_")
+        if not cursor_created_at_raw:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid cursor"
+            )
+        try:
+            cursor_created_at = datetime.fromisoformat(cursor_created_at_raw)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid cursor"
+            ) from exc
+        query = query.where(
+            or_(
+                Transaction.created_at < cursor_created_at,
+                and_(
+                    Transaction.created_at == cursor_created_at,
+                    Transaction.id < cursor_id,
+                ),
+            )
+        )
 
     result = await session.execute(query)
     rows = list(result.scalars().all())
-    next_cursor = rows[limit].id if len(rows) > limit else None
+    next_cursor = (
+        f"{rows[limit].created_at.isoformat()}_{rows[limit].id}"
+        if len(rows) > limit
+        else None
+    )
     rows = rows[:limit]
 
     titles = await _listing_titles(session, {t.listing_id for t in rows})

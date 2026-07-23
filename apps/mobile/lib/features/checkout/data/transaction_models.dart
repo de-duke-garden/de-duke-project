@@ -72,6 +72,9 @@ class TransactionDetail extends TransactionSummary {
     required super.createdAt,
     required this.payerId,
     required this.payeeId,
+    required this.listingPrice,
+    required this.buyerFeeAmount,
+    required this.ownerCommissionAmount,
     this.paidAt,
     this.holdExpiresAt,
     this.receiptUrl,
@@ -82,6 +85,21 @@ class TransactionDetail extends TransactionSummary {
   final DateTime? paidAt;
   final DateTime? holdExpiresAt;
   final String? receiptUrl;
+
+  // FEAT-014's two-sided commission split -- the backend already sends
+  // these (transactions.py's get_transaction), but this model previously
+  // only parsed the combined `commissionAmount` total. That left the
+  // Transaction Detail screen showing "Gross amount" / "Commission" /
+  // "Net payout" with no way to see WHY net payout is
+  // `listingPrice - ownerCommissionAmount` rather than
+  // `listingPrice - commissionAmount` (the combined total also includes
+  // buyerFeeAmount, which is a guest-side surcharge that never touches
+  // the host's payout at all) -- a real, reported point of confusion.
+  // See commission_service.compute_price_breakdown's own docstring for
+  // the authoritative formula this mirrors.
+  final double listingPrice;
+  final double buyerFeeAmount;
+  final double ownerCommissionAmount;
 
   factory TransactionDetail.fromJson(Map<String, dynamic> json) =>
       TransactionDetail(
@@ -96,6 +114,16 @@ class TransactionDetail extends TransactionSummary {
         createdAt: DateTime.parse(json['created_at'] as String),
         payerId: json['payer_id'] as String,
         payeeId: json['payee_id'] as String,
+        // Legacy pre-two-sided-commission transactions never populated
+        // these server-side either (transactions.py falls back to
+        // gross_amount/0.0/0.0 there) -- mirrored here defensively in
+        // case an older cached response is ever replayed, though the
+        // backend always sends non-null values today.
+        listingPrice: (json['listing_price'] as num?)?.toDouble() ??
+            (json['gross_amount'] as num).toDouble(),
+        buyerFeeAmount: (json['buyer_fee_amount'] as num?)?.toDouble() ?? 0.0,
+        ownerCommissionAmount:
+            (json['owner_commission_amount'] as num?)?.toDouble() ?? 0.0,
         paidAt: json['paid_at'] != null
             ? DateTime.parse(json['paid_at'] as String)
             : null,

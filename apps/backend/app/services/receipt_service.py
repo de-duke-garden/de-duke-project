@@ -183,11 +183,30 @@ def _build_pdf_bytes(
     pdf.setFont("Helvetica-Bold", 11)
     pdf.drawString(margin, y, "Amount")
     y -= 8 * mm
-    amount_rows = [("Gross amount", _money(txn.gross_amount))]
+    # Bug fix (reported confusion, mirrors the same fix on
+    # transaction_detail_screen.dart): showing only "Gross amount" /
+    # "Commission" (buyer_fee_amount + owner_commission_amount COMBINED) /
+    # "Net payout to host" made the payout look wrong at a glance -- e.g.
+    # gross_amount - commission_amount always equals net_payout_amount
+    # arithmetically, but a reader comparing against the LISTING price
+    # (not shown at all previously) would compute listing_price -
+    # commission_amount instead, which double-counts the buyer's fee
+    # against the host. Only owner_commission_amount is ever deducted
+    # from listing_price for the payout -- buyer_fee_amount is a
+    # guest-side surcharge on top of listing_price that never touches it.
+    # Listing this split explicitly makes that self-evident on the
+    # document itself.
+    amount_rows = [("Listing price", _money(txn.listing_price or 0.0))]
     if is_paid:
         amount_rows += [
-            ("Commission", _money(txn.commission_amount)),
+            ("Buyer fee (added to guest charge)", _money(txn.buyer_fee_amount or 0.0)),
+            ("Gross amount (charged to guest)", _money(txn.gross_amount)),
+            (
+                "Owner commission (deducted from payout)",
+                _money(txn.owner_commission_amount or 0.0),
+            ),
             ("Net payout to host", _money(txn.net_payout_amount)),
+            ("Total De-Duke commission", _money(txn.commission_amount)),
         ]
     else:
         amount_rows.append(("Amount due at checkout", _money(txn.gross_amount)))
