@@ -81,6 +81,17 @@ async def initiate_checkout(
         )
 
         reference = f"txn_{txn.id}"
+        # Sends the guest's post-payment browser redirect to the marketing
+        # site's own `/payment-complete` page (not e.g. api.de-duke.com --
+        # that has no App Links registered for it) with `transaction_id` so
+        # the page -- and, once Android intercepts the redirect via the
+        # verified App Link, the app itself -- knows which transaction to
+        # show without a separate reference lookup. See
+        # `Settings.marketing_site_url`'s docstring for the App Links side.
+        callback_url = (
+            f"{settings.marketing_site_url}/payment-complete"
+            f"?transaction_id={txn.id}"
+        )
         try:
             result_init = await initiate_paystack_transaction(
                 idempotency_key=body.idempotency_key,
@@ -88,6 +99,7 @@ async def initiate_checkout(
                 amount_kobo=int(round(txn.gross_amount * 100)),
                 reference=reference,
                 metadata={"transaction_id": txn.id, "idempotency_key": body.idempotency_key},
+                callback_url=callback_url,
             )
         except PaystackNotConfiguredError as exc:
             raise HTTPException(
@@ -113,7 +125,20 @@ async def initiate_checkout(
     )
 
 
+# Bug fix: registered ONLY as "/webhook" (no trailing slash) let a
+# webhook URL configured in the Paystack dashboard WITH a trailing slash
+# (e.g. ".../v1/checkout/webhook/", an easy, easy-to-miss typo) silently
+# receive zero payloads. Starlette's default `redirect_slashes=True|
+# response for a mismatched trailing slash is a 307 -- fine for a browser
+# GET, but Paystack's webhook sender does not follow redirects on POST
+# (confirmed: `curl -X POST .../webhook/` returns 307 with an empty body,
+# never reaching this handler), so every delivery to the slashed URL was
+# dropped with no visible error to us OR to Paystack's own dashboard.
+# Registering both paths on the same handler makes this endpoint correct
+# regardless of which variant is (mis)configured, rather than relying on
+# the Paystack dashboard config being exactly right forever.
 @router.post("/webhook", status_code=status.HTTP_200_OK)
+@router.post("/webhook/", status_code=status.HTTP_200_OK, include_in_schema=False)
 async def paystack_webhook(
     request: Request,
     x_paystack_signature: str | None = Header(default=None),

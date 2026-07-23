@@ -175,15 +175,22 @@ class Settings(BaseSettings):
     # from admin_console_url above: agency team members accept their invite
     # in the MOBILE app (AcceptInviteScreen), not the Admin Web Console, so
     # this must never reuse admin_console_url (that was a real bug -- see
-    # app/api/v1/agency.py's fix). No Android App Links / iOS Universal
-    # Links are configured anywhere in this codebase yet (that requires
-    # hosting assetlinks.json/apple-app-site-association at a real
-    # production domain -- an infra/deploy concern, not fabricated here),
-    # so this URL doesn't need to auto-open the app: the invite email
-    # instructs the recipient to paste the link into the app's "Have an
-    # invite link?" screen instead. Update once a real marketing/landing
+    # app/api/v1/agency.py's fix). Update once a real marketing/landing
     # domain and mobile deep-linking are configured.
     mobile_app_invite_base_url: str = "https://app.deduke.example"
+    # Base URL of the public marketing site (apps/marketing-site), now that
+    # Android App Links (see apps/mobile/android/app/src/main/
+    # AndroidManifest.xml's autoVerify intent-filter) and the
+    # apps/marketing-site/public/.well-known/assetlinks.json it requires
+    # ARE configured (unlike mobile_app_invite_base_url above, which still
+    # predates that work). Used to build `Paystack.initialize`'s
+    # `callback_url` (see payment_service.initiate_paystack_transaction) --
+    # Paystack's hosted checkout redirects the guest's browser here after
+    # payment, and this specific host+path is what the marketing site's
+    # `.well-known/assetlinks.json` declares the app as the verified
+    # handler for, so Android intercepts the redirect and opens the app
+    # directly instead of the browser ever rendering the fallback page.
+    marketing_site_url: str = "https://de-duke.com"
 
     @model_validator(mode="after")
     def _apply_deployed_secrets(self) -> "Settings":

@@ -366,6 +366,30 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
 
+    // -- Android App Links / iOS Universal Links landing route. Matches
+    // https://de-duke.com/payment-complete (see
+    // android/app/src/main/AndroidManifest.xml's autoVerify intent-filter
+    // and Settings.marketing_site_url's docstring, backend side) -- when
+    // Android/iOS hands this app the incoming URL, go_router matches it by
+    // path alone (host is irrelevant to route matching), landing here
+    // instead of the marketing site's own fallback page ever rendering.
+    // `transaction_id` is the query param apps/backend/app/api/v1/
+    // checkout.py's initiate_checkout appends to the Paystack callback_url
+    // it builds. No dedicated screen: redirects straight into the existing
+    // Transaction Detail screen below, which already re-fetches the live,
+    // webhook-confirmed status rather than trusting anything from this URL
+    // (Payment Correctness, AGENTS.md) -- falls back to Transaction
+    // History (no specific id) if the param is somehow missing.
+    GoRoute(
+      path: '/payment-complete',
+      redirect: (context, state) {
+        final transactionId = state.uri.queryParameters['transaction_id'];
+        return transactionId == null
+            ? '/transactions'
+            : '/transactions/$transactionId';
+      },
+    ),
+
     // -- Screen 19: Transaction History. Entry points include both
     // Payment Confirmation and Account Settings (Profile tab) -- pushed
     // full-screen from either, not itself a bottom-nav tab (screens.md

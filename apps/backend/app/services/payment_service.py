@@ -84,6 +84,7 @@ async def initiate_paystack_transaction(
     amount_kobo: int,
     reference: str,
     metadata: dict,
+    callback_url: str | None = None,
 ) -> PaystackInitResult:
     """Calls Paystack's `POST /transaction/initialize`.
 
@@ -92,6 +93,14 @@ async def initiate_paystack_transaction(
     `httpx.HTTPError`/`PaystackNotConfiguredError` and degrade gracefully
     (surface a retryable "payment provider unavailable" error to the
     client, never silently mark anything succeeded).
+
+    `callback_url`, when given, overrides the Paystack dashboard's default
+    "Callback URL" for this one transaction -- see checkout.py's caller for
+    why this is always the marketing site's `/payment-complete` page
+    (Android App Links auto-open the app from there; see
+    `Settings.marketing_site_url`'s own docstring). Omitted entirely from
+    the payload (rather than sent as `None`) when not given, so a
+    dashboard-level default (if one exists) is left untouched.
     """
     cached_reference = _idempotency_store.get(idempotency_key)
     if cached_reference is not None:
@@ -100,12 +109,14 @@ async def initiate_paystack_transaction(
     _require_configured()
 
     headers = {"Authorization": f"Bearer {settings.paystack_secret_key}"}
-    payload = {
+    payload: dict[str, Any] = {
         "email": email,
         "amount": amount_kobo,
         "reference": reference,
         "metadata": metadata,
     }
+    if callback_url:
+        payload["callback_url"] = callback_url
     async with httpx.AsyncClient(
         base_url=PAYSTACK_BASE_URL, timeout=PAYSTACK_TIMEOUT_SECONDS
     ) as client:
