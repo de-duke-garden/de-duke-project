@@ -78,6 +78,46 @@ def _money(amount: float) -> str:
     return f"NGN {amount:,.2f}"
 
 
+def _draw_wrapped_text(
+    pdf: canvas.Canvas,
+    text: str,
+    *,
+    x: float,
+    y: float,
+    max_width: float,
+    font: str = "Helvetica",
+    size: float = 9,
+    leading: float = 5 * mm,
+) -> float:
+    """Word-wraps `text` to fit within `max_width` points, drawing one
+    `drawString` call per line -- `canvas.drawString` (unlike a
+    `Paragraph`/`textobject`) never wraps on its own, it just runs off the
+    page edge past `max_width`. Bug fix: the Booking Hold Confirmation's
+    "This confirms a held booking..." note was drawn with a single
+    `drawString` call, so on an A4 page it ran past the right margin and
+    was truncated by the page boundary rather than wrapping onto a second
+    line. Returns the y position after the last line, same contract as
+    `_draw_kv_rows` below, so callers can chain layout without hardcoding
+    how many lines a given string wrapped to.
+    """
+    pdf.setFont(font, size)
+    words = text.split()
+    line = ""
+    for word in words:
+        candidate = f"{line} {word}".strip()
+        if pdf.stringWidth(candidate, font, size) <= max_width:
+            line = candidate
+            continue
+        if line:
+            pdf.drawString(x, y, line)
+            y -= leading
+        line = word
+    if line:
+        pdf.drawString(x, y, line)
+        y -= leading
+    return y
+
+
 def _draw_kv_rows(pdf: canvas.Canvas, rows: list[tuple[str, str]], *, x: float, y: float) -> float:
     """Draws label/value pairs, label left-aligned, value right-aligned at
     a fixed column -- returns the y position after the last row."""
@@ -136,14 +176,17 @@ def _build_pdf_bytes(
 
     if not is_paid:
         pdf.setFillColor(_TEXT_SECONDARY)
-        pdf.setFont("Helvetica-Oblique", 9)
-        pdf.drawString(
-            margin,
-            y,
+        y = _draw_wrapped_text(
+            pdf,
             "This confirms a held booking, not a completed payment. The commission "
             "breakdown below is finalized only once payment is confirmed.",
+            x=margin,
+            y=y,
+            max_width=width - 2 * margin,
+            font="Helvetica-Oblique",
+            size=9,
         )
-        y -= 10 * mm
+        y -= 5 * mm
 
     header_rows = [
         ("Transaction ID", txn.id),
