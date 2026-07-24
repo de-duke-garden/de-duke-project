@@ -1,0 +1,122 @@
+.hero {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: flex-start;
+  overflow: hidden;
+  /* Base layer -- shows through only if the hero photograph fails to load
+     (see the Hero's onError handler), satisfying the Error state's "solid
+     brand-color background with the headline still legible". A deep,
+     desaturated green-black gradient (matching the Download CTA's scrim
+     tone) rather than the flat, bright brand-primary green, which read as
+     jarring/out of place as a photo backdrop -- this stays "on brand"
+     without competing with the photography. */
+  background: radial-gradient(ellipse at 50% 0%, #14311f 0%, #0a1a10 70%);
+}
+
+/* Wraps the photo + scrim so the scroll-driven mask-wipe reveal (clip-path,
+   set imperatively in HeroSection.tsx) can clip both together without
+   affecting the in-flow `.content` layer beneath it in the stacking order. */
+.photoMask {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* Layer 1 -- Photography, per website-design-patterns.md's Rendering
+   Architecture layer stack. `transform` is set imperatively (Ken Burns
+   scale + mouse parallax translate combined) rather than via a CSS
+   transition, since it's driven by a 60fps scroll/mousemove stream. */
+.photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  will-change: transform;
+}
+
+/* A flat gradient scrim (any direction) either had to stay light enough to
+   let the photo read clearly -- and then didn't reliably darken whatever
+   happened to sit behind the text at a given viewport size/height -- or
+   strong enough to guarantee contrast everywhere, which on narrow mobile
+   viewports (where the gradient's full width/height collapses into a much
+   smaller area) covered most of the frame and left the whole photo
+   reading as dull and washed out (confirmed via mobile screenshot review).
+   Per-element `text-shadow` on the copy itself (below) solves this more
+   robustly: it darkens only the pixels directly behind each letterform,
+   at any viewport size, without ever dulling the photograph itself -- so
+   this layer is dropped entirely and the photo is shown at full clarity. */
+
+/* Layer 3 -- Content. Sits in the photo's "generous negative space in the
+   upper third" per branding.md's Hero Photography Direction -- the source
+   photograph (a bright room with the subjects lower in frame) was chosen
+   specifically to leave this area clear. */
+.content {
+  position: relative;
+  z-index: 2;
+  max-width: 560px;
+  padding: calc(var(--space-2xl) + 56px) var(--space-xl) var(--space-2xl);
+  color: #ffffff;
+}
+
+/* Three-layer text-shadow (a near-solid tight contact shadow, a medium
+   halo, and a soft wide glow) stands in for the removed scrim -- keeps the
+   headline legible over both the photo's darkest and brightest areas
+   (confirmed against the photo's brightest spot, the window/curtain area)
+   without dimming the photo itself, and scales with the text rather than
+   the viewport. */
+.headline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  line-height: 1.15;
+  color: #ffffff;
+  margin-bottom: var(--space-md);
+  text-shadow:
+    0 1px 2px rgba(6, 16, 10, 0.9),
+    0 2px 8px rgba(6, 16, 10, 0.7),
+    0 6px 22px rgba(6, 16, 10, 0.45);
+}
+
+.headlineLine {
+  display: block;
+  overflow: hidden;
+}
+
+.headlineLine span {
+  display: inline-block;
+  transform: translateY(110%);
+}
+
+/* Stronger than the headline's -- this is a lighter (400) weight at a
+   smaller size, so it needs more help staying legible than the bold,
+   large headline does. */
+.subhead {
+  font-size: 1.125rem;
+  line-height: 1.5;
+  font-weight: 500;
+  color: #ffffff;
+  max-width: 480px;
+  margin-bottom: var(--space-xl);
+  opacity: 0;
+  text-shadow:
+    0 1px 2px rgba(6, 16, 10, 0.95),
+    0 1px 6px rgba(6, 16, 10, 0.85),
+    0 3px 16px rgba(6, 16, 10, 0.6);
+}
+
+.ctaRow {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  opacity: 0;
+}
+
+@media (max-width: 720px) {
+  .content {
+    padding: calc(var(--space-2xl) + 56px) var(--space-lg) var(--space-2xl);
+  }
+}

@@ -1,0 +1,181 @@
+.main {
+  padding-top: 56px; /* Navbar clearance -- sections below control their own vertical rhythm. */
+}
+
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 var(--space-xl) var(--space-3xl);
+}
+
+/* -------------------------------------------------------------------- */
+/* Hero / belief statement                                              */
+/* -------------------------------------------------------------------- */
+
+.hero {
+  padding: var(--space-3xl) var(--space-xl) var(--space-2xl);
+  text-align: center;
+  background: var(--color-surface-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin-bottom: var(--space-md);
+}
+
+.belief {
+  max-width: 760px;
+  margin: 0 auto;
+  font-family: var(--font-display);
+  font-size: clamp(1.875rem, 5vw, 3rem);
+  line-height: 1.25;
+  font-weight: 700;
+  font-style: normal;
+  color: var(--color-text-primary);
+  border: none;
+  padding: 0;
+}
+
+/* -------------------------------------------------------------------- */
+/* Origin / Mission                                                     */
+/* -------------------------------------------------------------------- */
+
+.origin {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2xl);
+  padding: var(--space-3xl) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+@media (max-width: 760px) {
+  .origin {
+    grid-template-columns: 1fr;
+    gap: var(--space-2xl);
+  }
+}
+
+.originBlock {
+  border-left: 3px solid var(--color-primary);
+  padding-left: var(--space-lg);
+}
+
+/* -------------------------------------------------------------------- */
+/* Shared section / typography                                         */
+/* -------------------------------------------------------------------- */
+
+.section {
+  padding: var(--space-3xl) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.section:last-child {
+  border-bottom: none;
+}
+
+.sectionTitle {
+  font-size: 1.25rem;
+  margin-bottom: var(--space-sm);
+}
+
+.centeredTitle {
+  text-align: center;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  margin-bottom: var(--space-2xl);
+}
+
+.body {
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+  font-size: 1rem;
+  margin-bottom: var(--space-md);
+}
+
+.body:last-child {
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------- */
+/* How De-Duke Works -- card panels (matches DifferentiatorsSection)    */
+/* -------------------------------------------------------------------- */
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-lg);
+}
+
+@media (max-width: 860px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  padding: var(--space-xl);
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: transform var(--duration-fast) var(--ease-out-smooth), box-shadow var(--duration-fast) var(--ease-out-smooth);
+}
+
+.panel:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.panelIcon {
+  width: 36px;
+  height: 36px;
+  margin-bottom: var(--space-md);
+  color: var(--color-primary);
+}
+
+.panelTitle {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  color: var(--color-text-primary);
+}
+
+.panelBody {
+  font-size: 0.9375rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+/* -------------------------------------------------------------------- */
+/* Trust & Verification                                                 */
+/* -------------------------------------------------------------------- */
+
+.trustPanel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-lg);
+  padding: var(--space-xl);
+  background: var(--color-primary-light);
+  border-radius: var(--radius-lg);
+}
+
+@media (max-width: 560px) {
+  .trustPanel {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+}
+
+.trustIcon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  color: var(--color-primary);
+}
+
+.trustPanel .sectionTitle {
+  color: var(--color-text-primary);
+}

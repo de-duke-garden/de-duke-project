@@ -1,18 +1,44 @@
-// Placeholder landing page. FEAT-036's cinematic build-out (3D hero,
-// house-assembly scroll animation, per website-design-patterns.md) ships in
-// Phase 5, by a dedicated sequential section-by-section dispatch -- not
-// parallel subagents, since it shares a single WebGL render loop/scene.
+"use client";
+
+// Screen 32 -- Marketing: Home (Hero -> Download CTA). FEAT-036's full
+// cinematic build-out, assembled from the sequential per-section
+// components in src/components/home/ (Hero, Differentiators, How It
+// Works x2, For Agencies, Trust Signals, Download CTA), sharing a single
+// Lenis smooth-scroll instance and GSAP ScrollTrigger context, per
+// website-design-patterns.md's single-render-loop/single-scene rule.
+import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
+import { Preloader } from "@/components/home/Preloader";
+import { HeroSection } from "@/components/home/HeroSection";
+import { DifferentiatorsSection } from "@/components/home/DifferentiatorsSection";
+import { HowItWorksSection } from "@/components/home/HowItWorksSection";
+import { ForAgenciesSection } from "@/components/home/ForAgenciesSection";
+import { TrustSignalsSection } from "@/components/home/TrustSignalsSection";
+import { DownloadCtaSection } from "@/components/home/DownloadCtaSection";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useLenis } from "@/hooks/useLenis";
+
 export default function HomePage() {
+  const reduceMotion = usePrefersReducedMotion();
+
+  // Lenis smooth scroll is scoped to this page only (marketing sections) --
+  // /about and /legal/* never call this hook, per the Global Motion
+  // Elements' "native browser scroll on Legal & Policy pages" rule.
+  useLenis(!reduceMotion);
+
   return (
-    <main style={{ padding: "2rem" }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.png" alt="De-Duke" style={{ height: 64, width: 64 }} />
-      <h1>De-Duke</h1>
-      <p>Verified property. Real conversations. Deals that close.</p>
-      <p>
-        Full cinematic landing experience (FEAT-036) ships in Phase 5. Legal & Policy pages
-        (FEAT-037) are live now, ahead of the full site, per roadmap.md.
-      </p>
-    </main>
+    <>
+      <Preloader />
+      <Navbar overPhoto />
+      <main>
+        <HeroSection reduceMotion={reduceMotion} />
+        <DifferentiatorsSection reduceMotion={reduceMotion} />
+        <HowItWorksSection reduceMotion={reduceMotion} />
+        <ForAgenciesSection reduceMotion={reduceMotion} />
+        <TrustSignalsSection reduceMotion={reduceMotion} />
+        <DownloadCtaSection />
+      </main>
+      <Footer />
+    </>
   );
 }

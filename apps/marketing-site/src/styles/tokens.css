@@ -1,0 +1,69 @@
+/* Design tokens -- sourced from docs/De-Duke/branding.md.
+   Marketing Website uses the same underlying palette/type scale as the rest
+   of the product (per branding.md's Marketing Website section), so any
+   value here must stay in sync with that document. */
+:root {
+  /* Color -- Primary */
+  --color-primary: #0d6b2d;
+  --color-primary-hover: #0a5423;
+  --color-primary-light: #e2f0e4;
+
+  /* Color -- Accent */
+  --color-accent: #d98e04;
+  --color-accent-light: #fbebcc;
+
+  /* Color -- Neutral (light mode; the Marketing Website ships light-only,
+     the mobile app owns dark mode per branding.md) */
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f4f6f5;
+  --color-text-primary: #12201c;
+  --color-text-secondary: #5f6e68;
+  --color-border: #e1e6e3;
+
+  /* Color -- Semantic */
+  --color-success: #1fa35b;
+  --color-warning: #e2a230;
+  --color-error: #d9463b;
+  --color-info: #2e7bc4;
+
+  /* Typography */
+  --font-display: "Manrope", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Spacing (4px base grid) */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* Sizing */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(18, 32, 28, 0.07), 0 4px 10px rgba(18, 32, 28, 0.05);
+  --shadow-md: 0 2px 4px rgba(18, 32, 28, 0.08), 0 8px 20px rgba(18, 32, 28, 0.08);
+  --shadow-lg: 0 4px 8px rgba(18, 32, 28, 0.1), 0 16px 36px rgba(18, 32, 28, 0.14);
+
+  /* Motion -- Marketing Website Motion Design tokens */
+  --ease-out-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-smooth: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+  --duration-fast: 200ms;
+  --duration-normal: 400ms;
+  --duration-cinematic: 1200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-cinematic: 0ms;
+  }
+}

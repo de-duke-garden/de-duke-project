@@ -1,0 +1,42 @@
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary);
+  transition: opacity var(--duration-normal) var(--ease-in-out-smooth);
+}
+
+.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mark {
+  width: 64px;
+  height: 64px;
+  /* Renders the solid-green logo mark as white so it reads against this
+     brand-green preloader background, per the Preloader's "over the brand
+     green" spec -- avoids needing a separate white-variant export of the
+     shipped asset. */
+  filter: brightness(0) invert(1);
+  animation: fadeIn var(--duration-cinematic) var(--ease-out-smooth) forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    animation: none;
+    opacity: 1;
+  }
+}

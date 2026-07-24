@@ -116,7 +116,7 @@ function PaymentCompleteContent() {
           You&apos;re all done here
         </h1>
         <p style={{ color: colors.textSecondary, fontSize: "0.9375rem", lineHeight: 1.5, margin: 0 }}>
-          Return to the De-Duke app to see your booking and payment status -- we confirm every
+          Return to the De-Duke app to see your booking and payment status — we confirm every
           payment directly with Paystack, so the app always shows the real, up-to-date result even
           if this page closes before it loads.
         </p>

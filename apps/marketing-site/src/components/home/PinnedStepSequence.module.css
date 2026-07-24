@@ -1,0 +1,134 @@
+.section {
+  padding: var(--space-3xl) var(--space-xl);
+}
+
+.heading {
+  text-align: center;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  margin-bottom: var(--space-2xl);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2xl);
+  max-width: 1080px;
+  margin: 0 auto;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.progressTrack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.progressLine {
+  position: absolute;
+  left: 11px;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  background: var(--color-border);
+}
+
+.progressFill {
+  position: absolute;
+  left: 11px;
+  top: 12px;
+  width: 2px;
+  background: var(--accent-color, var(--color-primary));
+  transition: height var(--duration-fast) var(--ease-out-smooth);
+}
+
+.step {
+  position: relative;
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  padding-left: var(--space-xl);
+}
+
+.dot {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-secondary);
+  border: 2px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  transition: all var(--duration-fast) var(--ease-out-smooth);
+}
+
+.dotActive {
+  border-color: var(--accent-color, var(--color-primary));
+  color: #ffffff;
+  background: var(--accent-color, var(--color-primary));
+}
+
+.stepTitle {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: var(--space-xs);
+}
+
+.stepBody {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.illustration {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  overflow: hidden;
+}
+
+.illustrationPhoto {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.illustrationLabel {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+/* Step label reads as a caption chip over the photo rather than plain
+   centered text once a real photo is behind it. */
+.illustrationLabelOnPhoto {
+  position: relative;
+  z-index: 1;
+  align-self: flex-end;
+  margin: 0 0 0 auto;
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(18, 32, 28, 0.55);
+  color: #ffffff;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  backdrop-filter: blur(2px);
+}

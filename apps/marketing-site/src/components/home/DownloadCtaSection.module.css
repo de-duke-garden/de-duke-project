@@ -1,0 +1,66 @@
+.section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3xl) var(--space-xl);
+  overflow: hidden;
+  text-align: center;
+  color: #ffffff;
+  min-height: 70vh;
+  /* Base layer -- shows through (with the scrim on top) if the photograph
+     fails to load, keeping the section on-brand and the headline legible. */
+  background: var(--color-primary-hover);
+}
+
+.photo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Heavier, fully-dark scrim (vs. the Hero's lighter top-only gradient) so
+   this "resolved, moved-in moment" reads as calmer and more settled than
+   the Hero's brighter opening frame, per the motion strategy's "calm,
+   resolved" description. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(10, 26, 16, 0.82) 0%, rgba(10, 26, 16, 0.9) 100%);
+}
+
+.content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+  max-width: 480px;
+}
+
+/* Static brand mark, "placed above the headline as a simple closing brand
+   signature" -- rendered white via filter since the shipped asset is a
+   solid brand-green fill, which would be invisible against this section's
+   dark scrim otherwise. */
+.mark {
+  width: 56px;
+  height: 56px;
+  filter: brightness(0) invert(1);
+  margin-bottom: var(--space-sm);
+}
+
+.heading {
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  color: #ffffff;
+}
+
+.body {
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.6;
+}

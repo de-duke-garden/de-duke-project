@@ -1,0 +1,146 @@
+.layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--space-2xl);
+  max-width: 960px;
+  margin: 0 auto;
+  padding: calc(var(--space-3xl) + 56px) var(--space-xl) var(--space-3xl);
+}
+
+@media (max-width: 800px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.toc {
+  position: sticky;
+  top: calc(var(--space-3xl) + 16px);
+  align-self: start;
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 800px) {
+  .toc {
+    position: static;
+  }
+}
+
+.tocTitle {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.6875rem;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.tocList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.tocList a {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  line-height: 1.4;
+}
+
+.tocList a:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.document {
+  min-width: 0;
+}
+
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.body :global(h1) {
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  margin-bottom: var(--space-md);
+  color: var(--color-text-primary);
+}
+
+.body :global(h2) {
+  font-size: 1.125rem;
+  margin: var(--space-2xl) 0 var(--space-sm);
+  scroll-margin-top: calc(var(--space-3xl) + 16px);
+}
+
+.body :global(h3) {
+  font-size: 1rem;
+  margin: var(--space-lg) 0 var(--space-xs);
+}
+
+.body :global(p),
+.body :global(li) {
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+  font-size: 0.9375rem;
+}
+
+.body :global(ul),
+.body :global(ol) {
+  padding-left: var(--space-lg);
+  margin: var(--space-sm) 0;
+}
+
+.body :global(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-md) 0 var(--space-lg);
+  font-size: 0.875rem;
+}
+
+.body :global(th),
+.body :global(td) {
+  text-align: left;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.body :global(th) {
+  background: var(--color-surface-secondary);
+}
+
+.body :global(hr) {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: var(--space-2xl) 0 var(--space-md);
+}
+
+.footerNote {
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  font-style: italic;
+}
+
+.versionHistory {
+  margin-top: var(--space-lg);
+  font-size: 0.8125rem;
+}
+
+.versionHistory a {
+  color: var(--color-primary);
+}
+
+.errorMain {
+  padding: calc(var(--space-3xl) + 56px) var(--space-xl) var(--space-3xl);
+  max-width: 640px;
+  margin: 0 auto;
+  text-align: center;
+}

@@ -1,2 +1,24 @@
+@import "./tokens.css";
+
 * { box-sizing: border-box; }
-body { margin: 0; font-family: Inter, sans-serif; color: #12201C; background: #FFFFFF; }
+
+html { scroll-behavior: auto; } /* Lenis drives smooth scroll on marketing sections; native elsewhere. */
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+}
+
+h1, h2, h3 { font-family: var(--font-display); margin: 0; }
+p { margin: 0; }
+a { color: inherit; }
+button { font-family: inherit; cursor: pointer; }
+
+/* Visible focus rings everywhere -- branding.md Accessibility requirement,
+   zero-tolerance on the Legal & Policy pages in particular. */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

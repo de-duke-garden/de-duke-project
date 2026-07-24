@@ -1,0 +1,91 @@
+.section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 480px;
+  background: var(--color-surface-secondary);
+}
+
+@media (max-width: 860px) {
+  .section {
+    grid-template-columns: 1fr;
+  }
+}
+
+.photo {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0d6b2d, #153a20);
+  min-height: 320px;
+}
+
+.photoImage {
+  position: absolute;
+  inset: -5%;
+  width: 110%;
+  height: 110%;
+  object-fit: cover;
+  transform: scale(1);
+  transition: transform 8s var(--ease-out-smooth);
+}
+
+.section:hover .photoImage {
+  transform: scale(1.08);
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-3xl) var(--space-xl);
+  max-width: 480px;
+}
+
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin-bottom: var(--space-sm);
+}
+
+.heading {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  margin-bottom: var(--space-md);
+}
+
+.body {
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-lg);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  color: var(--color-text-primary);
+}
+
+/* Custom check-style marker instead of the default disc bullet -- reads
+   as "capability confirmed" rather than a generic list, and matches the
+   brand's ShieldCheckIcon visual language used elsewhere on this page. */
+.list li {
+  position: relative;
+  padding-left: var(--space-lg);
+  font-size: 0.9375rem;
+}
+
+.list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+}

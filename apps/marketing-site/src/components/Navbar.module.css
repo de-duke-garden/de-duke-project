@@ -1,0 +1,203 @@
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-xl);
+  /* Deliberately no `background`/`backdrop-filter`/`border`/`box-shadow`
+     here -- those live on `.nav::before` instead (see `.solid` below).
+     `backdrop-filter` (like `transform`/`filter`) makes the element it's
+     set on a containing block for its `position: fixed` descendants, which
+     would confine the mobile nav's overlay/panel to this element's own
+     (header-height) box instead of the viewport. Since `.solid` applies
+     from the first frame on every page except Home's Hero, that broke the
+     drawer everywhere but Home. Painting it on a pseudo-element keeps
+     `.nav` itself filter-free so the overlay/panel stay viewport-fixed. */
+  transition: color var(--duration-normal) var(--ease-in-out-smooth);
+}
+
+.nav::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: transparent;
+  border-bottom: 1px solid transparent;
+  transition: background var(--duration-normal) var(--ease-in-out-smooth),
+    border-color var(--duration-normal) var(--ease-in-out-smooth),
+    box-shadow var(--duration-normal) var(--ease-in-out-smooth);
+}
+
+/* The nav's normal, opaque resting state -- applied from the first frame
+   on every page except the Home page's Hero (which starts transparent
+   and switches to this once scrolled past, see Navbar.tsx). */
+.solid::before {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom-color: var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  color: var(--color-text-primary);
+  transition: color var(--duration-normal) var(--ease-in-out-smooth);
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.links a {
+  text-decoration: none;
+  color: var(--color-text-primary);
+  transition: color var(--duration-normal) var(--ease-in-out-smooth);
+}
+
+/* White text with a layered shadow (matching the Hero headline's
+   treatment, see HeroSection.module.css) while floating over the Hero's
+   photograph -- dark `--color-text-primary` reads as low-contrast there,
+   especially now that the Hero has no scrim behind it at all. Reverts to
+   the default dark text via `.solid` once the nav gains its solid white
+   background. */
+.lightText .brand,
+.lightText .links a {
+  color: #ffffff;
+  text-shadow:
+    0 1px 3px rgba(6, 16, 10, 0.85),
+    0 2px 10px rgba(6, 16, 10, 0.5);
+}
+
+/* Renders the solid brand-green mark as white (so it stays visible
+   against the photo at all) plus a matching drop-shadow for contrast over
+   the photo's lighter areas -- same technique used on the Preloader/
+   Download CTA, with the shadow layered on since there's no scrim here. */
+.markLight {
+  filter: brightness(0) invert(1) drop-shadow(0 1px 2px rgba(6, 16, 10, 0.7));
+}
+
+/* Mobile menu trigger (hamburger) -- hidden on desktop where the inline
+   .links list already renders the nav items directly. */
+.menuTrigger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.menuIcon {
+  width: 24px;
+  height: 24px;
+}
+
+/* Matches .lightText's white-with-shadow treatment (see above) while the
+   trigger floats over the Hero photo, unlit background. */
+.menuTriggerLight {
+  color: #ffffff;
+  filter: drop-shadow(0 1px 3px rgba(6, 16, 10, 0.85));
+}
+
+/* Full-screen scrim behind the slide-in panel. Kept mounted at all times
+   (see Navbar.tsx) so both the open and close transitions can animate;
+   `visibility` + `pointer-events` (rather than `display: none`) remove it
+   from the hit-testing/tab order while closed. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(6, 16, 10, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--duration-normal) var(--ease-in-out-smooth),
+    visibility 0s linear var(--duration-normal);
+}
+
+.overlayOpen {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity var(--duration-normal) var(--ease-in-out-smooth);
+}
+
+/* Slide-in panel, anchored to the right edge -- translates fully offscreen
+   when closed and eases in/out on open/close via `transform`, which
+   animates on its own compositor layer for a smooth in/out motion. */
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  width: min(78vw, 320px);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-md) var(--space-xl);
+  background: #ffffff;
+  box-shadow: var(--shadow-lg, -8px 0 24px rgba(6, 16, 10, 0.2));
+  transform: translateX(100%);
+  transition: transform var(--duration-normal) var(--ease-in-out-smooth);
+}
+
+.panelOpen {
+  transform: translateX(0);
+}
+
+.closeButton {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-right: -8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.panelLinks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.panelLinks a {
+  text-decoration: none;
+  color: var(--color-text-primary);
+}
+
+@media (max-width: 640px) {
+  .links {
+    display: none;
+  }
+
+  .menuTrigger {
+    display: flex;
+  }
+}
