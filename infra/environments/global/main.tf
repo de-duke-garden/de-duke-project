@@ -100,3 +100,20 @@ resource "aws_acm_certificate_validation" "alb_wildcard" {
   certificate_arn         = aws_acm_certificate.alb_wildcard.arn
   validation_record_fqdns = [for r in aws_route53_record.alb_wildcard_validation : r.fqdn]
 }
+
+# Container registry (de-duke/backend-api) -- shared by every environment.
+#
+# Lives here, not in a deploy environment, for exactly the reason stated in
+# this file's header: no single environment should own a resource the
+# others depend on. It was originally created by `development`'s state
+# (that environment was the first to exist), which made destroying
+# development capable of deleting the registry holding PRODUCTION's running
+# image -- backend-deploy.yml would break and any production task restart
+# would fail to pull. Moved here when development was decommissioned.
+#
+# Every environment reads it as `data "aws_ecr_repository" "backend"`
+# instead (see environments/*/main.tf), so nothing depends on this state
+# at plan time -- same loose coupling as the cert ARNs above.
+module "ecr" {
+  source = "../../modules/ecr"
+}

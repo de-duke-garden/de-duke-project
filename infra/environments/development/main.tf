@@ -10,9 +10,17 @@ module "networking" {
   tags               = local.common_tags
 }
 
-module "ecr" {
-  source = "../../modules/ecr"
-  tags   = local.common_tags
+# NOT module "ecr" -- the registry is shared/global across every
+# environment, and environments/global's state now owns creating it.
+#
+# It used to be created here, because development was the first environment
+# to exist. That made `terraform destroy` in this environment capable of
+# deleting the registry that holds PRODUCTION's running image. Ownership
+# moved to environments/global (via `terraform state rm` here +
+# `terraform import` there) as the first step of decommissioning this
+# environment. Same comment/pattern as staging and production already use.
+data "aws_ecr_repository" "backend" {
+  name = "de-duke/backend-api"
 }
 
 module "secrets" {
@@ -83,7 +91,7 @@ module "backend" {
   alb_security_group_id     = aws_security_group.alb.id
   service_security_group_id = aws_security_group.backend_service.id
 
-  ecr_repository_url = module.ecr.repository_url
+  ecr_repository_url = data.aws_ecr_repository.backend.repository_url
   image_tag          = var.image_tag
 
   execution_role_arn = aws_iam_role.task_execution.arn
