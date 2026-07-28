@@ -14,7 +14,16 @@
 # Admin Web Console + Marketing Site's DNS records -- see infra/README.md's
 # "DNS & certificates" section:
 #   TF_VERCEL_CNAME_TARGET - required, unique per Vercel project (no
-#                            default -- get it from the Vercel dashboard)
+#                            default -- get it from the Vercel dashboard).
+#                            This one is the ADMIN CONSOLE's.
+#   TF_VERCEL_MARKETING_CNAME_TARGET
+#                          - the Marketing Site's equivalent, for
+#                            www.de-duke.com. A separate Vercel project,
+#                            so a different value from the above -- www is
+#                            where Vercel actually serves the site (the
+#                            apex only 308-redirects to it), so leaving
+#                            this unset makes the site unreachable.
+#                            Production only.
 #   TF_VERCEL_APEX_IPS     - HCL list literal, e.g. ["76.76.21.21"];
 #                            defaults to Vercel's standard apex IP if unset
 #
@@ -115,6 +124,7 @@ jobs:
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
             -var="cdn_acm_certificate_arn=${{ vars.TF_CDN_ACM_CERTIFICATE_ARN }}" \
             -var="vercel_cname_target=${{ vars.TF_VERCEL_CNAME_TARGET }}" \
+            -var="vercel_marketing_cname_target=${{ vars.TF_VERCEL_MARKETING_CNAME_TARGET }}" \
             "${VERCEL_ARGS[@]}" \
             -var="image_tag=${{ steps.current-tag.outputs.value }}" \
             -out=tfplan
@@ -201,6 +211,7 @@ jobs:
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
             -var="cdn_acm_certificate_arn=${{ vars.TF_CDN_ACM_CERTIFICATE_ARN }}" \
             -var="vercel_cname_target=${{ vars.TF_VERCEL_CNAME_TARGET }}" \
+            -var="vercel_marketing_cname_target=${{ vars.TF_VERCEL_MARKETING_CNAME_TARGET }}" \
             "${VERCEL_ARGS[@]}" \
             -var="image_tag=${{ steps.current-tag.outputs.value }}" \
             -out=tfplan

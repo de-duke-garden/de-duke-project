@@ -170,4 +170,9 @@ module "dns" {
   create_marketing_record = true
   marketing_fqdn          = local.marketing_fqdn
   vercel_apex_ips         = var.vercel_apex_ips
+
+  # www is where Vercel actually serves the Marketing Site -- the apex
+  # only redirects to it (see modules/dns' marketing_www record).
+  marketing_www_fqdn            = local.marketing_www_fqdn
+  vercel_marketing_cname_target = var.vercel_marketing_cname_target
 }

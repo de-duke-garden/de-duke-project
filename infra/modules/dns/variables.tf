@@ -66,6 +66,18 @@ variable "marketing_fqdn" {
   default     = ""
 }
 
+variable "marketing_www_fqdn" {
+  description = "The www hostname the Marketing Site is served from, e.g. \"www.de-duke.com\". Vercel treats www as the project's primary domain and 308-redirects the apex to it, so this record must exist or the apex redirects to a hostname that doesn't resolve."
+  type        = string
+  default     = ""
+}
+
+variable "vercel_marketing_cname_target" {
+  description = "CNAME target Vercel gives for the Marketing Site's www hostname. A different value from vercel_cname_target above (that one is the Admin Console's) -- each Vercel project gets its own. Left empty until set."
+  type        = string
+  default     = ""
+}
+
 variable "vercel_apex_ips" {
   description = "IP address(es) Vercel gives for a bare apex/root domain (A record, not CNAME -- see main.tf's `marketing` record). Shared/stable across every Vercel project, unlike vercel_cname_target above."
   type        = list(string)
