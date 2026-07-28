@@ -77,4 +77,21 @@ resource "aws_route53_record" "marketing" {
   type    = "A"
   ttl     = 300
   records = var.vercel_apex_ips
+
+  # Unlike every other record here, the apex already existed before
+  # Terraform did -- it was created by hand when the Vercel-hosted
+  # marketing site went live, inside the externally-managed zone (see
+  # this file's header). Route53's ChangeResourceRecordSets uses CREATE,
+  # which fails with InvalidChangeBatch "but it already exists" on a
+  # name/type pair that's already present -- exactly what broke
+  # production's first apply. allow_overwrite switches that to UPSERT so
+  # Terraform adopts the existing record instead of colliding with it.
+  #
+  # Safe specifically because the live value already equals the desired
+  # one (de-duke.com A -> 76.76.21.21, matching vercel_apex_ips'
+  # default), so adoption is a no-op in DNS terms -- nothing resolves
+  # differently before and after. Kept scoped to this one record rather
+  # than applied module-wide: everywhere else, a pre-existing record
+  # SHOULD be a loud failure rather than something silently clobbered.
+  allow_overwrite = true
 }
