@@ -76,15 +76,6 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.11.4"
-          # DIAGNOSTIC (temporary): the action's default wrapper captures
-          # stdout/stderr to expose them as step outputs, and drops or
-          # mangles Terraform's stderr in the process -- which is where the
-          # `╷ │ Error:` block goes. A failing production plan surfaced only
-          # the wrapper's generic "Terraform exited with code 1." with no
-          # underlying message. Disabling it sends stderr straight to the
-          # runner log. Remove once the root cause is identified; nothing in
-          # this job consumes the wrapper's `steps.*.outputs.stdout`.
-          terraform_wrapper: false
 
       - name: terraform fmt -check
         run: terraform fmt -check -recursive
@@ -118,11 +109,7 @@ jobs:
           if [ -n "${{ vars.TF_VERCEL_APEX_IPS }}" ]; then
             VERCEL_ARGS+=(-var="vercel_apex_ips=${{ vars.TF_VERCEL_APEX_IPS }}")
           fi
-          # DIAGNOSTIC (temporary): `set +e` so a non-zero exit doesn't abort
-          # the step under `bash -eo pipefail` before the probes below run.
-          # Restore the plain invocation once the silent exit 1 is solved.
-          set +e
-          terraform plan -no-color \
+          terraform plan \
             -var="gcp_project_id=${{ secrets.TF_GCP_PROJECT_ID }}" \
             -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
@@ -131,34 +118,9 @@ jobs:
             "${VERCEL_ARGS[@]}" \
             -var="image_tag=${{ steps.current-tag.outputs.value }}" \
             -out=tfplan
-          PLAN_EXIT=$?
-          echo "::notice::terraform plan exit code = ${PLAN_EXIT}"
-
-          # Did the plan file actually get written? This is the decisive
-          # signal: present + exit 0 means the plan is fine and the failure
-          # is downstream in `terraform show`.
-          ls -la tfplan && echo "::notice::tfplan present" \
-                        || echo "::notice::tfplan ABSENT"
-
-          # A provider crash writes crash.log and exits non-zero, sometimes
-          # with nothing useful on stderr.
-          if [ -f crash.log ]; then
-            echo "::notice::crash.log found -- contents follow"
-            cat crash.log
-          fi
-
-          exit "${PLAN_EXIT}"
 
       - name: terraform show (plan summary)
-        # DIAGNOSTIC (temporary): same exit-code probe as the plan step --
-        # `show` renders output nearly identical to `plan` (same diff, same
-        # "Plan: N to add"), so it's a live suspect for the failing step.
-        run: |
-          set +e
-          terraform show -no-color tfplan
-          SHOW_EXIT=$?
-          echo "::notice::terraform show exit code = ${SHOW_EXIT}"
-          exit "${SHOW_EXIT}"
+        run: terraform show -no-color tfplan
 
   apply:
     if: github.event_name == 'push'

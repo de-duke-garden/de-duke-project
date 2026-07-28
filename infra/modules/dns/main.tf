@@ -33,7 +33,18 @@ resource "aws_route53_record" "api" {
 # it doesn't recognize as one of its own aliases, so this record must not
 # exist ahead of that.
 resource "aws_route53_record" "cdn" {
-  count   = var.create_cdn_record && var.cdn_fqdn != "" && var.cdn_domain_name != "" ? 1 : 0
+  # Both terms are resolvable at plan time. Deliberately NOT also testing
+  # `var.cdn_domain_name != ""`: that's modules/s3_cdn's CloudFront
+  # `domain_name`, a computed attribute which is unknown until apply on a
+  # fresh environment -- and `count` must be known at plan time, so
+  # including it failed production's very first plan with "Invalid count
+  # argument". The test was redundant anyway (a distribution this config
+  # always creates never has an empty domain_name); the real gate -- "has
+  # the us-east-1 cert been issued, so CloudFront recognizes cdn_fqdn as
+  # one of its own aliases" -- is carried entirely by create_cdn_record.
+  # Referencing the unknown value in `alias` below stays fine: unknown
+  # attribute values are legal, only an unknown `count` is not.
+  count   = var.create_cdn_record && var.cdn_fqdn != "" ? 1 : 0
   zone_id = var.zone_id
   name    = var.cdn_fqdn
   type    = "A"
