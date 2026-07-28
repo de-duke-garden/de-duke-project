@@ -101,9 +101,34 @@ resource "aws_db_proxy" "this" {
   vpc_subnet_ids         = var.private_subnet_ids
   vpc_security_group_ids = [var.service_security_group_id]
 
+  # iam_auth and client_password_auth_type are pinned to the values RDS
+  # assigns by default rather than left unset. Both are Optional+Computed:
+  # omitting them doesn't mean "don't care", it means the refreshed state
+  # holds a value the configuration doesn't, and because `auth` is a set
+  # (not a single nested block) the provider can't diff it attribute-wise
+  # -- it proposes replacing the whole element, producing a permanent
+  # in-place update on EVERY plan:
+  #
+  #   ~ auth_scheme               = "SECRETS" -> null
+  #   ~ client_password_auth_type = "POSTGRES_SCRAM_SHA_256" -> null
+  #   ~ iam_auth                  = "DISABLED" -> null
+  #   + auth_scheme               = "SECRETS"
+  #   + client_password_auth_type = (known after apply)
+  #
+  # Applying it changed nothing (identical values were rewritten), so this
+  # was pure noise -- and noise that matters, since production is now the
+  # only environment and its plans are the sole review point before a
+  # change goes live. Stating the defaults explicitly makes the plan clean,
+  # so a genuinely unexpected diff here is visible instead of buried.
+  #
+  # The values are RDS's own defaults for a POSTGRESQL proxy using Secrets
+  # Manager auth, confirmed against the live production proxy -- not a
+  # behavioural change.
   auth {
-    auth_scheme = "SECRETS"
-    secret_arn  = var.db_master_secret_arn
+    auth_scheme               = "SECRETS"
+    secret_arn                = var.db_master_secret_arn
+    iam_auth                  = "DISABLED"
+    client_password_auth_type = "POSTGRES_SCRAM_SHA_256"
   }
 
   tags = var.tags
