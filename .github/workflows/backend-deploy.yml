@@ -46,6 +46,20 @@ on:
     paths:
       - "apps/backend/**"
       - ".github/workflows/backend-deploy.yml"
+  # Manual, on-demand deploy of main's current backend commit. Needed
+  # because the push trigger above is path-filtered: bringing a brand-new
+  # environment online is an infra-only change (infra-terraform.yml
+  # applies it), which touches no apps/backend/** path, so this workflow
+  # is skipped and the new environment's ECS service is left running
+  # modules/fargate_service's nginx placeholder image (its
+  # `using_placeholder_image = var.image_tag == ""` fallback) rather than
+  # the real API. Dispatching this workflow builds and deploys the actual
+  # image without needing a no-op commit under apps/backend/ to trip the
+  # path filter.
+  #
+  # Runs the same matrix as a push -- development first, then production,
+  # with fail-fast + max-parallel: 1 preserving promotion order.
+  workflow_dispatch:
 
 permissions:
   id-token: write # required for AWS OIDC federation (no static access keys)
