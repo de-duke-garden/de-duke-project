@@ -12,3 +12,8 @@ output "cdn_certificate_arn" {
   description = "Copy this into every environment's terraform.tfvars as `cdn_acm_certificate_arn` (existing us-east-1 wildcard cert -- required before any environment's CloudFront distribution gets a custom domain/alias, see modules/s3_cdn's acm_certificate_arn_us_east_1 variable)."
   value       = data.aws_acm_certificate.cdn_wildcard.arn
 }
+
+output "ecr_repository_url" {
+  description = "URL of the shared de-duke/backend-api registry. Environments look the repository up by name via a data source rather than reading this output, so their plans never depend on this state -- exposed for operator convenience."
+  value       = module.ecr.repository_url
+}
