@@ -76,6 +76,15 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.11.4"
+          # DIAGNOSTIC (temporary): the action's default wrapper captures
+          # stdout/stderr to expose them as step outputs, and drops or
+          # mangles Terraform's stderr in the process -- which is where the
+          # `╷ │ Error:` block goes. A failing production plan surfaced only
+          # the wrapper's generic "Terraform exited with code 1." with no
+          # underlying message. Disabling it sends stderr straight to the
+          # runner log. Remove once the root cause is identified; nothing in
+          # this job consumes the wrapper's `steps.*.outputs.stdout`.
+          terraform_wrapper: false
 
       - name: terraform fmt -check
         run: terraform fmt -check -recursive
