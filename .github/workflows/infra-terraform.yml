@@ -58,7 +58,7 @@ jobs:
         include:
           - environment: development
           # - environment: staging
-          # - environment: production
+          - environment: production
     runs-on: ubuntu-latest
     environment: ${{ matrix.environment }}
     defaults:
@@ -131,7 +131,7 @@ jobs:
         include:
           - environment: development
           # - environment: staging
-          # - environment: production
+          - environment: production
     runs-on: ubuntu-latest
     environment: ${{ matrix.environment }}
     # Keyed per environment (not global) -- each environment has its own
