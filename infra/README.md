@@ -33,9 +33,10 @@ infra/
 └── environments/
     ├── global/            # NOT a deploy environment -- one-time DNS/cert bootstrap
     │                      # shared by every environment below (see its own main.tf header)
-    ├── development/       # Smallest footprint: single-AZ RDS, no read replicas, 1 Redis node
-    ├── staging/           # Not yet configured — mirror development, then scale up per architecture.md
-    └── production/        # Not yet configured — Multi-AZ everywhere, read replicas from launch
+    ├── development/       # DECOMMISSIONED — destroyed, and commented out of both
+    │                      # workflow matrices. Config kept so it can be recreated.
+    ├── staging/           # Never applied — mirror production's sizing per architecture.md
+    └── production/        # LIVE — the only active environment
 ```
 
 ## DNS & certificates (de-duke.com)
