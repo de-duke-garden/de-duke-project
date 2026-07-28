@@ -62,6 +62,16 @@ variable "vercel_cname_target" {
   default     = ""
 }
 
+# Distinct from vercel_cname_target above -- the Admin Console and the
+# Marketing Site are separate Vercel projects, so each has its own
+# per-project *.vercel-dns-017.com target. Set via
+# TF_VERCEL_MARKETING_CNAME_TARGET.
+variable "vercel_marketing_cname_target" {
+  description = "CNAME target Vercel gives for www.de-duke.com (the Marketing Site's primary domain)."
+  type        = string
+  default     = ""
+}
+
 variable "vercel_apex_ips" {
   description = "IP address(es) Vercel gives for the Marketing Site's bare de-duke.com apex (A record, not CNAME)."
   type        = list(string)

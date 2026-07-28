@@ -95,3 +95,25 @@ resource "aws_route53_record" "marketing" {
   # SHOULD be a loud failure rather than something silently clobbered.
   allow_overwrite = true
 }
+
+# www.de-duke.com (production only) -> Vercel, via CNAME.
+#
+# Not optional despite the apex record above already existing: Vercel
+# treats www as the Marketing Site project's PRIMARY domain, so it
+# answers the apex with a 308 redirect to https://www.de-duke.com/
+# rather than serving the site there. Without this record that redirect
+# target is NXDOMAIN, and the site is unreachable on both hostnames even
+# though the apex A record resolves and reaches Vercel correctly.
+#
+# Uses Vercel's newer per-project *.vercel-dns-017.com target rather than
+# the legacy shared cname.vercel-dns.com, per the value shown in the
+# project's Domains tab (the legacy record still works, but Vercel is
+# expanding its IP range and recommends the per-project one).
+resource "aws_route53_record" "marketing_www" {
+  count   = var.create_marketing_record && var.marketing_www_fqdn != "" && var.vercel_marketing_cname_target != "" ? 1 : 0
+  zone_id = var.zone_id
+  name    = var.marketing_www_fqdn
+  type    = "CNAME"
+  ttl     = 300
+  records = [var.vercel_marketing_cname_target]
+}

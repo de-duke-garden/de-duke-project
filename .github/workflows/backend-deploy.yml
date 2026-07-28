@@ -204,6 +204,7 @@ jobs:
             -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
             -var="vercel_cname_target=${{ vars.TF_VERCEL_CNAME_TARGET }}" \
+            -var="vercel_marketing_cname_target=${{ vars.TF_VERCEL_MARKETING_CNAME_TARGET }}" \
             "${VERCEL_ARGS[@]}" \
             -var="image_tag=${{ needs.build-and-push.outputs.image_tag }}" \
             -out=tfplan
@@ -322,5 +323,6 @@ jobs:
             -var="aws_account_suffix=${{ secrets.TF_AWS_ACCOUNT_SUFFIX }}" \
             -var="acm_certificate_arn=${{ vars.TF_ACM_CERTIFICATE_ARN }}" \
             -var="vercel_cname_target=${{ vars.TF_VERCEL_CNAME_TARGET }}" \
+            -var="vercel_marketing_cname_target=${{ vars.TF_VERCEL_MARKETING_CNAME_TARGET }}" \
             "${VERCEL_ARGS[@]}" \
             -var="image_tag=${{ steps.previous-tag.outputs.value }}"

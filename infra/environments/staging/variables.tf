@@ -54,6 +54,19 @@ variable "cdn_acm_certificate_arn" {
   default     = ""
 }
 
+# Declared but unused in this environment: the Marketing Site is
+# production-only (create_marketing_record defaults to false here), so no
+# www record is created. Both workflows pass
+# -var="vercel_marketing_cname_target=..." to EVERY environment in the
+# matrix, and Terraform rejects a value assigned to a variable the root
+# module doesn't declare ("Value for undeclared variable"), so this must
+# exist even though nothing reads it.
+variable "vercel_marketing_cname_target" {
+  description = "CNAME target Vercel gives for the Marketing Site's www hostname. Production-only -- unused here."
+  type        = string
+  default     = ""
+}
+
 # CNAME target Vercel gives for staging-admin.de-duke.com -- unique per
 # Vercel project, no shared default. Set via TF_VERCEL_CNAME_TARGET.
 variable "vercel_cname_target" {
