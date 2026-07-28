@@ -27,8 +27,16 @@
 #
 # Environment matrix
 # -------------------
-# All three environments are scaffolded (infra/environments/{staging,
-# production}/main.tf). `deploy`, `smoke-test`, and `rollback` are folded
+# Only `production` is active: `development` was decommissioned (its AWS
+# resources destroyed -- see infra/README.md) and `staging` has never been
+# applied. Both stay commented out below rather than deleted.
+#
+# Consequence worth knowing before you deploy: a push to main now builds
+# and ships straight to production, with no earlier environment to catch a
+# bad image, a failing migration, or a broken smoke test first. The
+# rollback step below is the only safety net left.
+#
+# `deploy`, `smoke-test`, and `rollback` are folded
 # into a single matrixed job below (steps run in sequence per leg) rather
 # than three separate jobs linked by `needs.<job>.outputs.*` -- GitHub
 # Actions does not expose per-matrix-leg outputs across jobs (a downstream
@@ -144,7 +152,7 @@ jobs:
       max-parallel: 1 # enforces development -> staging -> production order
       matrix:
         include:
-          - environment: development
+          # - environment: development  # decommissioned -- destroyed, see infra/README.md
           # - environment: staging
           - environment: production
     runs-on: ubuntu-latest

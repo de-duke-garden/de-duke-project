@@ -29,11 +29,23 @@
 #
 # Environment matrix
 # -------------------
-# All three environments are scaffolded with real .tf files (see
-# infra/environments/{staging,production}/main.tf). The apply job's matrix
-# enforces development -> staging -> production promotion order via
-# fail-fast + max-parallel: 1, so a broken development apply blocks staging
-# and production from ever being reached in the same run.
+# All three environments still have real .tf files, but only `production`
+# is active. `development` was decommissioned (terraform destroy'd, its
+# AWS resources gone -- see infra/README.md); `staging` has never been
+# applied. Both are left commented out below rather than deleted, so
+# re-enabling either is a one-line change.
+#
+# The apply job keeps fail-fast + max-parallel: 1, which enforces
+# development -> staging -> production promotion order whenever more than
+# one entry is active. With production alone there is nothing to promote
+# THROUGH: every infra change lands directly on production, with no
+# earlier environment to catch a bad plan first. Re-enable `staging`
+# before that stops being an acceptable trade.
+#
+# NOTE: development's .tf files remain, but its state no longer describes
+# any live infrastructure. Re-enabling it would recreate the environment
+# from scratch -- and its Secrets Manager secrets may still be inside
+# their 7-30 day recovery window, whose reserved names would collide.
 name: Infra Terraform
 
 on:
@@ -65,7 +77,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - environment: development
+          # - environment: development  # decommissioned -- destroyed, see infra/README.md
           # - environment: staging
           - environment: production
     runs-on: ubuntu-latest
@@ -139,7 +151,7 @@ jobs:
       max-parallel: 1 # enforces development -> staging -> production order
       matrix:
         include:
-          - environment: development
+          # - environment: development  # decommissioned -- destroyed, see infra/README.md
           # - environment: staging
           - environment: production
     runs-on: ubuntu-latest
