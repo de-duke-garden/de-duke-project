@@ -147,9 +147,7 @@ async def truncate_synthetic_data(session) -> None:
         )
     )
     await session.execute(delete(Listing).where(Listing.id.in_(synthetic_listing_ids)))
-    await session.execute(
-        delete(HostAccount).where(HostAccount.id.in_(synthetic_host_account_ids))
-    )
+    await session.execute(delete(HostAccount).where(HostAccount.id.in_(synthetic_host_account_ids)))
     await session.execute(delete(User).where(User.id.in_(synthetic_user_ids)))
 
 

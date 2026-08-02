@@ -67,9 +67,7 @@ _RENAMES = {
 def upgrade() -> None:
     users = sa.table("users", sa.column("role", sa.String))
     for old_value, new_value in _RENAMES.items():
-        op.execute(
-            users.update().where(users.c.role == old_value).values(role=new_value)
-        )
+        op.execute(users.update().where(users.c.role == old_value).values(role=new_value))
 
 
 def downgrade() -> None:

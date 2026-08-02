@@ -11,8 +11,9 @@ account) -- this is deliberately NOT a single column on User.
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.core.db_types import UTCDateTime
 from sqlmodel import Field, SQLModel
+
+from app.core.db_types import UTCDateTime
 
 
 class PushToken(SQLModel, table=True):
@@ -32,9 +33,5 @@ class PushToken(SQLModel, table=True):
     # (e.g. APNs-specific fields) without a migration at that point.
     platform: str
 
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)

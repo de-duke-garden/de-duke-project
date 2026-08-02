@@ -99,7 +99,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     unhandled exception's raw `str(exc)` is never safe to hand back to a
     client (may leak internals), so this deliberately does NOT forward it.
     """
-    logger.exception("unhandled_exception_handler: unhandled exception during request", exc_info=exc)
+    logger.exception(
+        "unhandled_exception_handler: unhandled exception during request", exc_info=exc
+    )
     return JSONResponse(
         status_code=500,
         content={"detail": "Something went wrong. Please try again."},

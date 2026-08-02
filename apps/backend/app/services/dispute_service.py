@@ -135,9 +135,7 @@ async def get_dispute(session: AsyncSession, dispute_id: str) -> Dispute | None:
     ).scalar_one_or_none()
 
 
-async def get_transaction_or_none(
-    session: AsyncSession, transaction_id: str
-) -> Transaction | None:
+async def get_transaction_or_none(session: AsyncSession, transaction_id: str) -> Transaction | None:
     return (
         await session.execute(select(Transaction).where(Transaction.id == transaction_id))
     ).scalar_one_or_none()

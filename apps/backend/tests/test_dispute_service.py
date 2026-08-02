@@ -400,9 +400,7 @@ def _auth_header(user: User) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def test_guest_can_raise_dispute_via_api(
-    client: AsyncClient, session: AsyncSession
-) -> None:
+async def test_guest_can_raise_dispute_via_api(client: AsyncClient, session: AsyncSession) -> None:
     guest = await _make_user(session, role="guest")
     host = await _make_user(session, role="host")
     txn = await _make_transaction(session, payer=guest, payee=host)
@@ -429,9 +427,7 @@ async def test_guest_cannot_list_disputes(client: AsyncClient, session: AsyncSes
     assert response.status_code == 403
 
 
-async def test_guest_cannot_resolve_disputes(
-    client: AsyncClient, session: AsyncSession
-) -> None:
+async def test_guest_cannot_resolve_disputes(client: AsyncClient, session: AsyncSession) -> None:
     guest = await _make_user(session, role="guest")
     host = await _make_user(session, role="host")
     txn = await _make_transaction(session, payer=guest, payee=host)

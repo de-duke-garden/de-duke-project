@@ -139,7 +139,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_withdrawal_requests_paystack_transfer_reference", table_name="withdrawal_requests")
+    op.drop_index(
+        "ix_withdrawal_requests_paystack_transfer_reference",
+        table_name="withdrawal_requests",
+    )
     op.drop_index("ix_withdrawal_requests_status", table_name="withdrawal_requests")
     op.drop_index("ix_withdrawal_requests_wallet_id", table_name="withdrawal_requests")
     op.drop_table("withdrawal_requests")

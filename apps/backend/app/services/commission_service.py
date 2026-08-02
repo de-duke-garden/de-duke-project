@@ -113,12 +113,12 @@ def compute_price_breakdown(
     listing_price: float, buyer_fee_percentage: float, owner_commission_percentage: float
 ) -> PriceBreakdown:
     """The two-sided commission math (product decision):
-      - gross_amount (charged to guest) = listing_price + buyer_fee_amount
-      - net_payout_amount (paid to payee) = listing_price - owner_commission_amount
-      - commission_amount (total De-Duke revenue) = buyer_fee_amount + owner_commission_amount
-        (always exactly gross_amount - net_payout_amount -- see
-        Transaction.commission_amount's own docstring for why that
-        identity matters to existing callers).
+    - gross_amount (charged to guest) = listing_price + buyer_fee_amount
+    - net_payout_amount (paid to payee) = listing_price - owner_commission_amount
+    - commission_amount (total De-Duke revenue) = buyer_fee_amount + owner_commission_amount
+      (always exactly gross_amount - net_payout_amount -- see
+      Transaction.commission_amount's own docstring for why that
+      identity matters to existing callers).
     """
     buyer_fee_amount = round(listing_price * (buyer_fee_percentage / 100.0), 2)
     owner_commission_amount = round(listing_price * (owner_commission_percentage / 100.0), 2)

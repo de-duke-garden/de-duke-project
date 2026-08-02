@@ -330,8 +330,7 @@ def verify_webhook_signature(raw_body: bytes, signature_header: str | None) -> b
         return False
     if settings.paystack_secret_key == "REPLACE_ME":
         logger.warning(
-            "payment_service: paystack_secret_key not configured -- "
-            "rejecting webhook (fail closed)"
+            "payment_service: paystack_secret_key not configured -- rejecting webhook (fail closed)"
         )
         return False
     computed = hmac.new(

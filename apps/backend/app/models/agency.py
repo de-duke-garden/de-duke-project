@@ -3,8 +3,9 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.core.db_types import UTCDateTime
 from sqlmodel import Field, SQLModel
+
+from app.core.db_types import UTCDateTime
 
 # sa_type=UTCDateTime throughout this module -- every datetime
 # here is timezone-aware UTC (datetime.now(UTC)); without it, SQLModel maps
@@ -20,9 +21,7 @@ class AgencyTeamMember(SQLModel, table=True):
     user_id: str = Field(foreign_key="users.id", index=True)
     # admin | agent
     agency_role: str
-    invited_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    invited_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
     joined_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
 
 
@@ -38,9 +37,7 @@ class Lead(SQLModel, table=True):
     # unassigned | assigned | closed | lost
     status: str = Field(default="unassigned", index=True)
     current_assignment_id: str | None = Field(default=None, foreign_key="lead_assignments.id")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
 
 
 class LeadAssignment(SQLModel, table=True):
@@ -50,7 +47,5 @@ class LeadAssignment(SQLModel, table=True):
     lead_id: str = Field(foreign_key="leads.id", index=True)
     assigned_to_id: str = Field(foreign_key="users.id")
     assigned_by_id: str = Field(foreign_key="users.id")
-    assigned_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    assigned_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
     unassigned_at: datetime | None = Field(default=None, sa_type=UTCDateTime)

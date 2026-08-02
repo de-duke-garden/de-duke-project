@@ -76,9 +76,7 @@ async def list_transactions(
     if cursor:
         cursor_created_at_raw, _, cursor_id = cursor.rpartition("_")
         if not cursor_created_at_raw:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid cursor"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid cursor")
         try:
             cursor_created_at = datetime.fromisoformat(cursor_created_at_raw)
         except ValueError as exc:
@@ -98,9 +96,7 @@ async def list_transactions(
     result = await session.execute(query)
     rows = list(result.scalars().all())
     next_cursor = (
-        f"{rows[limit].created_at.isoformat()}_{rows[limit].id}"
-        if len(rows) > limit
-        else None
+        f"{rows[limit].created_at.isoformat()}_{rows[limit].id}" if len(rows) > limit else None
     )
     rows = rows[:limit]
 

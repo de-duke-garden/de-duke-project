@@ -73,9 +73,7 @@ async def request_withdrawal(
         raise WithdrawalError(str(exc)) from exc
     except httpx.HTTPError as exc:
         logger.warning("withdrawal_service: paystack transfer failed: %s", exc)
-        raise WithdrawalError(
-            "Payment provider is temporarily unavailable. Please retry."
-        ) from exc
+        raise WithdrawalError("Payment provider is temporarily unavailable. Please retry.") from exc
 
     new_balance = round(wallet.balance - amount, 2)
     withdrawal = WithdrawalRequest(

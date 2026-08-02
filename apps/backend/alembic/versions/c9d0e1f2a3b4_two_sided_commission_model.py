@@ -54,9 +54,7 @@ def upgrade() -> None:
     rate_configs = sa.table("commission_rate_configs", sa.column("fee_type", sa.String))
     op.execute(rate_configs.update().values(fee_type="owner_commission"))
     op.alter_column("commission_rate_configs", "fee_type", nullable=False)
-    op.create_index(
-        "ix_commission_rate_configs_fee_type", "commission_rate_configs", ["fee_type"]
-    )
+    op.create_index("ix_commission_rate_configs_fee_type", "commission_rate_configs", ["fee_type"])
 
     # -- 2. Transaction price breakdown columns -------------------------
     op.add_column("transactions", sa.Column("listing_price", sa.Float(), nullable=True))
