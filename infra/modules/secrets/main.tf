@@ -37,12 +37,19 @@ resource "aws_secretsmanager_secret_version" "app" {
     GOOGLE_MAPS_API_KEY           = "REPLACE_ME"
     FIREBASE_SERVICE_ACCOUNT_JSON = "REPLACE_ME"
     FIRESTORE_PROJECT_ID          = "REPLACE_ME"
-    FCM_SERVER_KEY                = "REPLACE_ME"
-    AWS_SES_SENDER_EMAIL          = "REPLACE_ME"
-    SENTRY_DSN                    = "REPLACE_ME"
-    ANALYTICS_WRITE_KEY           = "REPLACE_ME"
-    JWT_SIGNING_SECRET            = "REPLACE_ME"
-    GEMINI_API_KEY                = "REPLACE_ME"
+    # No FCM_SERVER_KEY: push notifications authenticate with
+    # FIREBASE_SERVICE_ACCOUNT_JSON above (FCM HTTP v1 via the Firebase
+    # Admin SDK, see app/services/push_service.py). The legacy key was
+    # never read by any code, and Google shut the legacy API down in July
+    # 2024. Removed here per the PAYSTACK_WEBHOOK_SECRET note above: since
+    # `secret_string` is under `ignore_changes`, deleting the key from this
+    # block does NOT remove it from an already-populated live secret -- an
+    # operator removes it manually in the Secrets Manager console.
+    AWS_SES_SENDER_EMAIL = "REPLACE_ME"
+    SENTRY_DSN           = "REPLACE_ME"
+    ANALYTICS_WRITE_KEY  = "REPLACE_ME"
+    JWT_SIGNING_SECRET   = "REPLACE_ME"
+    GEMINI_API_KEY       = "REPLACE_ME"
   })
 
   lifecycle {

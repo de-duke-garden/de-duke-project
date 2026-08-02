@@ -127,8 +127,13 @@ class Settings(BaseSettings):
     paystack_fallback_email: str = "info@de-duke.com"
     google_maps_api_key: str = "REPLACE_ME"
     firebase_service_account_json: str = "REPLACE_ME"
+    # No fcm_server_key here: push notifications authenticate with the
+    # Firebase service account above, not a legacy FCM server key.
+    # app/services/push_service.py sends via firebase_admin.messaging
+    # (FCM HTTP v1 / OAuth2), reusing app/core/firebase.py's shared app --
+    # it never read a server key. Google deprecated legacy server keys in
+    # June 2023 and shut the legacy HTTP API down in July 2024.
     firestore_project_id: str = "REPLACE_ME"
-    fcm_server_key: str = "REPLACE_ME"
     aws_ses_sender_email: str = "REPLACE_ME"
     sentry_dsn: str = "REPLACE_ME"
     analytics_write_key: str = "REPLACE_ME"
@@ -229,7 +234,6 @@ class Settings(BaseSettings):
                 "GOOGLE_MAPS_API_KEY": "google_maps_api_key",
                 "FIREBASE_SERVICE_ACCOUNT_JSON": "firebase_service_account_json",
                 "FIRESTORE_PROJECT_ID": "firestore_project_id",
-                "FCM_SERVER_KEY": "fcm_server_key",
                 "AWS_SES_SENDER_EMAIL": "aws_ses_sender_email",
                 "SENTRY_DSN": "sentry_dsn",
                 "ANALYTICS_WRITE_KEY": "analytics_write_key",
