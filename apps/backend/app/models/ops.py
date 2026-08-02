@@ -3,8 +3,9 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.core.db_types import UTCDateTime
 from sqlmodel import Field, SQLModel
+
+from app.core.db_types import UTCDateTime
 
 # sa_type=UTCDateTime throughout this module -- every datetime
 # here is timezone-aware UTC (datetime.now(UTC)); without it, SQLModel maps
@@ -26,9 +27,7 @@ class Dispute(SQLModel, table=True):
     assigned_staff_id: str | None = Field(default=None, foreign_key="users.id")
     resolution_notes: str | None = Field(default=None)
     refund_amount: float | None = Field(default=None)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
     resolved_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
 
 
@@ -54,9 +53,7 @@ class CommissionRateConfig(SQLModel, table=True):
     rate_percentage: float
     set_by_id: str = Field(foreign_key="users.id")
     effective_from: datetime = Field(index=True, sa_type=UTCDateTime)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
 
 
 class AuditLogEntry(SQLModel, table=True):
@@ -73,6 +70,4 @@ class AuditLogEntry(SQLModel, table=True):
     target_type: str
     target_id: str = Field(index=True)
     notes: str | None = Field(default=None)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)

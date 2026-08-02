@@ -14,8 +14,9 @@ items (FEAT-025 AC), distinguished via moderation_service's
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.core.db_types import UTCDateTime
 from sqlmodel import Field, SQLModel
+
+from app.core.db_types import UTCDateTime
 
 # listing | conversation
 REPORT_TARGET_TYPES = ("listing", "conversation")
@@ -43,9 +44,7 @@ class Report(SQLModel, table=True):
     detail: str | None = Field(default=None)
     # open | reviewing | resolved | dismissed
     status: str = Field(default="open", index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
     resolved_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
     resolved_by_user_id: str | None = Field(default=None, foreign_key="users.id")
     resolution_note: str | None = Field(default=None)

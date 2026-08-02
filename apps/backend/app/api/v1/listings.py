@@ -133,9 +133,7 @@ async def _load_listing_bundle(session: AsyncSession, listing_id: str) -> dict:
     # bio/photo/type -- fetched here, once, alongside everything else this
     # bundle already assembles.
     host_account = (
-        await session.execute(
-            select(HostAccount).where(HostAccount.id == listing.host_account_id)
-        )
+        await session.execute(select(HostAccount).where(HostAccount.id == listing.host_account_id))
     ).scalar_one_or_none()
 
     return listing_to_dict(
@@ -439,9 +437,7 @@ async def upload_listing_media_endpoint(
                 is_primary=False,  # MediaMetaIn's own validator already enforces this
             )
         else:
-            media_url = await upload_to_media_storage(
-                upload_file, prefix=f"listings/{listing_id}"
-            )
+            media_url = await upload_to_media_storage(upload_file, prefix=f"listings/{listing_id}")
             item = ListingMedia(
                 listing_id=listing_id,
                 media_type="image",

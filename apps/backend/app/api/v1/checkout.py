@@ -88,10 +88,7 @@ async def initiate_checkout(
         # verified App Link, the app itself -- knows which transaction to
         # show without a separate reference lookup. See
         # `Settings.marketing_site_url`'s docstring for the App Links side.
-        callback_url = (
-            f"{settings.marketing_site_url}/payment-complete"
-            f"?transaction_id={txn.id}"
-        )
+        callback_url = f"{settings.marketing_site_url}/payment-complete?transaction_id={txn.id}"
         try:
             result_init = await initiate_paystack_transaction(
                 idempotency_key=body.idempotency_key,

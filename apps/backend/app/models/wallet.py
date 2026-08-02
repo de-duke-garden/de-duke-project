@@ -23,8 +23,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.core.db_types import UTCDateTime
 from sqlmodel import Field, SQLModel
+
+from app.core.db_types import UTCDateTime
 
 
 class Wallet(SQLModel, table=True):
@@ -41,12 +42,8 @@ class Wallet(SQLModel, table=True):
     balance: float = Field(default=0.0)
     currency: str = Field(default="NGN")
 
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
 
 
 class WalletTransaction(SQLModel, table=True):
@@ -78,9 +75,7 @@ class WalletTransaction(SQLModel, table=True):
 
     # Ledger entries are immutable -- never updated/deleted after creation
     # (schema.md, mirrors AuditLogEntry).
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
 
 
 class PayoutSettings(SQLModel, table=True):
@@ -106,12 +101,8 @@ class PayoutSettings(SQLModel, table=True):
     # change (schema.md).
     paystack_recipient_code: str | None = Field(default=None)
 
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
 
 
 class WithdrawalRequest(SQLModel, table=True):
@@ -125,9 +116,7 @@ class WithdrawalRequest(SQLModel, table=True):
     # requested | processing | paid | failed
     status: str = Field(default="requested", index=True)
 
-    requested_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    requested_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
     requested_by_id: str = Field(foreign_key="users.id")
 
     # Null while status is 'requested'; populated once the Paystack

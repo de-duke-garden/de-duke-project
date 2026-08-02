@@ -101,9 +101,7 @@ async def test_notify_pushes_to_owner_when_staff_sent_message() -> None:
         patch.object(svc, "_get_firestore_client", return_value=fake_client),
         patch("app.services.push_service.notify_user", new=AsyncMock()) as mock_notify,
     ):
-        await svc.notify_new_support_message(
-            session, conversation_id="conv-1", sender_id="staff-1"
-        )
+        await svc.notify_new_support_message(session, conversation_id="conv-1", sender_id="staff-1")
 
     mock_notify.assert_awaited_once()
     _, kwargs = mock_notify.call_args
@@ -125,9 +123,7 @@ async def test_notify_skips_when_owner_sent_their_own_message() -> None:
         patch.object(svc, "_get_firestore_client", return_value=fake_client),
         patch("app.services.push_service.notify_user", new=AsyncMock()) as mock_notify,
     ):
-        await svc.notify_new_support_message(
-            session, conversation_id="conv-1", sender_id="user-1"
-        )
+        await svc.notify_new_support_message(session, conversation_id="conv-1", sender_id="user-1")
 
     mock_notify.assert_not_awaited()
 

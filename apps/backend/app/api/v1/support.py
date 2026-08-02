@@ -33,9 +33,7 @@ async def get_or_create_support_conversation(
     it. Safe to call every time the mobile Help & Support entry point is
     opened."""
     try:
-        conversation = await svc.get_or_create_support_conversation(
-            user_id=current_user.user_id
-        )
+        conversation = await svc.get_or_create_support_conversation(user_id=current_user.user_id)
     except svc.ChatServiceUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

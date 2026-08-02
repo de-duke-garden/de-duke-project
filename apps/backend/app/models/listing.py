@@ -23,9 +23,10 @@ from uuid import uuid4
 
 from geoalchemy2 import Geography
 from pgvector.sqlalchemy import Vector
-from app.core.db_types import UTCDateTime
 from sqlalchemy import JSON, Column, Index
 from sqlmodel import Field, SQLModel
+
+from app.core.db_types import UTCDateTime
 
 # Single source of truth for the embedding column's width -- must stay in
 # sync with Settings.embedding_dimensions (app/core/config.py). Duplicated
@@ -95,9 +96,7 @@ class Listing(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC), index=True, sa_type=UTCDateTime
     )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
 
     # FEAT-031 -- see module docstring. Populated asynchronously by
     # app/workers/listing_embedding_worker.py, never computed synchronously
@@ -152,9 +151,7 @@ class ListingMedia(SQLModel, table=True):
     processing_status: str | None = Field(default="ready")
     display_order: int
     is_primary: bool = Field(default=False)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
 
 
 class CommercialListing(SQLModel, table=True):

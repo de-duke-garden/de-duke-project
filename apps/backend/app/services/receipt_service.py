@@ -348,7 +348,9 @@ async def ensure_receipt(session: AsyncSession, txn: Transaction) -> Receipt | N
         # nice-to-have alongside that, never a reason to fail the booking
         # or the payment confirmation. transactions.get_transaction's own
         # lazy-fallback call site will simply retry on the next read.
-        logger.warning("receipt_service: PDF generation/upload failed for txn=%s", txn.id, exc_info=True)
+        logger.warning(
+            "receipt_service: PDF generation/upload failed for txn=%s", txn.id, exc_info=True
+        )
         return existing
 
     if existing is not None:

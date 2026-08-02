@@ -1,8 +1,8 @@
 // firestore.rules -- FEAT-010 (Real-Time Three-Way Support Chat)
 //
-// Deployed to the project-31cb3884-0cd8-4040-b0c Firebase project's
+// Deployed to the de-duke-services Firebase project's
 // `(default)` Firestore database via `firebase deploy --only
-// firestore:rules --project project-31cb3884-0cd8-4040-b0c` (run from
+// firestore:rules --project de-duke-services` (run from
 // apps/backend/, using firebase.json + .firebaserc in this directory).
 // Re-run that command after editing this file to redeploy.
 //

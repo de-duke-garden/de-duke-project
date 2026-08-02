@@ -119,9 +119,7 @@ class TestIsListingStale:
 
     def test_old_listing_with_no_activity_is_stale(self) -> None:
         now = datetime.now(UTC)
-        listing = self._listing(
-            created_at=now - timedelta(days=STALE_LISTING_THRESHOLD_DAYS + 1)
-        )
+        listing = self._listing(created_at=now - timedelta(days=STALE_LISTING_THRESHOLD_DAYS + 1))
         assert is_listing_stale(listing, now=now) is True
 
     @pytest.mark.parametrize("view_count,inquiry_count", [(1, 0), (0, 1), (2, 3)])
@@ -145,9 +143,7 @@ class TestIsListingStale:
         # an otherwise-correct UTC value would produce) -- NOT
         # `datetime.now()`, which is naive LOCAL time and would make this
         # test's pass/fail depend on the machine's timezone offset from UTC.
-        old_naive = now.replace(tzinfo=None) - timedelta(
-            days=STALE_LISTING_THRESHOLD_DAYS + 1
-        )
+        old_naive = now.replace(tzinfo=None) - timedelta(days=STALE_LISTING_THRESHOLD_DAYS + 1)
         assert old_naive.tzinfo is None
         listing = self._listing(created_at=old_naive)
         assert is_listing_stale(listing, now=now) is True

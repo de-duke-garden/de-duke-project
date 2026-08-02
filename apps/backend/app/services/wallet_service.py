@@ -108,9 +108,9 @@ async def list_release_queue(
             Transaction.released_at.desc()
         )
     else:
-        stmt = stmt.where(
-            Transaction.status.in_((RELEASABLE_STATUS, RELEASED_STATUS))
-        ).order_by(Transaction.paid_at.asc())
+        stmt = stmt.where(Transaction.status.in_((RELEASABLE_STATUS, RELEASED_STATUS))).order_by(
+            Transaction.paid_at.asc()
+        )
 
     if listing_id:
         stmt = stmt.where(Transaction.listing_id == listing_id)

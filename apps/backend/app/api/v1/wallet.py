@@ -83,7 +83,9 @@ async def list_releasable_transactions(
             session, status_filter=status_filter, listing_id=listing_id
         )
     except WalletError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     return [
         ReleasableTransactionOut(
             transaction_id=t.id,

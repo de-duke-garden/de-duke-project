@@ -72,9 +72,7 @@ def upgrade() -> None:
         # pending | ready | failed -- tracks server-side poster-frame
         # generation for a video row. 'ready' for every image row (there is
         # nothing to process), matching this migration's docstring.
-        sa.Column(
-            "processing_status", sa.String(), nullable=True, server_default="ready"
-        ),
+        sa.Column("processing_status", sa.String(), nullable=True, server_default="ready"),
     )
 
 
