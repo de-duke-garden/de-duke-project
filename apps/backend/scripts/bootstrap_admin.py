@@ -92,7 +92,11 @@ def main() -> None:
     print("This should only be run once per environment, from a trusted operator machine.\n")
 
     # Non-interactive mode: all three env vars set (Cloud Run job / CI).
-    if os.environ.get("ADMIN_FULL_NAME") and os.environ.get("ADMIN_EMAIL") and os.environ.get("ADMIN_PASSWORD"):
+    if (
+        os.environ.get("ADMIN_FULL_NAME")
+        and os.environ.get("ADMIN_EMAIL")
+        and os.environ.get("ADMIN_PASSWORD")
+    ):
         full_name = os.environ["ADMIN_FULL_NAME"].strip()
         email = os.environ["ADMIN_EMAIL"].strip()
         password = _env_password()
