@@ -1,3 +1,4 @@
+# DISABLED 2026-08: production migrated to GCP; this AWS workflow targets destroyed infra and would fail if triggered. Kept for history (not deleted).
 # Infrastructure -- environments/global (account-level DNS/cert bootstrap).
 # Companion to infra-terraform.yml, deliberately kept out of that workflow's
 # development -> staging -> production matrix: `global` isn't a deploy

@@ -1,0 +1,9 @@
+# Copy to backend.hcl (gitignored) and fill in before terraform init.
+# Run terraform init -backend-config=backend.hcl -- do not hardcode these
+# values into versions.tf.
+#
+# bucket is the GCS state bucket for the GCP infra, created in the
+# de-duke-services project (bootstrap step, see infra/gcp/README.md).
+
+bucket = "de-duke-services-tfstate"
+prefix = "gcp"

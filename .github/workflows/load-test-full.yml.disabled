@@ -1,3 +1,4 @@
+# DISABLED 2026-08: production migrated to GCP; this AWS workflow targets destroyed infra and would fail if triggered. Kept for history (not deleted).
 # Full load/stress/spike/failover suite -- the Phase 1 public-launch gate
 # (docs/De-Duke/roadmap.md's "Launch Gate": "Public launch does not proceed
 # until the platform passes its full load/stress/spike/failover test suite

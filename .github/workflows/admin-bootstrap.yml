@@ -1,0 +1,69 @@
+# Admin bootstrap -- creates the FIRST De-Duke Admin account (FEAT-033).
+#
+# Cloud Run has no SSH/exec (unlike the retired AWS ECS Exec), so the
+# operator action that used to be a one-off ECS task is now a one-off Cloud
+# Run job (de-duke-bootstrap-admin) with the ADMIN_* env vars supplied here.
+#
+# This is a MANUAL, operator-triggered workflow (workflow_dispatch only) --
+# deliberately not on any push trigger. The API has no HTTP path to create
+# the first admin; this job is the only way (scripts/bootstrap_admin.py).
+#
+# Usage: Actions tab -> "Admin Bootstrap" -> Run workflow ->
+#   Full name, Email, Password (min 12 chars)
+#
+# The password appears in the job's env (Cloud Run execution env + workflow
+# logs). It is passed via `--env` to the job, which prints only the created
+# user id/email, never the password. Treat the GitHub Actions run log as
+# sensitive for the duration of the run.
+
+name: Admin Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      full_name:
+        description: "Full name of the first Admin"
+        required: true
+        type: string
+      email:
+        description: "Email of the first Admin"
+        required: true
+        type: string
+      password:
+        description: "Password (min 12 chars) -- appears in run logs"
+        required: true
+        type: string
+
+permissions:
+  id-token: write # required for Workload Identity Federation
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  bootstrap-admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Run admin bootstrap job
+        run: |
+          gcloud run jobs execute de-duke-bootstrap-admin \
+            --region=${{ vars.GCP_REGION || 'europe-west1' }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --env="ADMIN_FULL_NAME=${{ inputs.full_name }}" \
+            --env="ADMIN_EMAIL=${{ inputs.email }}" \
+            --env="ADMIN_PASSWORD=${{ inputs.password }}" \
+            --wait
+
+      - name: Confirm
+        run: echo "Admin bootstrap job completed. The output above shows the created user id/email."

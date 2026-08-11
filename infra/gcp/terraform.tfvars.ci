@@ -1,0 +1,18 @@
+# CI/deploy variable file for the GCP Terraform tree -- committed so the
+# backend-deploy-gcp.yml workflow can apply image-tag changes without a local
+# terraform.tfvars (which is gitignored). Only NON-secret values live here:
+# project ID, public hostnames, and DNS/Vercel targets are all public record.
+# image_tag is NOT set here -- the workflow overrides it per deploy via
+# -var="image_tag=$SHA".
+
+gcp_project_id      = "de-duke-services"
+media_bucket_suffix = "531781610440"
+
+api_domain = "api.de-duke.com"
+cdn_domain = "cdn.de-duke.com"
+
+admin_fqdn                    = "admin.de-duke.com"
+vercel_cname_target           = "4e88bf4fa2333825.vercel-dns-017.com."
+marketing_fqdn                = "de-duke.com"
+marketing_www_fqdn            = "www.de-duke.com"
+vercel_marketing_cname_target = "1c969cc0900a2edb.vercel-dns-017.com."

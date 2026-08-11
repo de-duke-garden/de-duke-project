@@ -1,0 +1,29 @@
+# Copy this file to terraform.tfvars (gitignored) and fill in real values
+# before ever running `terraform plan`/`apply` against this environment.
+# Do not commit terraform.tfvars.
+
+gcp_project_id      = "de-duke-services"
+media_bucket_suffix = "531781610440" # GCP project number -- globally-unique bucket suffix
+
+# Public hostnames served by this infra. Leave EMPTY until the Cloud DNS zone
+# is authoritative / cutover is ready (the LB + CDN still build; the DNS
+# records and managed cert only complete once these are set and the registrar
+# nameservers point at the zone's name servers).
+# api_domain          = "api.de-duke.com"
+# cdn_domain          = "cdn.de-duke.com"
+
+# Vercel-hosted Admin Web Console + Marketing Site -- DNS-only records.
+# admin_fqdn                    = "admin.de-duke.com"
+# vercel_cname_target           = "REPLACE_ME"   # from Vercel dashboard
+# marketing_fqdn                = "de-duke.com"
+# marketing_www_fqdn            = "www.de-duke.com"
+# vercel_marketing_cname_target = "REPLACE_ME"
+# vercel_apex_ips               = ["76.76.21.21"]
+
+# Cloud SQL sizing -- smallest shared-core tier by default (cost).
+# cloud_sql_tier    = "db-g1-small"
+# cloud_sql_disk_gb = 20
+
+# Deploy image tag -- empty until CI has pushed to Artifact Registry
+# (placeholder nginx image is deployed then, same as the AWS module).
+# image_tag = ""

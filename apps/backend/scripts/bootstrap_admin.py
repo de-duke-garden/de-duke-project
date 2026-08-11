@@ -12,12 +12,18 @@ Usage (from apps/backend, with the venv active):
     python scripts/bootstrap_admin.py
 
 Then follow the prompts for full name, email, and password.
+
+Non-interactive mode (for a one-off Cloud Run job / CI workflow, since
+cloud jobs cannot prompt): supply ADMIN_FULL_NAME, ADMIN_EMAIL, and
+ADMIN_PASSWORD environment variables. Any of the three may still be
+prompted for interactively if only some are provided.
 """
 
 from __future__ import annotations
 
 import asyncio
 import getpass
+import os
 import sys
 from pathlib import Path
 
@@ -54,6 +60,13 @@ def _prompt_password() -> str:
         return password
 
 
+def _env_password() -> str:
+    password = os.environ.get("ADMIN_PASSWORD", "")
+    if len(password) < 12:
+        raise SystemExit("ADMIN_PASSWORD must be at least 12 characters.")
+    return password
+
+
 async def bootstrap_admin(full_name: str, email: str, password: str) -> None:
     async with async_session_factory() as session:
         existing = await session.execute(select(User).where(User.email == email))
@@ -77,9 +90,24 @@ async def bootstrap_admin(full_name: str, email: str, password: str) -> None:
 def main() -> None:
     print("De-Duke Admin bootstrap -- creates the FIRST deduke_admin account.")
     print("This should only be run once per environment, from a trusted operator machine.\n")
-    full_name = _prompt_non_empty("Full name")
-    email = _prompt_non_empty("Email")
-    password = _prompt_password()
+
+    # Non-interactive mode: all three env vars set (Cloud Run job / CI).
+    if os.environ.get("ADMIN_FULL_NAME") and os.environ.get("ADMIN_EMAIL") and os.environ.get("ADMIN_PASSWORD"):
+        full_name = os.environ["ADMIN_FULL_NAME"].strip()
+        email = os.environ["ADMIN_EMAIL"].strip()
+        password = _env_password()
+        if not full_name or not email:
+            raise SystemExit("ADMIN_FULL_NAME and ADMIN_EMAIL must be non-empty.")
+        print(f"Non-interactive mode: creating admin for {email}")
+    else:
+        # Interactive fallback (operator machine). Mixed mode (some env vars
+        # set) also lands here and prompts only for the missing fields.
+        full_name = os.environ.get("ADMIN_FULL_NAME", "").strip() or _prompt_non_empty("Full name")
+        email = os.environ.get("ADMIN_EMAIL", "").strip() or _prompt_non_empty("Email")
+        password = os.environ.get("ADMIN_PASSWORD") or _prompt_password()
+        if len(password) < 12:
+            raise SystemExit("Password must be at least 12 characters.")
+
     asyncio.run(bootstrap_admin(full_name, email, password))
 
 

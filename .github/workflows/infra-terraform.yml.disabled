@@ -1,3 +1,4 @@
+# DISABLED 2026-08: production migrated to GCP; this AWS workflow targets destroyed infra and would fail if triggered. Kept for history (not deleted).
 # Infrastructure -- terraform plan/apply for infra-only changes. Companion
 # to backend-deploy.yml; see docs/De-Duke/architecture.md's "Infrastructure
 # as Code & CI/CD" section and infra/README.md's "CI/CD: which workflow
