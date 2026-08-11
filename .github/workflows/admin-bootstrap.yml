@@ -65,9 +65,7 @@ jobs:
       - name: Run admin bootstrap job
         run: |
           gcloud run jobs execute de-duke-bootstrap-admin \
-            --env="ADMIN_FULL_NAME=${{ inputs.full_name }}" \
-            --env="ADMIN_EMAIL=${{ inputs.email }}" \
-            --env="ADMIN_PASSWORD=${{ inputs.password }}" \
+            --update-env-vars="ADMIN_FULL_NAME=${{ inputs.full_name }},ADMIN_EMAIL=${{ inputs.email }},ADMIN_PASSWORD=${{ inputs.password }}" \
             --wait
 
       - name: Confirm
