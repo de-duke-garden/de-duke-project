@@ -202,6 +202,24 @@ variable "dmarc_txt" {
   default     = "\"v=DMARC1;p=quarantine;pct=100;fo=1\""
 }
 
+# Zoho Mail DKIM -- TXT record for the generated selector (2048-bit key).
+variable "zoho_dkim_selector" {
+  description = "Zoho DKIM selector (the <selector>._domainkey prefix)."
+  type        = string
+  default     = "zoho"
+}
+
+# Zoho DKIM TXT value (v=DKIM1; k=rsa; p=...). Split into two <=255-char
+# quoted strings (DNS TXT per-string limit); concatenated by validators.
+variable "zoho_dkim_txt" {
+  description = "Zoho DKIM TXT value, split into 255-char chunks (list of quoted strings)."
+  type        = list(string)
+  default = [
+    "\"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqdylVcf7d8VASNMKQGZwLjmaM2bxyaBUvEckVKpnsFcJp2scDW2UMIUBYZ+mnDnyxeG7kZQm71p4CKGYJLGi9/Py6Jykuw+EKvS1R6poDYAPfwav0i/eMac7dKq/TPdZzi0Wd91LbJg+8dWOn1ADRUrSM4y45LcpnrqOyHI0xbwQHAeabs6Hq9Y4TOfNsbbg1\"",
+    "\"wrr54pBwdVWHq9oSWKO2X0KdLKuMydlIrcM94ngmSb0+slPJ/+AQE7P/AKNarjPJ4eBeLmK2GvYs6OUCXwNGWbQyCtrIuOXAl5IraNFxF9q+HezpUHd+wt2Cm9Pux99PZ8R79ldNzg7bfj6ut6CMwIDAQAB\"",
+  ]
+}
+
 variable "labels" {
   description = "Common GCP resource labels."
   type        = map(string)

@@ -112,3 +112,14 @@ resource "google_dns_record_set" "dmarc_txt" {
   project      = var.gcp_project_id
   rrdatas      = [var.dmarc_txt]
 }
+
+# Zoho Mail DKIM -- TXT record at <selector>._domainkey.<domain>.
+# The value is already split into <=255-char quoted strings (DNS TXT limit).
+resource "google_dns_record_set" "zoho_dkim" {
+  name         = "${var.zoho_dkim_selector}._domainkey.${var.domain_name}."
+  type         = "TXT"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.deduke.name
+  project      = var.gcp_project_id
+  rrdatas      = var.zoho_dkim_txt
+}
