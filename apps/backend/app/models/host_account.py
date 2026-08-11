@@ -7,8 +7,9 @@ via `host_account_id`, never SQLAlchemy joined-table inheritance (AGENTS.md).
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.core.db_types import UTCDateTime
 from sqlmodel import Field, SQLModel
+
+from app.core.db_types import UTCDateTime
 
 
 class HostAccount(SQLModel, table=True):
@@ -31,12 +32,8 @@ class HostAccount(SQLModel, table=True):
     # timezone-aware UTC (datetime.now(UTC)); without this, SQLModel maps
     # plain `datetime` to TIMESTAMP WITHOUT TIME ZONE, and asyncpg refuses
     # to encode a tz-aware value into a tz-naive column at insert time.
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
 
 
 class HostAccountOwner(SQLModel, table=True):

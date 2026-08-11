@@ -87,8 +87,14 @@ module "rds" {
   instance_class         = "db.t4g.micro"
   replica_instance_class = "db.t4g.micro"
   allocated_storage_gb   = 20
-  deletion_protection    = true
-  tags                   = local.common_tags
+  # DECOMMISSIONED 2026-08: production is being torn down (migrated to GCP).
+  # deletion_protection was true (with no final_snapshot_identifier), which
+  # made `terraform destroy` fail with "final_snapshot_identifier is required
+  # when skip_final_snapshot is false". Data was migrated to Cloud SQL before
+  # teardown, so no final snapshot is wanted -- flip to false so the destroy
+  # can proceed without one.
+  deletion_protection = false
+  tags                = local.common_tags
 }
 
 module "backend" {

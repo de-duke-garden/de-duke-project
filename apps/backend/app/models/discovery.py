@@ -3,8 +3,9 @@
 from datetime import UTC, date, datetime
 from uuid import uuid4
 
-from app.core.db_types import UTCDateTime
 from sqlmodel import Field, SQLModel
+
+from app.core.db_types import UTCDateTime
 
 # sa_type=UTCDateTime throughout this module -- every datetime
 # here is timezone-aware UTC (datetime.now(UTC)); without it, SQLModel maps
@@ -34,9 +35,7 @@ class SavedSearch(SQLModel, table=True):
     # per saved_search_service.py's listing_matches_saved_search).
     location_latitude: float | None = Field(default=None)
     location_longitude: float | None = Field(default=None)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
 
 
 class ShareableSummary(SQLModel, table=True):
@@ -48,9 +47,7 @@ class ShareableSummary(SQLModel, table=True):
     share_token: str = Field(unique=True, index=True)
     is_revoked: bool = Field(default=False)
     expires_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_type=UTCDateTime)
 
 
 class ListingAnalytics(SQLModel, table=True):

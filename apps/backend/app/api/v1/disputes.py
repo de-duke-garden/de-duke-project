@@ -62,9 +62,7 @@ async def _to_list_item(session: AsyncSession, dispute) -> DisputeListItemOut:  
         transaction_id=dispute.transaction_id,
         listing_id=transaction.listing_id if transaction is not None else None,
         raised_by_id=dispute.raised_by_id,
-        raised_by_name=await dispute_service.get_user_name_or_unknown(
-            session, dispute.raised_by_id
-        )
+        raised_by_name=await dispute_service.get_user_name_or_unknown(session, dispute.raised_by_id)
         or "Unknown",
         reason=dispute.reason,
         status=dispute.status,
@@ -99,9 +97,7 @@ async def get_dispute_detail(
     if dispute is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispute not found.")
 
-    transaction = await dispute_service.get_transaction_or_none(
-        session, dispute.transaction_id
-    )
+    transaction = await dispute_service.get_transaction_or_none(session, dispute.transaction_id)
     if transaction is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Linked transaction not found."
@@ -111,9 +107,7 @@ async def get_dispute_detail(
         id=dispute.id,
         transaction_id=dispute.transaction_id,
         raised_by_id=dispute.raised_by_id,
-        raised_by_name=await dispute_service.get_user_name_or_unknown(
-            session, dispute.raised_by_id
-        )
+        raised_by_name=await dispute_service.get_user_name_or_unknown(session, dispute.raised_by_id)
         or "Unknown",
         reason=dispute.reason,
         status=dispute.status,
@@ -179,18 +173,14 @@ async def resolve_dispute(
     except dispute_service.DisputeError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    transaction = await dispute_service.get_transaction_or_none(
-        session, dispute.transaction_id
-    )
+    transaction = await dispute_service.get_transaction_or_none(session, dispute.transaction_id)
     assert transaction is not None  # validated inside resolve_dispute already
 
     return DisputeDetailOut(
         id=dispute.id,
         transaction_id=dispute.transaction_id,
         raised_by_id=dispute.raised_by_id,
-        raised_by_name=await dispute_service.get_user_name_or_unknown(
-            session, dispute.raised_by_id
-        )
+        raised_by_name=await dispute_service.get_user_name_or_unknown(session, dispute.raised_by_id)
         or "Unknown",
         reason=dispute.reason,
         status=dispute.status,

@@ -87,9 +87,7 @@ def _get_firebase_app() -> Any:
     return firebase_core.get_firebase_app()
 
 
-async def exchange_firebase_token(
-    session: AsyncSession, *, id_token: str
-) -> tuple[User, bool]:
+async def exchange_firebase_token(session: AsyncSession, *, id_token: str) -> tuple[User, bool]:
     """FEAT-001: the ONLY entry point for consumer sign-in. Verifies a
     Firebase ID token (already produced client-side by Google Sign-In,
     Firebase email/password, or Firebase phone/OTP -- this service never
@@ -171,8 +169,10 @@ async def exchange_firebase_token(
 
         if conflict_filters:
             existing = (
-                await session.execute(select(User).where(or_(*conflict_filters)))
-            ).scalars().first()
+                (await session.execute(select(User).where(or_(*conflict_filters))))
+                .scalars()
+                .first()
+            )
             if existing is not None:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -466,8 +466,10 @@ async def update_profile(
         user.full_name = full_name
     if email is not None:
         existing = (
-            await session.execute(select(User).where(User.email == email, User.id != user_id))
-        ).scalars().first()
+            (await session.execute(select(User).where(User.email == email, User.id != user_id)))
+            .scalars()
+            .first()
+        )
         if existing is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -532,8 +534,10 @@ async def link_firebase_identity(session: AsyncSession, *, user_id: str, id_toke
         return user
 
     conflict = (
-        await session.execute(select(User).where(User.firebase_uid == firebase_uid))
-    ).scalars().first()
+        (await session.execute(select(User).where(User.firebase_uid == firebase_uid)))
+        .scalars()
+        .first()
+    )
     if conflict is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

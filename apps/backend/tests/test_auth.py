@@ -140,9 +140,7 @@ async def test_firebase_exchange_rejects_phone_collision_with_password_account(
     session.add(user)
     await session.commit()
 
-    response = _firebase_signin(
-        client, uid="uid-new-phone-identity", phone_number="+2348099999999"
-    )
+    response = _firebase_signin(client, uid="uid-new-phone-identity", phone_number="+2348099999999")
 
     assert response.status_code == 409
 
@@ -349,9 +347,7 @@ def test_update_profile_full_name_works_for_firebase_provider(client: TestClient
     signin = _firebase_signin(client, uid="uid-rename", email="rename@example.com")
     headers = {"Authorization": f"Bearer {signin.json()['access_token']}"}
 
-    response = client.patch(
-        "/v1/user/profile", data={"full_name": "New Name"}, headers=headers
-    )
+    response = client.patch("/v1/user/profile", data={"full_name": "New Name"}, headers=headers)
     assert response.status_code == 200
     assert response.json()["full_name"] == "New Name"
 
@@ -492,9 +488,7 @@ async def test_link_firebase_identity_succeeds_for_password_provider(
         )
     assert response.status_code == 200
 
-    profile = client.get(
-        "/v1/user/profile", headers={"Authorization": f"Bearer {token}"}
-    ).json()
+    profile = client.get("/v1/user/profile", headers={"Authorization": f"Bearer {token}"}).json()
     assert profile["is_firebase_linked"] is True
     assert profile["auth_provider"] == "password"  # unchanged -- linking is additive
 
@@ -588,9 +582,7 @@ async def test_unlink_firebase_identity_clears_link_but_keeps_password(
     assert profile["is_firebase_linked"] is False
 
     # Password sign-in still works -- unlinking never touches password_hash.
-    login_again = client.post(
-        "/v1/auth/login", json={"email": staff.email, "password": "pw123456"}
-    )
+    login_again = client.post("/v1/auth/login", json={"email": staff.email, "password": "pw123456"})
     assert login_again.status_code == 200
 
 
@@ -617,17 +609,21 @@ async def test_change_password_succeeds_and_revokes_other_sessions(
     assert response.status_code == 204
 
     # Old password no longer works; new one does.
-    assert client.post(
-        "/v1/auth/login", json={"email": staff.email, "password": "oldpass123"}
-    ).status_code == 401
-    assert client.post(
-        "/v1/auth/login", json={"email": staff.email, "password": "newpass456"}
-    ).status_code == 200
+    assert (
+        client.post(
+            "/v1/auth/login", json={"email": staff.email, "password": "oldpass123"}
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/v1/auth/login", json={"email": staff.email, "password": "newpass456"}
+        ).status_code
+        == 200
+    )
 
     # The refresh token issued before the password change is revoked.
-    refresh_response = client.post(
-        "/v1/auth/refresh", json={"refresh_token": old_refresh_token}
-    )
+    refresh_response = client.post("/v1/auth/refresh", json={"refresh_token": old_refresh_token})
     assert refresh_response.status_code == 401
 
 
