@@ -55,11 +55,16 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           token_format: access_token
 
+      # Use config properties (not --region/--project flags) -- some gcloud
+      # versions do not accept these flags on `gcloud run jobs` commands.
+      - name: Configure gcloud defaults
+        run: |
+          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+          gcloud config set run/region ${{ vars.GCP_REGION || 'europe-west1' }}
+
       - name: Run admin bootstrap job
         run: |
           gcloud run jobs execute de-duke-bootstrap-admin \
-            --region=${{ vars.GCP_REGION || 'europe-west1' }} \
-            --project=${{ secrets.GCP_PROJECT_ID }} \
             --env="ADMIN_FULL_NAME=${{ inputs.full_name }}" \
             --env="ADMIN_EMAIL=${{ inputs.email }}" \
             --env="ADMIN_PASSWORD=${{ inputs.password }}" \

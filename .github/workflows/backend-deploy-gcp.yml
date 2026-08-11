@@ -100,6 +100,15 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           token_format: access_token
 
+      # Configure gcloud defaults ONCE via config properties, not per-command
+      # flags: `gcloud run jobs update` on some gcloud versions does not
+      # accept --region/--project flags (GA track), while `services update`
+      # does. Setting the properties works for every command uniformly.
+      - name: Configure gcloud defaults
+        run: |
+          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+          gcloud config set run/region ${{ vars.GCP_REGION || 'europe-west1' }}
+
       # Update the API + worker Cloud Run services to the new image. The
       # image attribute is ignored by Terraform (lifecycle.ignore_changes in
       # infra/gcp/cloud_run.tf), so these gcloud updates are not reverted by
@@ -108,40 +117,31 @@ jobs:
       - name: Deploy API service
         run: |
           IMAGE="${{ vars.GCP_REGION || 'europe-west1' }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/de-duke-backend/backend-api:${{ needs.build-and-push.outputs.image_tag }}"
-          gcloud run services update de-duke-api \
-            --image="$IMAGE" \
-            --region=${{ vars.GCP_REGION || 'europe-west1' }} \
-            --project=${{ secrets.GCP_PROJECT_ID }}
+          gcloud run services update de-duke-api --image="$IMAGE"
 
       - name: Deploy worker service
         run: |
           IMAGE="${{ vars.GCP_REGION || 'europe-west1' }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/de-duke-backend/backend-api:${{ needs.build-and-push.outputs.image_tag }}"
-          gcloud run services update de-duke-worker \
-            --image="$IMAGE" \
-            --region=${{ vars.GCP_REGION || 'europe-west1' }} \
-            --project=${{ secrets.GCP_PROJECT_ID }}
+          gcloud run services update de-duke-worker --image="$IMAGE"
 
       # Point the migrate job at the new image so migrations run on the same
       # revision that is about to serve traffic. --container is required: the
       # job has two containers (backend-migrate + cloud-sql-proxy sidecar),
-      # and gcloud refuses to guess which one the image belongs to.
+      # and gcloud refuses to guess which one the image belongs to. Region/
+      # project come from the config properties set above (this command does
+      # not accept them as flags on all gcloud versions).
       - name: Update migration job image
         run: |
           IMAGE="${{ vars.GCP_REGION || 'europe-west1' }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/de-duke-backend/backend-api:${{ needs.build-and-push.outputs.image_tag }}"
           gcloud run jobs update de-duke-migrate \
             --container=backend-migrate \
-            --image="$IMAGE" \
-            --region=${{ vars.GCP_REGION || 'europe-west1' }} \
-            --project=${{ secrets.GCP_PROJECT_ID }}
+            --image="$IMAGE"
 
       # Migrations run AFTER the new image is applied, BEFORE the smoke test
       # (same ordering as the retired AWS workflow).
       - name: Run database migrations
         run: |
-          gcloud run jobs execute de-duke-migrate \
-            --region=${{ vars.GCP_REGION || 'europe-west1' }} \
-            --project=${{ secrets.GCP_PROJECT_ID }} \
-            --wait
+          gcloud run jobs execute de-duke-migrate --wait
           echo "Migrations applied."
 
       - name: Smoke test -- live domain health
