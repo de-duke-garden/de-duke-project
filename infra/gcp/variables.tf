@@ -183,14 +183,13 @@ variable "mx_records" {
   ]
 }
 
-# Root TXT records: Zoho SPF + Google site verification + Zoho domain verification.
-# Transactional provider (Zepto/Resend) SPF include + DKIM get added here once
-# the provider is chosen and its records are provided.
+# Root TXT records: SPF (Zoho mailboxes + Zepto transactional) + Google site
+# verification + Zoho domain verification.
 variable "root_txt_records" {
   description = "TXT records for the apex domain."
   type        = list(string)
   default = [
-    "\"v=spf1 include:zohomail.com ~all\"",
+    "\"v=spf1 include:zohomail.com include:zeptomail.net ~all\"",
     "\"google-site-verification=TDf3Xy_2XQitmbVtdlj41ZHG1orI26gvvyHPJXTtwvE\"",
     "\"zoho-verification=zb48910551.zmverify.zoho.com\"",
   ]
@@ -218,6 +217,34 @@ variable "zoho_dkim_txt" {
     "\"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqdylVcf7d8VASNMKQGZwLjmaM2bxyaBUvEckVKpnsFcJp2scDW2UMIUBYZ+mnDnyxeG7kZQm71p4CKGYJLGi9/Py6Jykuw+EKvS1R6poDYAPfwav0i/eMac7dKq/TPdZzi0Wd91LbJg+8dWOn1ADRUrSM4y45LcpnrqOyHI0xbwQHAeabs6Hq9Y4TOfNsbbg1\"",
     "\"wrr54pBwdVWHq9oSWKO2X0KdLKuMydlIrcM94ngmSb0+slPJ/+AQE7P/AKNarjPJ4eBeLmK2GvYs6OUCXwNGWbQyCtrIuOXAl5IraNFxF9q+HezpUHd+wt2Cm9Pux99PZ8R79ldNzg7bfj6ut6CMwIDAQAB\"",
   ]
+}
+
+# ---------------------------------------------------------------------------
+# ZeptoMail (transactional, noreply@) -- 1024-bit DKIM (fits a single TXT
+# string) + return-path CNAME on the `send` subdomain.
+# ---------------------------------------------------------------------------
+variable "zepto_dkim_host" {
+  description = "ZeptoMail DKIM host (<selector>._domainkey.send)."
+  type        = string
+  default     = "1110642._domainkey.send"
+}
+
+variable "zepto_dkim_txt" {
+  description = "ZeptoMail DKIM TXT value."
+  type        = string
+  default     = "k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCG1JLXCEF/8PmuFpMNw7lmN9kGBsB+Pqt//NU4R9xADHaoZFEWeWtE3b5WbLbp9yzQP2FQGFyhSScqbubH0+wsaCx/AhNJRdlpUs8Ucs4D6Lw4/TRzQFhaTdV2/6plTh9yxg/GGsDVM4vrXc2s2B4StGBXb+5eA4dp03jv2BzI2QIDAQAB"
+}
+
+variable "zepto_bounce_host" {
+  description = "ZeptoMail return-path CNAME host (bounce.<subdomain>)."
+  type        = string
+  default     = "bounce-zem.send"
+}
+
+variable "zepto_bounce_cname" {
+  description = "ZeptoMail return-path CNAME target."
+  type        = string
+  default     = "cluster89.zeptomail.com."
 }
 
 variable "labels" {

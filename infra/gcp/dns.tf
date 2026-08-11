@@ -123,3 +123,23 @@ resource "google_dns_record_set" "zoho_dkim" {
   project      = var.gcp_project_id
   rrdatas      = var.zoho_dkim_txt
 }
+
+# ZeptoMail DKIM -- TXT at <selector>._domainkey.send.de-duke.com.
+resource "google_dns_record_set" "zepto_dkim" {
+  name         = "${var.zepto_dkim_host}.${var.domain_name}."
+  type         = "TXT"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.deduke.name
+  project      = var.gcp_project_id
+  rrdatas      = ["\"${var.zepto_dkim_txt}\""]
+}
+
+# ZeptoMail return-path CNAME -- bounce.<send-subdomain>.de-duke.com.
+resource "google_dns_record_set" "zepto_bounce" {
+  name         = "${var.zepto_bounce_host}.${var.domain_name}."
+  type         = "CNAME"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.deduke.name
+  project      = var.gcp_project_id
+  rrdatas      = [var.zepto_bounce_cname]
+}
