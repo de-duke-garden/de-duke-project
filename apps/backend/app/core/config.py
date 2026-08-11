@@ -139,8 +139,11 @@ class Settings(BaseSettings):
     # is the return-path subdomain we verified in DNS (bounce-zem.send.de-duke.com).
     zeptomail_api_key: str = "REPLACE_ME"
     zeptomail_bounce_domain: str = "bounce-zem.send.de-duke.com"
-    # From-address for all transactional mail (noreply@de-duke.com).
-    transactional_sender_email: str = "noreply@de-duke.com"
+    # From-address for all transactional mail. MUST be on the verified
+    # send.de-duke.com subdomain -- ZeptoMail rejects any other sender
+    # domain at auth time (401), since only the send subdomain is verified
+    # for outbound (root de-duke.com is Zoho Mail mailboxes).
+    transactional_sender_email: str = "noreply@send.de-duke.com"
     sentry_dsn: str = "REPLACE_ME"
     analytics_write_key: str = "REPLACE_ME"
 
