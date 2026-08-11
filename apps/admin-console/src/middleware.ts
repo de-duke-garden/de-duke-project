@@ -37,5 +37,13 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Run middleware on everything EXCEPT framework internals and static
+  // public/ assets. Without the public exclusion, a request for e.g.
+  // /logo.png (an image, not a page) would be treated like a page: no
+  // session cookie -> 307 redirect to /login -> the browser follows and
+  // gets the app HTML shell, rendering the image broken. Static assets
+  // must never go through the auth redirect.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|logo.png|.*\\.(?:png|jpg|jpeg|svg|webp|ico|css|js)$).*)",
+  ],
 };
