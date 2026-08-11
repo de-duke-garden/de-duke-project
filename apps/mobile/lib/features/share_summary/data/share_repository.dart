@@ -1,7 +1,7 @@
 /// Repository wrapping the Backend API Service's FEAT-020 share endpoints
 /// (app/api/v1/share.py). Screen 17 (Generate) is the only mobile consumer --
 /// Screen 18 (External View) is a web-only, unauthenticated page rendered by
-/// the admin-console's public `/s/:token` route, not this app.
+/// the marketing site's public `/s/:token` route (de-duke.com), not this app.
 library;
 
 import '../../../core/api/api_client.dart';

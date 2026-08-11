@@ -12,13 +12,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { SESSION_COOKIE_NAME } from "@/lib/auth";
 
-// "/s" is FEAT-020's public Shareable Summary view (screens.md Screen 18,
-// route `/s/:token`) -- explicitly "Web (external, unauthenticated)"; a
-// non-app-user approver must be able to load it with no session cookie at
-// all, so it's allowlisted here alongside the login page itself.
-// "/accept-invite" is FEAT-033's invite-acceptance page -- a brand-new
-// Staff/Admin invitee has no session cookie yet either.
-const PUBLIC_PATHS = ["/login", "/api/session", "/s", "/accept-invite"];
+// Public paths that never require a session cookie. FEAT-020's Shareable
+// Summary view (Screen 18) moved to the MARKETING site (de-duke.com/s/:token)
+// -- it no longer lives in this console, so it is no longer allowlisted here.
+const PUBLIC_PATHS = ["/login", "/api/session", "/accept-invite"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
