@@ -80,9 +80,9 @@ variable "marketing_fqdn" {
 }
 
 variable "vercel_apex_ips" {
-  description = "IP(s) Vercel gives for the marketing site apex."
+  description = "IP(s) Vercel gives for the marketing site apex. Vercel expanded its IP range and recommends 216.198.79.1 over the legacy 76.76.21.21 (which still works but is deprecated)."
   type        = list(string)
-  default     = ["76.76.21.21"]
+  default     = ["216.198.79.1"]
 }
 
 variable "marketing_www_fqdn" {

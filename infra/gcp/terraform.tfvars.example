@@ -18,7 +18,7 @@ media_bucket_suffix = "531781610440" # GCP project number -- globally-unique buc
 # marketing_fqdn                = "de-duke.com"
 # marketing_www_fqdn            = "www.de-duke.com"
 # vercel_marketing_cname_target = "REPLACE_ME"
-# vercel_apex_ips               = ["76.76.21.21"]
+# vercel_apex_ips               = ["216.198.79.1"]  # Vercel's recommended IP (replaces legacy 76.76.21.21)
 
 # Cloud SQL sizing -- smallest shared-core tier by default (cost).
 # cloud_sql_tier    = "db-g1-small"
