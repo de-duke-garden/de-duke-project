@@ -60,3 +60,27 @@ resource "google_secret_manager_secret_version" "db_credentials" {
     password = random_password.db.result
   })
 }
+
+# Upstash Redis connection string (replaces the deferred GCP Memorystore).
+# The backend reads this via REDIS_URL (config.py's redis_url field) for
+# refresh tokens, rate-limit counters, and the semantic-search cache.
+#
+# Seeded with a REPLACE_ME placeholder like every other app secret -- the
+# REAL value is populated by an operator via gcloud (see infra/gcp/README.md
+# "Secrets" section). Never put the actual Upstash token in this file.
+resource "google_secret_manager_secret" "redis_url" {
+  secret_id = "de-duke-redis-url"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [terraform_data.api_propagation]
+}
+
+resource "google_secret_manager_secret_version" "redis_url" {
+  secret = google_secret_manager_secret.redis_url.id
+
+  secret_data = "REPLACE_ME"
+}

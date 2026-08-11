@@ -121,10 +121,19 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "PAYSTACK_FALLBACK_EMAIL"
         value = var.paystack_fallback_email
       }
-      # Deferred on GCP for now (Memorystore not yet built): leave the app's
-      # redis_url at its localhost default. The app degrades gracefully --
-      # search falls back to filter/keyword-only per FEAT-031.
-      # REDIS_URL intentionally omitted.
+      # Upstash Redis connection string (rediss://...), read from Secret
+      # Manager as REDIS_URL -- feeds config.py's redis_url (refresh tokens,
+      # rate limits, semantic-search cache). Real value is populated by an
+      # operator (gcloud secrets versions add), never in this file.
+      env {
+        name = "REDIS_URL"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.redis_url.secret_id
+            version = "latest"
+          }
+        }
+      }
 
       # Same JSON contracts the app already reads:
       #   APP_SECRETS      -> app/core/config.py _apply_deployed_secrets
@@ -275,6 +284,17 @@ resource "google_cloud_run_v2_service" "worker" {
       env {
         name  = "PAYSTACK_FALLBACK_EMAIL"
         value = var.paystack_fallback_email
+      }
+      # Same Upstash Redis secret as the API service (refresh tokens, rate
+      # limits, search cache).
+      env {
+        name = "REDIS_URL"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.redis_url.secret_id
+            version = "latest"
+          }
+        }
       }
       env {
         name = "APP_SECRETS"
