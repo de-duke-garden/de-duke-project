@@ -122,11 +122,14 @@ jobs:
             --project=${{ secrets.GCP_PROJECT_ID }}
 
       # Point the migrate job at the new image so migrations run on the same
-      # revision that is about to serve traffic.
+      # revision that is about to serve traffic. --container is required: the
+      # job has two containers (backend-migrate + cloud-sql-proxy sidecar),
+      # and gcloud refuses to guess which one the image belongs to.
       - name: Update migration job image
         run: |
           IMAGE="${{ vars.GCP_REGION || 'europe-west1' }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/de-duke-backend/backend-api:${{ needs.build-and-push.outputs.image_tag }}"
           gcloud run jobs update de-duke-migrate \
+            --container=backend-migrate \
             --image="$IMAGE" \
             --region=${{ vars.GCP_REGION || 'europe-west1' }} \
             --project=${{ secrets.GCP_PROJECT_ID }}
