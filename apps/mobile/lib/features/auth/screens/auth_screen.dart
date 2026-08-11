@@ -23,8 +23,10 @@ library;
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_motion.dart';
@@ -370,13 +372,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(AppSpacing.lg,
                       AppSpacing.sm, AppSpacing.lg, AppSpacing.lg),
-                  child: Text(
-                    'By continuing you agree to our Terms of Service and Privacy Policy.',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
+                  child: _LegalNotice(),
                 ),
               ],
             ),
@@ -387,12 +383,83 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
+/// The "By continuing you agree to..." legal notice under the auth form.
+/// Terms of Service and Privacy Policy are tappable links that open the
+/// public legal pages on the marketing site in the external browser (with an
+/// "open in new tab" affordance), so a user can read the legal terms before
+/// using the platform.
+class _LegalNotice extends StatelessWidget {
+  const _LegalNotice();
+
+  static const _baseUrl = 'https://de-duke.com';
+  static const _termsPath = '/legal/terms-of-service';
+  static const _privacyPath = '/legal/privacy-policy';
+
+  Future<void> _open(BuildContext context, String path) async {
+    final uri = Uri.parse('$_baseUrl$path');
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the web page.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseStyle = AppTypography.bodySmall.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
+    final linkStyle = baseStyle.copyWith(
+      color: Theme.of(context).colorScheme.primary,
+      fontWeight: FontWeight.w600,
+      decoration: TextDecoration.underline,
+      decorationColor: Theme.of(context).colorScheme.primary,
+    );
+
+    // `WidgetSpan` inline icon gives the "opens externally" affordance next
+    // to each link, matching the arrow-out pattern used on listing detail.
+    TextSpan link(String label, String path) => TextSpan(
+          text: label,
+          style: linkStyle,
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => _open(context, path),
+          children: [
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: Icon(
+                  Icons.open_in_new,
+                  size: 12,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        );
+
+    return Text.rich(
+      TextSpan(
+        style: baseStyle,
+        children: [
+          const TextSpan(text: 'By continuing you agree to our '),
+          link('Terms of Service', _termsPath),
+          const TextSpan(text: ' and '),
+          link('Privacy Policy', _privacyPath),
+          const TextSpan(text: '.'),
+        ],
+      ),
+      textAlign: TextAlign.center,
+    );
+  }
+}
+
 /// Full-bleed `surface` -> `primary-light` gradient at ~135° (branding.md
 /// Hero/Featured Card formula, scaled to this screen's most prominent
 /// placement), holding the onboarding-tier illustration + wordmark
 /// lockup + tagline.
-class _HeroSection extends StatelessWidget {
-  const _HeroSection({required this.opacity});
+class _HeroSection extends StatelessWidget {  const _HeroSection({required this.opacity});
 
   final double opacity;
 

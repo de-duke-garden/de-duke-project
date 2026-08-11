@@ -75,15 +75,17 @@ flutter:
 # -- the plain white background branding.md explicitly allows for the app
 # icon slot, keeping the green mark maximally legible against any OS icon
 # tray/wallpaper rather than blending into a tinted background.
-# `ios: false` -- no ios/ platform directory exists in this project yet
-# (Android + Web only, per `ls apps/mobile`). Flip to `true` and rerun
-# `dart run flutter_launcher_icons` once `flutter create --platforms=ios .`
-# scaffolds the iOS runner; until then this key would only crash the
-# generator looking for a non-existent Assets.xcassets path.
+# ios: true since the ios/ runner now exists (flutter create --platforms=ios).
+# Run `dart run flutter_launcher_icons` after changing this.
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
   image_path: "assets/images/de-duke-icon.png"
+  # Apple App Store rejects icons with an alpha channel -- the source mark
+  # PNG has transparency (composited over the white background here), so
+  # strip alpha for the iOS AppIcon set only. Android adaptive icons keep
+  # their alpha (required for the foreground layer).
+  remove_alpha_ios: true
   adaptive_icon_background: "#EBEBEB"
   adaptive_icon_foreground: "assets/images/de-duke-icon.png"
   min_sdk_android: 21
@@ -96,6 +98,9 @@ flutter_launcher_icons:
 # is where the full mark + Manrope wordmark lockup actually renders -- see
 # AGENTS.md follow-up note for a possible pre-rendered composite image if a
 # closer native-splash match to the full lockup is wanted later.
+# The top-level color/image apply to iOS as well as Android; ios options
+# are explicit below (same colors -- branding.md defines a single surface
+# for both platforms).
 flutter_native_splash:
   color: "#EBEBEB"
   image: assets/images/de-duke-splash.png
@@ -106,3 +111,6 @@ flutter_native_splash:
     image: assets/images/de-duke-splash.png
     color_dark: "#101613"
     image_dark: assets/images/de-duke-splash.png
+  ios: true
+  ios_content_mode: scaleAspectFit
+  web: false

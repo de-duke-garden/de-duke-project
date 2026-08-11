@@ -15,6 +15,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_motion.dart';
@@ -697,12 +698,17 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               ListTile(
                 leading: const Icon(Icons.description_outlined),
                 title: const Text('Terms of Service'),
-                onTap: () => _showNotYetAvailable(context),
+                // External link -- the public legal pages live on the
+                // marketing site; the arrow-out affordance signals the user
+                // leaves the app for the web.
+                trailing: const Icon(Icons.open_in_new, size: 16),
+                onTap: () => _openLegalPage(context, '/legal/terms-of-service'),
               ),
               ListTile(
                 leading: const Icon(Icons.privacy_tip_outlined),
                 title: const Text('Privacy Policy'),
-                onTap: () => _showNotYetAvailable(context),
+                trailing: const Icon(Icons.open_in_new, size: 16),
+                onTap: () => _openLegalPage(context, '/legal/privacy-policy'),
               ),
             ],
           ),
@@ -732,11 +738,17 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     );
   }
 
-  void _showNotYetAvailable(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text('Legal pages are not yet published. Check back soon.')),
-    );
+  /// Opens a public legal page on the marketing site in the external
+  /// browser. The legal docs are web-hosted (FEAT-037) -- the mobile app
+  /// links out rather than embedding them.
+  Future<void> _openLegalPage(BuildContext context, String path) async {
+    final uri = Uri.parse('https://de-duke.com$path');
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the web page.')),
+      );
+    }
   }
 
   String _roleLabel(String role) => switch (role) {
