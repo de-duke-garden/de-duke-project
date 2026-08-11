@@ -1,17 +1,8 @@
 # Terms of Service
 
-<!--
-  FEAT-037: Full draft, generated from README.md, features.md, architecture.md,
-  monetization.md, and risk_log.md so it accurately reflects the current
-  product. This is a COMPLETE DRAFT, not placeholder text -- but per FEAT-037
-  it still requires review and sign-off by qualified legal counsel before
-  first publication, and before any product change that would make it
-  inaccurate.
--->
+**Effective Date:** 2026-08-11
 
-**Effective Date:** 2026-07-24
-
-**Version:** 1
+**Version:** 2
 
 ## 1. Acceptance of These Terms
 
@@ -153,7 +144,3 @@ our data governance and change-notice practices.
 **De-Duke**
 Email: legal@de-duke.com
 
----
-*This document is a complete working draft prepared for legal counsel review prior to publication,
-per FEAT-037. It must not be treated as final, App Store/Play Store–submittable copy until counsel
-has reviewed and approved it and the Effective Date/Version above reflect that approval.*
