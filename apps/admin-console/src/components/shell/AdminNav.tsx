@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -101,8 +102,13 @@ export function AdminNav({
       >
         <div className="flex items-start justify-between p-md">
           <div className="flex items-center gap-sm">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="" className="h-8 w-8" />
+            <Image
+              src="/logo.png"
+              alt=""
+              width={32}
+              height={32}
+              className="h-8 w-8"
+            />
             <div>
               <span className="font-heading text-lg font-bold text-primary dark:text-primary-dark">
                 De-Duke

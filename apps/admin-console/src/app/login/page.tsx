@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -50,8 +51,13 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-lg bg-surface p-lg shadow-md dark:bg-surface-dark"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="" className="mb-sm h-12 w-12" />
+        <Image
+          src="/logo.png"
+          alt=""
+          width={48}
+          height={48}
+          className="mb-sm h-12 w-12"
+        />
         <h1 className="font-heading text-xl font-semibold text-text-primary dark:text-text-primary-dark">
           De-Duke Admin Console
         </h1>
