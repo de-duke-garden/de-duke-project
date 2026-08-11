@@ -8,6 +8,7 @@ void main() {
       final txn = TransactionSummary.fromJson({
         'id': 'txn-1',
         'listing_id': 'listing-1',
+        'listing_title': 'Lekki Phase 1 Shortlet',
         'transaction_type': 'shortlet_booking',
         'status': 'held',
         'gross_amount': 50000.0,
@@ -17,6 +18,7 @@ void main() {
       });
 
       expect(txn.id, 'txn-1');
+      expect(txn.listingTitle, 'Lekki Phase 1 Shortlet');
       expect(txn.status, 'held');
       expect(txn.grossAmount, 50000.0);
       expect(txn.commissionAmount, 2500.0);
@@ -29,6 +31,7 @@ void main() {
       final txn = TransactionDetail.fromJson({
         'id': 'txn-2',
         'listing_id': 'listing-2',
+        'listing_title': 'Ikeja GRA Office Space',
         'transaction_type': 'lease_deposit',
         'status': 'succeeded',
         'gross_amount': 1200000.0,
@@ -43,6 +46,7 @@ void main() {
       });
 
       expect(txn.status, 'succeeded');
+      expect(txn.listingTitle, 'Ikeja GRA Office Space');
       expect(txn.payerId, 'user-payer');
       expect(txn.payeeId, 'user-payee');
       expect(txn.paidAt, DateTime.parse('2026-07-01T10:05:00Z'));
@@ -54,6 +58,7 @@ void main() {
       final txn = TransactionDetail.fromJson({
         'id': 'txn-3',
         'listing_id': 'listing-3',
+        'listing_title': 'Victoria Island Shortlet',
         'transaction_type': 'sale_reservation',
         'status': 'held',
         'gross_amount': 5000000.0,
@@ -68,6 +73,7 @@ void main() {
       });
 
       expect(txn.status, 'held');
+      expect(txn.listingTitle, 'Victoria Island Shortlet');
       expect(txn.paidAt, isNull);
       expect(txn.holdExpiresAt, DateTime.parse('2026-07-01T10:15:00Z'));
       expect(txn.receiptUrl, isNull);

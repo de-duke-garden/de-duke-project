@@ -45,6 +45,7 @@ void main() {
           body: {
             'id': 'txn-1',
             'listing_id': 'listing-1',
+            'listing_title': 'Lekki Phase 1 Shortlet',
             'transaction_type': 'shortlet_booking',
             'status': 'held',
             'gross_amount': 45000.0,

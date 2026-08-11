@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:de_duke_mobile/core/api/api_client.dart';
 import 'package:de_duke_mobile/core/auth/session_store.dart';
+import 'package:de_duke_mobile/core/theme/app_theme.dart';
 import 'package:de_duke_mobile/features/listings/data/listing_models.dart';
 import 'package:de_duke_mobile/features/share_summary/data/share_repository.dart';
 import 'package:de_duke_mobile/features/share_summary/screens/share_summary_sheet.dart';
@@ -40,6 +41,11 @@ void main() {
   Future<void> pumpSheet(WidgetTester tester, ShareRepository repository) async {
     await tester.pumpWidget(
       MaterialApp(
+        // AppTheme.light() registers AppSemanticColors (ThemeData.extensions)
+        // which ShareSummarySheet's _buildPreview reads via
+        // Theme.of(context).extension<AppSemanticColors>()! -- a bare
+        // MaterialApp without the app theme would throw a null check.
+        theme: AppTheme.light(),
         home: Scaffold(
           body: Builder(
             builder: (context) => ElevatedButton(
