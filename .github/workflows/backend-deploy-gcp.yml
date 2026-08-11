@@ -137,14 +137,30 @@ jobs:
             --container=backend-migrate \
             --image="$IMAGE"
 
+      # Keep the admin-bootstrap job on the current image too -- it runs the
+      # same backend image (scripts/bootstrap_admin.py) and must pick up code
+      # changes (e.g. the non-interactive ADMIN_* env-var mode). Without this
+      # it silently stays on an old image forever.
+      - name: Update admin bootstrap job image
+        run: |
+          IMAGE="${{ vars.GCP_REGION || 'europe-west1' }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/de-duke-backend/backend-api:${{ needs.build-and-push.outputs.image_tag }}"
+          gcloud run jobs update de-duke-bootstrap-admin \
+            --container=backend-bootstrap-admin \
+            --image="$IMAGE"
+
       # Migrations run AFTER the new image is applied, BEFORE the smoke test
       # (same ordering as the retired AWS workflow). No --wait flag (version
       # skew: some gcloud releases only offer it in alpha/beta for jobs
       # execute) -- poll the execution to completion instead.
+      #
+      # No --container here: the migrate job takes no container-specific
+      # overrides, and `--container` without a following container flag is
+      # rejected ("No container overrides requested"). The multi-container
+      # error only triggers when a container-specific flag (--update-env-vars
+      # / --args) is present without --container.
       - name: Run database migrations
         run: |
           EXECUTION="$(gcloud run jobs execute de-duke-migrate \
-            --container=backend-migrate \
             --format="value(metadata.name)" 2>&1 | tail -n 1)"
           echo "Execution: ${EXECUTION}"
           if [ -z "${EXECUTION}" ]; then
