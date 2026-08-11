@@ -67,10 +67,37 @@ jobs:
           # --container is required: the job has two containers
           # (backend-bootstrap-admin + cloud-sql-proxy sidecar) and gcloud
           # refuses to guess which one to execute.
-          gcloud run jobs execute de-duke-bootstrap-admin \
+          #
+          # No --wait flag: some gcloud versions only offer it in alpha/beta
+          # for `jobs execute`, so relying on it breaks on runner image
+          # updates. Instead, capture the execution name and poll
+          # `jobs executions describe` until it finishes. This works on both
+          # old gcloud (execute blocks by default) and new gcloud (execute
+          # returns immediately and the poll waits).
+          EXECUTION="$(gcloud run jobs execute de-duke-bootstrap-admin \
             --container=backend-bootstrap-admin \
             --update-env-vars="ADMIN_FULL_NAME=${{ inputs.full_name }},ADMIN_EMAIL=${{ inputs.email }},ADMIN_PASSWORD=${{ inputs.password }}" \
-            --wait
+            --format="value(metadata.name)" 2>&1 | tail -n 1)"
+          echo "Execution: ${EXECUTION}"
+          if [ -z "${EXECUTION}" ]; then
+            echo "Failed to get execution name."
+            exit 1
+          fi
+          for i in $(seq 1 60); do
+            STATUS="$(gcloud run jobs executions describe "${EXECUTION}" \
+              --format="value(status.conditions[0].status)" 2>/dev/null)"
+            if [ "${STATUS}" = "True" ]; then
+              echo "Admin bootstrap job completed successfully."
+              exit 0
+            fi
+            if [ "${STATUS}" = "False" ]; then
+              echo "Admin bootstrap job FAILED."
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for admin bootstrap job."
+          exit 1
 
       - name: Confirm
         run: echo "Admin bootstrap job completed. The output above shows the created user id/email."
