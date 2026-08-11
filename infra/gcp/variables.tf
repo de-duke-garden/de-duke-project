@@ -157,6 +157,18 @@ variable "paystack_fallback_email" {
   default     = "info@de-duke.com"
 }
 
+variable "admin_console_url" {
+  description = "Public origin of the Admin Web Console (used for staff invite links)."
+  type        = string
+  default     = "https://admin.de-duke.com"
+}
+
+variable "marketing_site_url" {
+  description = "Public origin of the Marketing Site (used for Paystack callback + share links)."
+  type        = string
+  default     = "https://de-duke.com"
+}
+
 variable "hold_expiry_cron" {
   description = "Cloud Scheduler cron for the hold-expiry sweep job (mirrors the AWS Background Task Processor's recurring job)."
   type        = string

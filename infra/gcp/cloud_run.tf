@@ -121,6 +121,16 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "PAYSTACK_FALLBACK_EMAIL"
         value = var.paystack_fallback_email
       }
+      # Production URLs for cross-app links (config.py). Without these the
+      # backend falls back to http://localhost:3000 for admin invite links.
+      env {
+        name  = "ADMIN_CONSOLE_URL"
+        value = var.admin_console_url
+      }
+      env {
+        name  = "MARKETING_SITE_URL"
+        value = var.marketing_site_url
+      }
       # Upstash Redis connection string (rediss://...), read from Secret
       # Manager as REDIS_URL -- feeds config.py's redis_url (refresh tokens,
       # rate limits, semantic-search cache). Real value is populated by an
@@ -284,6 +294,15 @@ resource "google_cloud_run_v2_service" "worker" {
       env {
         name  = "PAYSTACK_FALLBACK_EMAIL"
         value = var.paystack_fallback_email
+      }
+      # Same production URLs as the API service.
+      env {
+        name  = "ADMIN_CONSOLE_URL"
+        value = var.admin_console_url
+      }
+      env {
+        name  = "MARKETING_SITE_URL"
+        value = var.marketing_site_url
       }
       # Same Upstash Redis secret as the API service (refresh tokens, rate
       # limits, search cache).
