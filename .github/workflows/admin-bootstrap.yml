@@ -64,7 +64,11 @@ jobs:
 
       - name: Run admin bootstrap job
         run: |
+          # --container is required: the job has two containers
+          # (backend-bootstrap-admin + cloud-sql-proxy sidecar) and gcloud
+          # refuses to guess which one to execute.
           gcloud run jobs execute de-duke-bootstrap-admin \
+            --container=backend-bootstrap-admin \
             --update-env-vars="ADMIN_FULL_NAME=${{ inputs.full_name }},ADMIN_EMAIL=${{ inputs.email }},ADMIN_PASSWORD=${{ inputs.password }}" \
             --wait
 
