@@ -172,50 +172,34 @@ variable "hold_expiry_cron" {
 # validates an AWS cert that does not exist on GCP (Google-managed certs).
 # ---------------------------------------------------------------------------
 
-# MX -- SES inbound (keeps inbound mail flowing after the switch).
-variable "mx_record" {
-  description = "MX record for the apex domain (value with priority)."
-  type        = string
-  default     = "10 inbound-smtp.eu-west-1.amazonaws.com."
+# MX -- Zoho Mail (mailboxes for info/hello/legal@de-duke.com).
+variable "mx_records" {
+  description = "MX records for the apex domain (priority + host, per Zoho's setup wizard)."
+  type        = list(string)
+  default = [
+    "10 mx.zoho.com.",
+    "20 mx2.zoho.com.",
+    "50 mx3.zoho.com.",
+  ]
 }
 
-# Root TXT records: SPF + Google site verification.
+# Root TXT records: Zoho SPF + Google site verification + Zoho domain verification.
+# Transactional provider (Zepto/Resend) SPF include + DKIM get added here once
+# the provider is chosen and its records are provided.
 variable "root_txt_records" {
   description = "TXT records for the apex domain."
   type        = list(string)
   default = [
-    "\"v=spf1 include:amazonses.com ~all\"",
+    "\"v=spf1 include:zohomail.com ~all\"",
     "\"google-site-verification=TDf3Xy_2XQitmbVtdlj41ZHG1orI26gvvyHPJXTtwvE\"",
+    "\"zoho-verification=zb48910551.zmverify.zoho.com\"",
   ]
-}
-
-variable "amazonses_txt" {
-  description = "TXT record for _amazonses.de-duke.com (SES domain verification)."
-  type        = string
-  default     = "\"QLGen14yxyH1pyNcqAuKD/0i7FBdf7hJVecrLLlBx0s=\""
 }
 
 variable "dmarc_txt" {
   description = "TXT record for _dmarc.de-duke.com."
   type        = string
   default     = "\"v=DMARC1;p=quarantine;pct=100;fo=1\""
-}
-
-# SES DKIM signing CNAMEs (three selectors currently in use).
-variable "dkim_cnames" {
-  description = "Map of DKIM selector -> amazonses.com target."
-  type        = map(string)
-  default = {
-    "3pi67xi5wux5q5hjxdxkfpe7vft5wgrc" = "3pi67xi5wux5q5hjxdxkfpe7vft5wgrc.dkim.amazonses.com."
-    "ba2rg34nvwqalw43or3vchz6zn2apq4t" = "ba2rg34nvwqalw43or3vchz6zn2apq4t.dkim.amazonses.com."
-    "chzqkjrm4n5aee5q4cjqlrkxxukcip3i" = "chzqkjrm4n5aee5q4cjqlrkxxukcip3i.dkim.amazonses.com."
-  }
-}
-
-variable "autodiscover_cname" {
-  description = "CNAME target for autodiscover.de-duke.com (Amazon WorkMail)."
-  type        = string
-  default     = "autodiscover.mail.eu-west-1.awsapps.com."
 }
 
 variable "labels" {

@@ -77,21 +77,23 @@ resource "google_dns_record_set" "marketing_www" {
 }
 
 # ---------------------------------------------------------------------------
-# Email + verification records mirrored from Route53 (see variables.tf). These
-# keep SES/WorkMail and verification tokens working after the NS switch.
+# Email + verification records. Zoho Mail hosts the info/hello/legal@
+# mailboxes; the transactional provider (Zepto/Resend) will add its SPF
+# include + DKIM once chosen. SES/WorkMail records were removed with the
+# AWS decommission.
 # ---------------------------------------------------------------------------
 
-# MX (SES inbound).
+# MX -- Zoho Mail.
 resource "google_dns_record_set" "mx" {
   name         = "${var.domain_name}."
   type         = "MX"
   ttl          = 300
   managed_zone = google_dns_managed_zone.deduke.name
   project      = var.gcp_project_id
-  rrdatas      = [var.mx_record]
+  rrdatas      = var.mx_records
 }
 
-# Apex TXT (SPF + Google site verification).
+# Apex TXT (Zoho SPF + Google site verification + Zoho domain verification).
 resource "google_dns_record_set" "root_txt" {
   name         = "${var.domain_name}."
   type         = "TXT"
@@ -99,16 +101,6 @@ resource "google_dns_record_set" "root_txt" {
   managed_zone = google_dns_managed_zone.deduke.name
   project      = var.gcp_project_id
   rrdatas      = var.root_txt_records
-}
-
-# _amazonses (SES domain verification).
-resource "google_dns_record_set" "amazonses_txt" {
-  name         = "_amazonses.${var.domain_name}."
-  type         = "TXT"
-  ttl          = 300
-  managed_zone = google_dns_managed_zone.deduke.name
-  project      = var.gcp_project_id
-  rrdatas      = [var.amazonses_txt]
 }
 
 # _dmarc.
@@ -119,26 +111,4 @@ resource "google_dns_record_set" "dmarc_txt" {
   managed_zone = google_dns_managed_zone.deduke.name
   project      = var.gcp_project_id
   rrdatas      = [var.dmarc_txt]
-}
-
-# SES DKIM signing CNAMEs.
-resource "google_dns_record_set" "dkim" {
-  for_each = var.dkim_cnames
-
-  name         = "${each.key}._domainkey.${var.domain_name}."
-  type         = "CNAME"
-  ttl          = 300
-  managed_zone = google_dns_managed_zone.deduke.name
-  project      = var.gcp_project_id
-  rrdatas      = [each.value]
-}
-
-# autodiscover (Amazon WorkMail).
-resource "google_dns_record_set" "autodiscover" {
-  name         = "autodiscover.${var.domain_name}."
-  type         = "CNAME"
-  ttl          = 300
-  managed_zone = google_dns_managed_zone.deduke.name
-  project      = var.gcp_project_id
-  rrdatas      = [var.autodiscover_cname]
 }
