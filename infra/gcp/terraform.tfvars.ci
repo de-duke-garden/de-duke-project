@@ -1,9 +1,13 @@
-# CI/deploy variable file for the GCP Terraform tree -- committed so the
-# backend-deploy-gcp.yml workflow can apply image-tag changes without a local
-# terraform.tfvars (which is gitignored). Only NON-secret values live here:
-# project ID, public hostnames, and DNS/Vercel targets are all public record.
-# image_tag is NOT set here -- the workflow overrides it per deploy via
-# -var="image_tag=$SHA".
+# CI/deploy variable file for the GCP Terraform tree -- committed so local
+# terraform runs (infra changes) can use the same non-secret values without a
+# local terraform.tfvars (which is gitignored). Only NON-secret values live
+# here: project ID, public hostnames, and DNS/Vercel targets are all public
+# record.
+#
+# NOTE: image_tag is deliberately NOT set here. The deployed image is owned
+# by CI/CD (backend-deploy-gcp.yml updates Cloud Run via `gcloud run`), and
+# Terraform ignores the image attribute (lifecycle.ignore_changes in
+# cloud_run.tf) -- infra applies never touch or revert the deployed image.
 
 gcp_project_id      = "de-duke-services"
 media_bucket_suffix = "531781610440"
