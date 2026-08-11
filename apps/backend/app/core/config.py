@@ -134,7 +134,13 @@ class Settings(BaseSettings):
     # it never read a server key. Google deprecated legacy server keys in
     # June 2023 and shut the legacy HTTP API down in July 2024.
     firestore_project_id: str = "REPLACE_ME"
-    aws_ses_sender_email: str = "REPLACE_ME"
+    # Transactional email via ZeptoMail (replaces Amazon SES). `zeptomail_api_key`
+    # is the SendMail token from the ZeptoMail dashboard; `zeptomail_bounce_domain`
+    # is the return-path subdomain we verified in DNS (bounce-zem.send.de-duke.com).
+    zeptomail_api_key: str = "REPLACE_ME"
+    zeptomail_bounce_domain: str = "bounce-zem.send.de-duke.com"
+    # From-address for all transactional mail (noreply@de-duke.com).
+    transactional_sender_email: str = "noreply@de-duke.com"
     sentry_dsn: str = "REPLACE_ME"
     analytics_write_key: str = "REPLACE_ME"
 
@@ -234,7 +240,9 @@ class Settings(BaseSettings):
                 "GOOGLE_MAPS_API_KEY": "google_maps_api_key",
                 "FIREBASE_SERVICE_ACCOUNT_JSON": "firebase_service_account_json",
                 "FIRESTORE_PROJECT_ID": "firestore_project_id",
-                "AWS_SES_SENDER_EMAIL": "aws_ses_sender_email",
+                "ZEPTOMAIL_API_KEY": "zeptomail_api_key",
+                "ZEPTOMAIL_BOUNCE_DOMAIN": "zeptomail_bounce_domain",
+                "TRANSACTIONAL_SENDER_EMAIL": "transactional_sender_email",
                 "SENTRY_DSN": "sentry_dsn",
                 "ANALYTICS_WRITE_KEY": "analytics_write_key",
                 "JWT_SIGNING_SECRET": "jwt_signing_secret",

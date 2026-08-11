@@ -26,7 +26,9 @@ resource "google_secret_manager_secret_version" "app_secrets" {
     GOOGLE_MAPS_API_KEY           = "REPLACE_ME"
     FIREBASE_SERVICE_ACCOUNT_JSON = "REPLACE_ME"
     FIRESTORE_PROJECT_ID          = "REPLACE_ME"
-    AWS_SES_SENDER_EMAIL          = "REPLACE_ME" # SES decision pending (README)
+    ZEPTOMAIL_API_KEY             = "REPLACE_ME" # transactional email (noreply@)
+    ZEPTOMAIL_BOUNCE_DOMAIN       = "bounce-zem.send.de-duke.com"
+    TRANSACTIONAL_SENDER_EMAIL    = "noreply@de-duke.com"
     SENTRY_DSN                    = "REPLACE_ME"
     ANALYTICS_WRITE_KEY           = "REPLACE_ME"
     JWT_SIGNING_SECRET            = "REPLACE_ME"

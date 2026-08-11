@@ -176,7 +176,7 @@ repo. List of secrets in `de-duke-services`:
 
 | Secret | Holds | Populated by |
 |---|---|---|
-| `de-duke-app-secrets` | JSON blob: Paystack, Google Maps, Firebase SA, SES sender, Sentry, analytics, JWT, Gemini | operator (console or gcloud) |
+| `de-duke-app-secrets` | JSON blob: Paystack, Google Maps, Firebase SA, **ZeptoMail API key**, Sentry, analytics, JWT, Gemini | operator (console or gcloud) |
 | `de-duke-db-credentials` | `{"username","password"}` for Cloud SQL (auto-generated) | Terraform (random_password) |
 | `de-duke-redis-url` | **Upstash Redis** connection string (`rediss://default:<token>@<region>.upstash.io:6379`) | operator (see below) |
 

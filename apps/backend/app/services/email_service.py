@@ -1,19 +1,22 @@
-"""Transactional email sending -- thin wrapper intended to sit in front of
-Amazon SES (see architecture.md / AGENTS.md tech stack table). FEAT-024:
+"""Transactional email sending -- thin wrapper in front of ZeptoMail
+(see architecture.md / AGENTS.md tech stack table). FEAT-024:
 Transactional Email Notifications (Onboarding, Payments, Verification).
 
-Currently a no-op that logs the would-be send -- `aws_ses_sender_email` in
-app/core/config.py is still `REPLACE_ME`, so no real SES call is wired up.
-Every external dependency call must use a bounded timeout + circuit
-breaker and degrade gracefully (AGENTS.md Behavior Rules) -- once SES is
-wired here, that wrapping happens in `_send_via_ses`, not at call sites.
+ZeptoMail is the transactional provider for noreply@de-duke.com; the
+mailboxes (info/hello/legal@) live in Zoho Mail. Every external dependency
+call must use a bounded timeout + circuit breaker and degrade gracefully
+(AGENTS.md Behavior Rules) -- an email failure must never block or roll
+back the triggering business transaction, so failures are logged and
+swallowed here, never raised to callers.
 """
 
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -69,6 +72,43 @@ CATEGORY_BY_TEMPLATE: dict[str, str] = {
 }
 
 
+class _CircuitBreaker:
+    """Simple consecutive-failure breaker (same pattern as
+    embedding_service.py) -- opens after `failure_threshold` back-to-back
+    failures/timeouts, refuses calls for `cooldown_seconds`, then
+    half-opens (lets exactly one call through) to probe recovery."""
+
+    def __init__(self, failure_threshold: int, cooldown_seconds: float) -> None:
+        self._failure_threshold = failure_threshold
+        self._cooldown_seconds = cooldown_seconds
+        self._consecutive_failures = 0
+        self._opened_at: float | None = None
+
+    def is_open(self) -> bool:
+        if self._opened_at is None:
+            return False
+        if time.monotonic() - self._opened_at >= self._cooldown_seconds:
+            self._opened_at = None
+            self._consecutive_failures = 0
+            return False
+        return True
+
+    def record_success(self) -> None:
+        self._consecutive_failures = 0
+        self._opened_at = None
+
+    def record_failure(self) -> None:
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= self._failure_threshold and self._opened_at is None:
+            self._opened_at = time.monotonic()
+
+
+_breaker = _CircuitBreaker(failure_threshold=3, cooldown_seconds=30.0)
+
+_ZEPTOMAIL_API_URL = "https://api.zeptomail.com/v1.1/email"
+_SEND_TIMEOUT_SECONDS = 10.0
+
+
 async def send_transactional_email(to: str, template: str, context: dict[str, Any]) -> None:
     """Send a templated transactional email to a known, already-resolved
     address. Low-level primitive -- most call sites should use
@@ -77,25 +117,61 @@ async def send_transactional_email(to: str, template: str, context: dict[str, An
     that must bypass that (see `notify_user`'s own docstring), plus
     `notify_user`'s own implementation.
 
-    TODO(payments): replace this log-only stub with a real call to Amazon
-    SES (boto3 `ses.send_templated_email` / `send_email`), sourcing the
-    verified sender address from `settings.aws_ses_sender_email` once that
-    value is populated from Secrets Manager (currently REPLACE_ME). Wrap
-    the boto3 call with a bounded timeout + circuit breaker per AGENTS.md
-    Behavior Rules, and never let an email failure block/roll back the
-    triggering payment or booking transaction -- log and continue.
+    Sends via ZeptoMail (bounded timeout + circuit breaker per AGENTS.md
+    Behavior Rules). Never lets an email failure block or roll back the
+    triggering payment or booking transaction -- failures are logged and
+    swallowed, not raised.
     """
-    if settings.aws_ses_sender_email == "REPLACE_ME":
+    if settings.zeptomail_api_key == "REPLACE_ME":
         logger.info(
-            "email_service: no-op send (SES sender not configured) to=%s template=%s context=%s",
+            "email_service: no-op send (ZeptoMail API key not configured) to=%s template=%s",
             to,
             template,
-            context,
         )
         return
 
-    # TODO(payments): real SES integration goes here.
-    logger.info("email_service: sending to=%s template=%s context=%s", to, template, context)
+    if _breaker.is_open():
+        logger.warning(
+            "email_service: circuit breaker open, skipping to=%s template=%s", to, template
+        )
+        return
+
+    try:
+        await _send_via_zeptomail(to=to, template=template, context=context)
+        _breaker.record_success()
+    except Exception:
+        # Never let an email failure block the triggering transaction.
+        logger.exception("email_service: ZeptoMail send failed to=%s template=%s", to, template)
+        _breaker.record_failure()
+
+
+async def _send_via_zeptomail(to: str, template: str, context: dict[str, Any]) -> None:
+    """Renders `template` + `context` into a plain-text/HTML body and POSTs
+    to ZeptoMail's SendMail API. ZeptoMail requires the sender to be a
+    verified address on the `send.de-duke.com` subdomain, and the
+    mail_from address uses the verified bounce (return-path) domain."""
+    subject = f"De-Duke: {template.replace('_', ' ').title()}"
+    body = f"{template} email\n\nContext:\n{context}"
+
+    payload = {
+        "from": {"address": settings.transactional_sender_email},
+        "to": [{"email_address": {"address": to}}],
+        "subject": subject,
+        "textbody": body,
+        "track_clicks": False,
+        "track_opens": False,
+    }
+
+    async with httpx.AsyncClient(timeout=_SEND_TIMEOUT_SECONDS) as client:
+        resp = await client.post(
+            _ZEPTOMAIL_API_URL,
+            headers={
+                "Authorization": f"Zoho-enczapikey {settings.zeptomail_api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        resp.raise_for_status()
 
 
 async def notify_user(

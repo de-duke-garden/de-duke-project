@@ -1,7 +1,7 @@
 """Tests for app/services/email_service.py -- FEAT-024 (Transactional
 Email Notifications). Covers notify_user's user-lookup, missing-email
 skip, and per-category preference gating -- the actual send is always a
-no-op stub (settings.aws_ses_sender_email defaults to REPLACE_ME), so
+no-op stub (settings.zeptomail_api_key defaults to REPLACE_ME), so
 these assert against send_transactional_email being called or not, not
 against a real email being delivered.
 """
@@ -112,6 +112,17 @@ async def test_notify_user_defaults_missing_category_key_to_enabled(
     )
 
     mock_send.assert_awaited_once()
+
+
+async def test_send_noops_when_zeptomail_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With the ZeptoMail API key at its REPLACE_ME default, a send is a
+    logged no-op -- never a raised error that could fail a business
+    transaction."""
+    monkeypatch.setattr(email_service.settings, "zeptomail_api_key", "REPLACE_ME")
+    await email_service.send_transactional_email(
+        to="user@example.com", template=email_service.WELCOME, context={}
+    )
+    # No exception raised is the assertion; the no-op path just logs.
 
 
 def test_every_gated_template_has_a_category() -> None:
