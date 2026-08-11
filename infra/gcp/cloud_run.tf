@@ -13,6 +13,13 @@ resource "google_cloud_run_v2_service" "api" {
   # operator-created state inside), so replacement on config change is safe.
   deletion_protection = false
 
+  # The deployed image is owned by CI/CD (backend-deploy-gcp.yml updates it
+  # via `gcloud run services update`), not by Terraform. Without this, any
+  # terraform apply would revert the image to var.image_tag's placeholder.
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image]
+  }
+
   ingress = "INGRESS_TRAFFIC_ALL"
 
   # Provider auto-populates this service-level scaling block from the API
@@ -194,6 +201,11 @@ resource "google_cloud_run_v2_service" "worker" {
   # Same rationale as the API service: no operator-created state inside.
   deletion_protection = false
 
+  # Same CI-owned image as the API service (backend-deploy-gcp.yml).
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image]
+  }
+
   ingress = "INGRESS_TRAFFIC_ALL"
 
   # Same service-level scaling declaration as the API service (perpetual-diff
@@ -356,6 +368,12 @@ resource "google_cloud_run_v2_job" "migrate" {
   location = var.gcp_region
   project  = var.gcp_project_id
 
+  # Image is CI-owned (backend-deploy-gcp.yml updates it before executing),
+  # so terraform must not revert it.
+  lifecycle {
+    ignore_changes = [template[0].template[0].containers[0].image]
+  }
+
   template {
     task_count = 1
 
@@ -447,6 +465,11 @@ resource "google_cloud_run_v2_job" "bootstrap_admin" {
   name     = "de-duke-bootstrap-admin"
   location = var.gcp_region
   project  = var.gcp_project_id
+
+  # Image is CI/deploy-managed (same pattern as the migrate job).
+  lifecycle {
+    ignore_changes = [template[0].template[0].containers[0].image]
+  }
 
   template {
     task_count = 1

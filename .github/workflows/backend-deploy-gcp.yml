@@ -4,10 +4,14 @@
 # GitHub Actions exchanges its OIDC token for the de-duke-deploy service
 # account, which can update Cloud Run services/jobs and push images.
 #
-# Pipeline (mirrors the old AWS flow):
+# Pipeline:
 #   1. Build + push the backend image to Artifact Registry (tag = git SHA)
-#   2. terraform apply with the new image tag -> Cloud Run services + jobs
-#   3. Run database migrations (Cloud Run job de-duke-migrate)
+#   2. Update the Cloud Run services + jobs to the new image via `gcloud run`
+#      (NOT terraform apply -- the deploy SA is scoped to run.admin, and
+#      terraform plan would need near-Owner permissions to refresh every
+#      resource in state. Terraform owns the infra shape; the deployed image
+#      is CI-managed and ignored via lifecycle.ignore_changes in cloud_run.tf.)
+#   3. Run database migrations (Cloud Run job de-duke-migrate) on the new image
 #   4. Smoke test against the live domain
 #
 # Required GitHub repo configuration (Settings -> Secrets and variables):
@@ -15,10 +19,8 @@
 #   GCP_WIF_PROVIDER        (secret) - full provider resource name from
 #                                      terraform output
 #   GCP_SERVICE_ACCOUNT     (secret) - de-duke-deploy SA email
-#
-# The terraform apply step needs the GCP tfvars (project, domains, vercel
-# targets). Those are committed as infra/gcp/terraform.tfvars.ci and passed
-# with -var-file; image_tag is overridden per-run with the new SHA.
+#   GCP_REGION              (variable, optional) - default europe-west1
+#   API_DOMAIN              (variable, optional) - default api.de-duke.com
 
 name: Backend Deploy (GCP)
 
@@ -27,7 +29,6 @@ on:
     branches: [main]
     paths:
       - "apps/backend/**"
-      - "infra/gcp/**"
       - ".github/workflows/backend-deploy-gcp.yml"
   workflow_dispatch:
 
@@ -43,15 +44,14 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.tag.outputs.value }}
       image_url: ${{ steps.image-url.outputs.value }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Compute image tag
         id: tag
-        # Git SHA, never latest -- matches the old ECR convention and keeps
-        # every deployed revision traceable to a commit.
+        # Git SHA, never latest -- keeps every deployed revision traceable
+        # to a commit (same convention as the retired ECR pipeline).
         run: echo "value=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate to Google Cloud (Workload Identity Federation)
@@ -83,7 +83,7 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     concurrency:
-      group: terraform-production
+      group: gcp-production-deploy
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
@@ -95,32 +95,35 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           token_format: access_token
 
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.11.4"
-
-      - name: terraform init
-        working-directory: infra/gcp
+      # Update the API + worker Cloud Run services to the new image. The
+      # image attribute is ignored by Terraform (lifecycle.ignore_changes in
+      # infra/gcp/cloud_run.tf), so these gcloud updates are not reverted by
+      # any later terraform apply.
+      - name: Deploy API service
         run: |
-          terraform init \
-            -backend-config="bucket=de-duke-services-tfstate" \
-            -backend-config="prefix=gcp"
+          gcloud run services update de-duke-api \
+            --image="${{ needs.build-and-push.outputs.image_url }}" \
+            --region=${{ vars.GCP_REGION || 'europe-west1' }} \
+            --project=${{ secrets.GCP_PROJECT_ID }}
 
-      - name: terraform plan (image tag apply)
-        working-directory: infra/gcp
+      - name: Deploy worker service
         run: |
-          terraform plan \
-            -var-file=terraform.tfvars.ci \
-            -var="image_tag=${{ needs.build-and-push.outputs.image_tag }}" \
-            -out=tfplan
+          gcloud run services update de-duke-worker \
+            --image="${{ needs.build-and-push.outputs.image_url }}" \
+            --region=${{ vars.GCP_REGION || 'europe-west1' }} \
+            --project=${{ secrets.GCP_PROJECT_ID }}
 
-      - name: terraform apply
-        working-directory: infra/gcp
-        run: terraform apply -auto-approve tfplan
+      # Point the migrate job at the new image so migrations run on the same
+      # revision that is about to serve traffic.
+      - name: Update migration job image
+        run: |
+          gcloud run jobs update de-duke-migrate \
+            --image="${{ needs.build-and-push.outputs.image_url }}" \
+            --region=${{ vars.GCP_REGION || 'europe-west1' }} \
+            --project=${{ secrets.GCP_PROJECT_ID }}
 
-      # Migrations run AFTER the new image is applied so the migrate job uses
-      # this deploy's image, BEFORE the smoke test so the schema exists first
-      # (same ordering as the old AWS workflow).
+      # Migrations run AFTER the new image is applied, BEFORE the smoke test
+      # (same ordering as the retired AWS workflow).
       - name: Run database migrations
         run: |
           gcloud run jobs execute de-duke-migrate \
