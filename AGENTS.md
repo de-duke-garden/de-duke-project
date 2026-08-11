@@ -11,28 +11,28 @@ Stack is fully specified by `docs/De-Duke/architecture.md` — pin to latest sta
 | Layer | Choice | Notes |
 |---|---|---|
 | Mobile client | Flutter (Dart, latest stable channel) | Cross-platform iOS + Android |
-| Backend API | FastAPI (Python, async-first) | Stateless containers on AWS Fargate |
+| Backend API | FastAPI (Python, async-first) | Stateless containers on Google Cloud Run (scale-to-zero) |
 | ORM / Schema | SQLModel (SQLAlchemy 2.0 async core) + GeoAlchemy2 (PostGIS columns) + pgvector-sqlalchemy (embedding columns) | ORM models only — kept separate from API request/response Pydantic schemas |
 | Migrations | Alembic | Autogenerate off `SQLModel.metadata`; expand-contract pattern only |
-| Primary DB | PostgreSQL + PostGIS + pgvector | Writer + read replicas from launch |
+| Primary DB | Cloud SQL for PostgreSQL 16 (PostGIS + pgvector) | Accessed via Cloud SQL Auth Proxy sidecar (127.0.0.1:5432) |
 | Chat store | Google Cloud Firestore | Real-time three-way chat; separate from Primary DB |
-| Cache | Redis (Multi-AZ) | Hot search results, embeddings, rate-limit counters |
-| Task queue | Amazon SQS (+ DLQ) | Background Task Processor consumes |
-| File storage | Amazon S3 + CDN | Listing photos, verification docs |
+| Cache | Upstash Redis (serverless, rediss://) | Hot search results, embeddings, rate-limit counters |
+| Task queue | Google Cloud Pub/Sub (+ DLQ) | Background Task Processor consumes; Cloud Scheduler for hold-expiry sweep |
+| File storage | Google Cloud Storage + Cloud CDN | Listing photos, verification docs |
 | Payments | Paystack | Checkout, commission capture, subscription billing |
 | Maps/Geocoding | Google Maps API | Address autocomplete, reverse geocoding, embedded maps |
 | Push | Firebase Cloud Messaging | |
 | Email | Amazon SES | Transactional email |
 | Error tracking | Sentry (or equivalent) | |
 | Analytics | Amplitude/Mixpanel or self-hosted equivalent | Feeds FEAT-034/FEAT-035 dashboards |
-| IaC | Terraform | All AWS infra, version-controlled |
-| CI/CD | GitHub Actions | Test → build → ECR push → terraform → rolling Fargate deploy → smoke tests |
-| Admin Web Console | Next.js (latest stable) | Staff/Admin operational tool |
-| Marketing Website (Phase 5) | Next.js (latest stable), statically-generated (SSG export) + Three.js/React Three Fiber for the Hero | Fully independent deploy target, zero backend dependency |
+| IaC | Terraform | GCP infra (`infra/gcp/`); the AWS tree (`infra/environments/`) is decommissioned historical reference |
+| CI/CD | GitHub Actions | Test → build → Artifact Registry push → `gcloud run` deploy (services + migrate/bootstrap jobs) → smoke tests; auth via Workload Identity Federation (`de-duke-deploy` SA) |
+| Admin Web Console | Next.js (latest stable) | Staff/Admin operational tool, Vercel-hosted |
+| Marketing Website (Phase 5) | Next.js (latest stable), statically-generated (SSG export) + Three.js/React Three Fiber for the Hero | Fully independent deploy target, Vercel-hosted, zero backend dependency |
 
 Auth: email or phone (OTP) + secure session tokens, stateless validation on every request, role-based access (seeker, individual_host, agency, corporate, deduke_staff, deduke_admin).
 
-Deployment: AWS single-region, Multi-AZ, Dev/Staging/Production environments, each with isolated Terraform state.
+Deployment: Google Cloud, single-region `europe-west1`, Cloud Run scale-to-zero + Cloud SQL; Firebase project `de-duke-services`; DNS in Cloud DNS (Vercel apex `216.198.79.1`); Terraform state in GCS (`de-duke-services-tfstate`).
 
 ## 3. Project Structure
 
@@ -61,7 +61,7 @@ de-duke-project/
     │   └── alembic/            # migrations (expand-contract pattern)
     ├── admin-console/     # Staff/Admin web console
     └── marketing-site/    # Phase 5, independent deploy, own CI/CD
-infra/                     # Terraform (networking, Fargate, RDS, Redis, S3, CDN, WAF, Secrets)
+infra/                     # Terraform (GCP: infra/gcp/; AWS tree under infra/environments/ is decommissioned historical reference)
 ```
 
 Naming: snake_case for Python modules/files, PascalCase for Dart classes and Python Pydantic/ORM models, lowerCamelCase for Dart variables/functions, kebab-case for API routes.
@@ -84,7 +84,7 @@ Naming: snake_case for Python modules/files, PascalCase for Dart classes and Pyt
 - Every sensitive Admin Web Console action (ban listing, resolve dispute, change commission rate, invite/deactivate/promote staff, view a conversation) writes an immutable `AuditLogEntry` before/as part of the action taking effect.
 - Never implement a negotiation/offer/counter-offer UI or endpoint anywhere — all pricing is fixed, per `features.md` FEAT-011's removal note.
 - Enforce role/permission checks server-side, never rely on hiding UI elements client-side (Staff vs Admin, Owner vs professionally-verified host types).
-- Rate limiting and hold-expiry counters live in the shared Cache (Redis) — never per-task in-memory state, since the backend runs as many stateless Fargate tasks.
+- Rate limiting and hold-expiry counters live in the shared Cache (Redis) — never per-task in-memory state, since the backend runs as many stateless Cloud Run instances.
 - Never commit secrets (`.env`, `.env.json`, service account JSON, DB credentials) — use the Secrets Store / local `.env.example` (or `.env.example.json` for mobile) only. Never hardcode a backend URL, API key, or secret directly in source for any app -- always go through the relevant env file.
 - Prefer creating new commits over amending; use feature branches; PRs run tests + lint via GitHub Actions before merge.
 - **Commit messages must follow Conventional Commits** (`type(scope): description`, e.g. `feat(mobile): add host verification upload flow`, `fix(backend): correct commission rounding`). Allowed types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `ci`, `build`. Scope should name the app/module (`mobile`, `backend`, `admin-console`, `marketing-site`, `infra`).
@@ -111,7 +111,7 @@ Naming: snake_case for Python modules/files, PascalCase for Dart classes and Pyt
 
 ## 7. Local Development (docker-compose)
 
-`docker-compose.yml` at the repo root runs a local stack mirroring `architecture.md`'s managed services, so backend features can be built and tested end to end before touching any deployed AWS environment:
+`docker-compose.yml` at the repo root runs a local stack mirroring `architecture.md`'s managed services, so backend features can be built and tested end to end before touching any deployed GCP environment:
 
 | Service | What it is | Emulates |
 |---|---|---|

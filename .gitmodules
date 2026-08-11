@@ -1,0 +1,3 @@
+[submodule "docs/De-Duke"]
+	path = docs/De-Duke
+	url = https://github.com/de-duke-garden/de-duke-docs.git
