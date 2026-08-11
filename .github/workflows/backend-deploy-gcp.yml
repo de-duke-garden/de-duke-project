@@ -44,7 +44,12 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     outputs:
-      image_url: ${{ steps.image-url.outputs.value }}
+      # NOTE: only the image TAG crosses the job boundary, never the full
+      # image URL. The URL embeds secrets.GCP_PROJECT_ID, and GitHub Actions
+      # blanks job outputs that contain secret values -- passing the URL
+      # through `outputs:` made the deploy job receive an empty string. Each
+      # consumer rebuilds the URL from the tag + its own secret reference.
+      image_tag: ${{ steps.tag.outputs.value }}
     steps:
       - uses: actions/checkout@v4
 
@@ -66,7 +71,7 @@ jobs:
           gcloud auth configure-docker --quiet \
             ${{ vars.GCP_REGION || 'europe-west1' }}-docker.pkg.dev
 
-      - name: Resolve image URL
+      - name: Resolve image URL (local only, not a job output)
         id: image-url
         run: |
           echo "value=${{ vars.GCP_REGION || 'europe-west1' }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/de-duke-backend/backend-api:${{ steps.tag.outputs.value }}" >> "$GITHUB_OUTPUT"
@@ -98,18 +103,21 @@ jobs:
       # Update the API + worker Cloud Run services to the new image. The
       # image attribute is ignored by Terraform (lifecycle.ignore_changes in
       # infra/gcp/cloud_run.tf), so these gcloud updates are not reverted by
-      # any later terraform apply.
+      # any later terraform apply. URL is rebuilt here from the non-secret
+      # tag + this job's own secret reference (job outputs never carry it).
       - name: Deploy API service
         run: |
+          IMAGE="${{ vars.GCP_REGION || 'europe-west1' }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/de-duke-backend/backend-api:${{ needs.build-and-push.outputs.image_tag }}"
           gcloud run services update de-duke-api \
-            --image="${{ needs.build-and-push.outputs.image_url }}" \
+            --image="$IMAGE" \
             --region=${{ vars.GCP_REGION || 'europe-west1' }} \
             --project=${{ secrets.GCP_PROJECT_ID }}
 
       - name: Deploy worker service
         run: |
+          IMAGE="${{ vars.GCP_REGION || 'europe-west1' }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/de-duke-backend/backend-api:${{ needs.build-and-push.outputs.image_tag }}"
           gcloud run services update de-duke-worker \
-            --image="${{ needs.build-and-push.outputs.image_url }}" \
+            --image="$IMAGE" \
             --region=${{ vars.GCP_REGION || 'europe-west1' }} \
             --project=${{ secrets.GCP_PROJECT_ID }}
 
@@ -117,8 +125,9 @@ jobs:
       # revision that is about to serve traffic.
       - name: Update migration job image
         run: |
+          IMAGE="${{ vars.GCP_REGION || 'europe-west1' }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/de-duke-backend/backend-api:${{ needs.build-and-push.outputs.image_tag }}"
           gcloud run jobs update de-duke-migrate \
-            --image="${{ needs.build-and-push.outputs.image_url }}" \
+            --image="$IMAGE" \
             --region=${{ vars.GCP_REGION || 'europe-west1' }} \
             --project=${{ secrets.GCP_PROJECT_ID }}
 
