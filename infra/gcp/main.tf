@@ -111,6 +111,16 @@ resource "google_secret_manager_secret_iam_member" "db_credentials" {
   depends_on = [terraform_data.api_propagation]
 }
 
+# Redis URL secret accessor -- the backend reads it as REDIS_URL.
+resource "google_secret_manager_secret_iam_member" "redis_url" {
+  project   = var.gcp_project_id
+  secret_id = google_secret_manager_secret.redis_url.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.backend.email}"
+
+  depends_on = [terraform_data.api_propagation]
+}
+
 # Pub/Sub publisher -- the backend enqueues jobs by publishing to the task topic.
 resource "google_pubsub_topic_iam_member" "backend_publisher" {
   project = var.gcp_project_id

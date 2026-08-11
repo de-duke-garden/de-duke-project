@@ -168,15 +168,41 @@ terraform init -backend-config=backend.hcl
 terraform plan
 ```
 
-## 8. Prerequisites / inputs needed before apply
+## 8. Secrets
+
+All secrets are seeded by Terraform with `REPLACE_ME` placeholders and
+**populated by an operator after apply** -- the real values never live in this
+repo. List of secrets in `de-duke-services`:
+
+| Secret | Holds | Populated by |
+|---|---|---|
+| `de-duke-app-secrets` | JSON blob: Paystack, Google Maps, Firebase SA, SES sender, Sentry, analytics, JWT, Gemini | operator (console or gcloud) |
+| `de-duke-db-credentials` | `{"username","password"}` for Cloud SQL (auto-generated) | Terraform (random_password) |
+| `de-duke-redis-url` | **Upstash Redis** connection string (`rediss://default:<token>@<region>.upstash.io:6379`) | operator (see below) |
+
+**Populate the Redis secret (Upstash):**
+
+```bash
+echo -n 'rediss://default:<UPSTASH_TOKEN>@<region>.upstash.io:6379' | \
+  gcloud secrets versions add de-duke-redis-url \
+    --project=de-duke-services --data-file=-
+```
+
+> The Redis secret backs refresh tokens, rate-limit counters, and the
+> semantic-search cache (app/core/cache.py via `REDIS_URL`). Upstash was
+> chosen over GCP Memorystore because it is serverless/pay-per-use (~$0 at
+> pre-launch traffic) versus Memorystore's always-on ~$35/mo minimum.
+
+## 9. Prerequisites / inputs needed before apply
 
 - [x] GCP target project confirmed: **`de-duke-services`** (billing enabled)
 - [x] State backend: GCS bucket `de-duke-services-tfstate`
+- [x] Redis: Upstash endpoint wired via `de-duke-redis-url` secret (populated by operator)
 - [ ] Cloud Run image: confirm the backend Docker image builds for Cloud Run
       (Cloud Run requires a listening port via the configured container port;
       the FastAPI app listens on 8000 — already mirrored in the service)
 - [ ] App-side wiring at cutover: worker Pub/Sub push endpoint, SQS/SNS/SES
-      client swaps, REDIS_URL when Memorystore is added
+      client swaps
 - [ ] SES handling at cutover (keep vs. replace with Resend/Postmark)
 - [ ] Who holds the `de-duke.com` registration (registrar), for the NS repoint
 - [ ] Review the full `terraform plan` before any apply
