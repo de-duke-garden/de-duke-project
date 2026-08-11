@@ -193,6 +193,20 @@ echo -n 'rediss://default:<UPSTASH_TOKEN>@<region>.upstash.io:6379' | \
 > chosen over GCP Memorystore because it is serverless/pay-per-use (~$0 at
 > pre-launch traffic) versus Memorystore's always-on ~$35/mo minimum.
 
+**Shape requirement for `FIREBASE_SERVICE_ACCOUNT_JSON`:** the app reads this
+as a `str` and `json.loads()`es it (app/core/firebase.py), so inside the
+`de-duke-app-secrets` JSON blob it must be stored **stringified**, not as a
+nested object:
+
+```json
+{ "FIREBASE_SERVICE_ACCOUNT_JSON": "{ \"type\": \"service_account\", ... }" }
+```
+
+A nested dict causes `TypeError: the JSON object must be str` and a 500 on
+`/v1/chat/token`. If you ever re-populate this value, stringify the service
+account JSON first. (When updating the blob, the other top-level values stay
+as-is; only this one must be a string.)
+
 ## 9. Prerequisites / inputs needed before apply
 
 - [x] GCP target project confirmed: **`de-duke-services`** (billing enabled)
