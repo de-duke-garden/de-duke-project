@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Payment received</h1>
+<p>Your payment has been received successfully. Your booking is confirmed.</p>
+<table role="presentation" class="details">
+  <tr><td>Booking reference</td><td>{{ transaction_id }}</td></tr>
+  {% if gross_amount is not none %}<tr><td>Amount paid</td><td><span class="amount">₦{{ "{:,.2f}".format(gross_amount) }}</span></td></tr>{% endif %}
+</table>
+<p>The host has been notified and will be in touch about check-in details.</p>
+<p>— The De-Duke Team</p>
+{% endblock %}

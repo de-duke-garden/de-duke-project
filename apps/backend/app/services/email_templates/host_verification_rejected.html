@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Verification update</h1>
+<p>Unfortunately, your {{ host_type | default("host") }} verification could not be approved at this time.</p>
+{% if reason %}
+<p><strong>Reason:</strong> {{ reason }}</p>
+{% endif %}
+<p>You can review the requirements, update your information, and resubmit for verification from your profile in the app.</p>
+<p>— The De-Duke Team</p>
+{% endblock %}

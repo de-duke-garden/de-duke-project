@@ -14,9 +14,12 @@ from __future__ import annotations
 
 import logging
 import time
+from functools import cache
+from pathlib import Path
 from typing import Any
 
 import httpx
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -24,6 +27,35 @@ from app.core.config import get_settings
 logger = logging.getLogger("app.services.email_service")
 
 settings = get_settings()
+
+# Jinja2 environment over the email_templates/ directory. Each template
+# extends base.html (shared branded shell -- logo from de-duke.com, tokens
+# from branding.md). autoescape is on for HTML safety since template
+# contexts can contain user-provided strings (listing titles, names).
+_TEMPLATES_DIR = Path(__file__).parent / "email_templates"
+_env = Environment(
+    loader=FileSystemLoader(_TEMPLATES_DIR),
+    autoescape=select_autoescape(["html", "xml"]),
+    enable_async=False,
+)
+
+
+@cache
+def _render_template(template: str, context_json: str) -> str:
+    """Renders `template` + `context` to HTML via Jinja2, cached per
+    template+context (serialized). Falls back to a plain-text rendering if
+    the template file is missing (never raises -- an email failure must never
+    block the triggering transaction)."""
+    try:
+        import json
+
+        context = json.loads(context_json)
+        tpl = _env.get_template(f"{template}.html")
+        return tpl.render(**context)
+    except Exception:
+        logger.exception("email_service: template render failed template=%s", template)
+        return f"{template} email. Context: {context_json}"
+
 
 # Template names. Each maps to a category below for per-user preference
 # gating (User.email_notification_preferences, FEAT-024 AC) -- except
@@ -146,18 +178,23 @@ async def send_transactional_email(to: str, template: str, context: dict[str, An
 
 
 async def _send_via_zeptomail(to: str, template: str, context: dict[str, Any]) -> None:
-    """Renders `template` + `context` into a plain-text/HTML body and POSTs
-    to ZeptoMail's SendMail API. ZeptoMail requires the sender to be a
-    verified address on the `send.de-duke.com` subdomain, and the
-    mail_from address uses the verified bounce (return-path) domain."""
-    subject = f"De-Duke: {template.replace('_', ' ').title()}"
-    body = f"{template} email\n\nContext:\n{context}"
+    """Renders `template` + `context` into branded HTML (Jinja2, base.html
+    shell) plus a plain-text fallback, then POSTs both to ZeptoMail's
+    SendMail API. ZeptoMail requires the sender to be a verified address on
+    the `send.de-duke.com` subdomain; the mail_from uses the verified bounce
+    (return-path) domain."""
+    import json
+
+    context_json = json.dumps(context, default=str)
+    html_body = _render_template(template, context_json)
+    text_body = f"{template.replace('_', ' ').title()} email\n\nContext:\n{context}"
 
     payload = {
         "from": {"address": settings.transactional_sender_email},
         "to": [{"email_address": {"address": to}}],
-        "subject": subject,
-        "textbody": body,
+        "subject": _render_subject(template, context),
+        "htmlbody": html_body,
+        "textbody": text_body,
         "track_clicks": False,
         "track_opens": False,
     }
@@ -172,6 +209,30 @@ async def _send_via_zeptomail(to: str, template: str, context: dict[str, Any]) -
             json=payload,
         )
         resp.raise_for_status()
+
+
+_SUBJECT_BY_TEMPLATE: dict[str, str] = {
+    "welcome": "Welcome to De-Duke",
+    "password_reset": "Reset your password",
+    "account_deletion_confirmed": "Your De-Duke account has been deleted",
+    "host_verification_approved": "You're verified on De-Duke",
+    "host_verification_rejected": "Verification update",
+    "booking_hold_confirmed": "Your booking is on hold",
+    "booking_hold_expired": "Your booking hold has expired",
+    "payment_succeeded": "Payment received",
+    "payment_failed": "Payment unsuccessful",
+    "host_payout_summary": "Your payout summary",
+    "staff_invite": "You've been invited to De-Duke",
+    "dispute_resolved": "Your dispute has been resolved",
+    "escrow_funds_released": "Your funds have been released",
+    "withdrawal_paid": "Withdrawal completed",
+    "withdrawal_failed": "Withdrawal unsuccessful",
+}
+
+
+def _render_subject(template: str, context: dict[str, Any]) -> str:
+    """Human-readable subject per template (fallback to a derived title)."""
+    return _SUBJECT_BY_TEMPLATE.get(template, template.replace("_", " ").title())
 
 
 async def notify_user(

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Your De-Duke account has been deleted</h1>
+<p>We're sorry to see you go. Your De-Duke account has been deleted as requested.</p>
+{% if retained_for_a_defined_period %}
+<p class="muted">Some records are retained for a defined period for legal and financial compliance, as described in our Privacy Policy. No further emails will be sent to this address.</p>
+{% endif %}
+<p>If this was a mistake or you'd like to create a new account, you're always welcome back at <a href="https://de-duke.com" style="color:#0D6B2D;">de-duke.com</a>.</p>
+<p>— The De-Duke Team</p>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Your booking hold has expired</h1>
+<p>Your booking hold for listing <strong>{{ listing_id | default("—") }}</strong> (reference {{ transaction_id }}) has expired because payment wasn't completed in time.</p>
+<p>The dates you were holding are now available again. If you'd still like to book, you can start a new booking from the property page.</p>
+<p>— The De-Duke Team</p>
+{% endblock %}

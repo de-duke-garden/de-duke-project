@@ -21,6 +21,7 @@ dependencies = [
   "redis>=5.1",
   "anyio>=4.14",
   "boto3>=1.35",
+  "jinja2>=3.1",
   "firebase-admin>=6.5",
   "sentry-sdk[fastapi]>=2.17",
   "python-multipart>=0.0.12",

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Your payout summary</h1>
+<p>Here's a summary of your recent payout activity on De-Duke.</p>
+<table role="presentation" class="details">
+  {% if transaction_id %}<tr><td>Reference</td><td>{{ transaction_id }}</td></tr>{% endif %}
+  {% if net_payout_amount is not none %}<tr><td>Net payout</td><td><span class="amount">₦{{ "{:,.2f}".format(net_payout_amount) }}</span></td></tr>{% endif %}
+</table>
+<p>— The De-Duke Team</p>
+{% endblock %}

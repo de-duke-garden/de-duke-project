@@ -125,6 +125,38 @@ async def test_send_noops_when_zeptomail_not_configured(monkeypatch: pytest.Monk
     # No exception raised is the assertion; the no-op path just logs.
 
 
+def test_render_welcome_template_uses_branded_shell() -> None:
+    """The welcome template renders through the shared base.html shell with
+    the De-Duke logo and brand-styled markup -- not a bare plain-text
+    fallback."""
+    import json
+
+    html = email_service._render_template(
+        email_service.WELCOME, json.dumps({"full_name": "Amaka"})
+    )
+    assert "Welcome to De-Duke" in html
+    assert "de-duke.com/logo.png" in html
+    assert "Amaka" in html
+    assert html.startswith("<!DOCTYPE html>")
+
+
+def test_render_payment_template_formats_naira() -> None:
+    import json
+
+    html = email_service._render_template(
+        email_service.PAYMENT_SUCCEEDED,
+        json.dumps({"transaction_id": "txn-1", "gross_amount": 50000.0}),
+    )
+    assert "50,000.00" in html
+
+
+def test_render_missing_template_falls_back_without_raising() -> None:
+    import json
+
+    html = email_service._render_template("does_not_exist", json.dumps({}))
+    assert "does_not_exist" in html
+
+
 def test_every_gated_template_has_a_category() -> None:
     """staff_invite is the sole deliberate exception (see
     CATEGORY_BY_TEMPLATE's own comment) -- every other template must map

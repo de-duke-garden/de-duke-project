@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Payment unsuccessful</h1>
+<p>We couldn't complete your payment for booking <strong>{{ transaction_id }}</strong>.</p>
+<p><span class="badge badge-error">Payment failed</span></p>
+<p>No money has been taken. You can try again from the booking screen — your hold may still be active, or you may need to start a new booking if it expired.</p>
+<p>If the problem persists, contact us at <a href="mailto:hello@de-duke.com" style="color:#0D6B2D;">hello@de-duke.com</a>.</p>
+<p>— The De-Duke Team</p>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>You've been invited to De-Duke</h1>
+<p>Hi {{ full_name | default("there") }},</p>
+<p>You've been invited to join De-Duke as a member of our team. Click the button below to accept your invite and set up your account:</p>
+<p><a class="button" href="{{ invite_link }}">Accept invite</a></p>
+<p class="muted">This invite link is for you only. If you weren't expecting this, you can ignore this email.</p>
+<p>— The De-Duke Team</p>
+{% endblock %}

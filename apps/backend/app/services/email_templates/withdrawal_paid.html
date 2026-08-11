@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Withdrawal completed</h1>
+<p>Your withdrawal of {% if amount is not none %}<span class="amount">₦{{ "{:,.2f}".format(amount) }}</span>{% else %}funds{% endif %} from your De-Duke wallet has been <strong>completed</strong> and is on its way to your bank account.</p>
+{% if reference %}<p class="muted">Reference: {{ reference }}</p>{% endif %}
+<p>— The De-Duke Team</p>
+{% endblock %}

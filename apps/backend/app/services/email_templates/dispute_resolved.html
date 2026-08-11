@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Your dispute has been resolved</h1>
+<p>We've resolved the dispute on booking <strong>{{ dispute_id | default("—") }}</strong>.</p>
+<table role="presentation" class="details">
+  <tr><td>Resolution</td><td>{{ resolution | default("Resolved") }}</td></tr>
+  {% if refund_amount is not none and refund_amount > 0 %}<tr><td>Refund</td><td><span class="amount">₦{{ "{:,.2f}".format(refund_amount) }}</span></td></tr>{% endif %}
+</table>
+<p>If you have questions about this outcome, contact us at <a href="mailto:hello@de-duke.com" style="color:#0D6B2D;">hello@de-duke.com</a>.</p>
+<p>— The De-Duke Team</p>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Your booking is on hold</h1>
+<p>Good news — we've placed a hold on your booking to secure it while you complete payment.</p>
+<table role="presentation" class="details">
+  <tr><td>Booking reference</td><td>{{ transaction_id }}</td></tr>
+  {% if hold_expires_at %}<tr><td>Hold expires</td><td>{{ hold_expires_at }}</td></tr>{% endif %}
+</table>
+<p>Complete your payment before the hold expires to confirm the booking. If the hold expires first, the dates are released back for others.</p>
+<p>— The De-Duke Team</p>
+{% endblock %}

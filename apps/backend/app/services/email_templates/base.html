@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="x-apple-disable-message-reformatting" />
+<title>{{ subject }}</title>
+<style>
+  /* De-Duke email base shell -- tokens from branding.md.
+     Inline-table layout for email-client compatibility; classes are safe
+     inside table cells. */
+  body { margin: 0; padding: 0; background-color: #F4F6F5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #12201C; }
+  table { border-collapse: collapse; }
+  .wrapper { width: 100%; background-color: #F4F6F5; padding: 24px 0; }
+  .container { max-width: 600px; margin: 0 auto; background-color: #FFFFFF; border: 1px solid #E1E6E3; border-radius: 12px; overflow: hidden; }
+  .header { background-color: #FFFFFF; padding: 24px 32px; border-bottom: 1px solid #E1E6E3; }
+  .logo { height: 40px; width: auto; }
+  .body { padding: 32px; }
+  .footer { background-color: #F4F6F5; padding: 16px 32px; font-size: 12px; color: #5F6E68; border-top: 1px solid #E1E6E3; text-align: center; }
+  h1 { color: #12201C; font-size: 22px; font-weight: 700; margin: 0 0 16px; }
+  p { font-size: 15px; line-height: 1.6; margin: 0 0 16px; color: #12201C; }
+  .button { display: inline-block; background-color: #0D6B2D; color: #FFFFFF !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 12px 24px; border-radius: 8px; }
+  .muted { color: #5F6E68; font-size: 13px; }
+  .amount { font-size: 24px; font-weight: 700; color: #0D6B2D; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge-success { background-color: #E2F0E4; color: #0D6B2D; }
+  .badge-error { background-color: #FBE4E2; color: #D9463B; }
+  .badge-warning { background-color: #FBEBCC; color: #8A5A00; }
+  table.details { width: 100%; margin: 16px 0; }
+  table.details td { padding: 8px 0; border-bottom: 1px solid #E1E6E3; font-size: 14px; }
+  table.details td:first-child { color: #5F6E68; width: 40%; }
+  table.details td:last-child { font-weight: 600; }
+  .divider { height: 1px; background-color: #E1E6E3; margin: 24px 0; }
+</style>
+</head>
+<body>
+  <table role="presentation" class="wrapper" width="100%"><tr><td align="center">
+    <table role="presentation" class="container" width="100%">
+      <tr><td class="header">
+        <img src="https://de-duke.com/logo.png" alt="De-Duke" class="logo" width="120" />
+      </td></tr>
+      <tr><td class="body">
+        {% block content %}{% endblock %}
+      </td></tr>
+      <tr><td class="footer">
+        De-Duke &middot; Verified property. Real conversations. Deals that close.<br />
+        You received this email because you have an account with De-Duke.<br />
+        <a href="https://de-duke.com" style="color:#0D6B2D;">de-duke.com</a> &middot; <a href="mailto:hello@de-duke.com" style="color:#0D6B2D;">hello@de-duke.com</a>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body>
+</html>

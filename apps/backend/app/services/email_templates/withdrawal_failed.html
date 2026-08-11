@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Withdrawal unsuccessful</h1>
+<p>We couldn't complete your wallet withdrawal{% if amount is not none %} of <span class="amount">₦{{ "{:,.2f}".format(amount) }}</span>{% endif %}.</p>
+<p><span class="badge badge-error">Withdrawal failed</span></p>
+<p>Your funds have been returned to your De-Duke wallet. Please check your payout details and try again, or contact us at <a href="mailto:hello@de-duke.com" style="color:#0D6B2D;">hello@de-duke.com</a>.</p>
+<p>— The De-Duke Team</p>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Your funds have been released</h1>
+<p>Great news — your funds from booking <strong>{{ transaction_id }}</strong> have been released to your De-Duke wallet.</p>
+{% if net_payout_amount is not none %}
+<p><span class="amount">₦{{ "{:,.2f}".format(net_payout_amount) }}</span></p>
+{% endif %}
+<p>You can withdraw from your wallet to your bank account at any time from the app.</p>
+<p>— The De-Duke Team</p>
+{% endblock %}
