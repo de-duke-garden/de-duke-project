@@ -208,15 +208,13 @@ variable "zoho_dkim_selector" {
   default     = "zoho"
 }
 
-# Zoho DKIM TXT value (v=DKIM1; k=rsa; p=...). Split into two <=255-char
-# quoted strings (DNS TXT per-string limit); concatenated by validators.
+# Zoho DKIM TXT value (v=DKIM1; k=rsa; p=...). 1024-bit key -- fits a single
+# <=255-char TXT string, which Zoho's checker accepts (the earlier 2048-bit
+# key exceeded the limit and had to be split, which their checker rejected).
 variable "zoho_dkim_txt" {
-  description = "Zoho DKIM TXT value, split into 255-char chunks (list of quoted strings)."
-  type        = list(string)
-  default = [
-    "\"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqdylVcf7d8VASNMKQGZwLjmaM2bxyaBUvEckVKpnsFcJp2scDW2UMIUBYZ+mnDnyxeG7kZQm71p4CKGYJLGi9/Py6Jykuw+EKvS1R6poDYAPfwav0i/eMac7dKq/TPdZzi0Wd91LbJg+8dWOn1ADRUrSM4y45LcpnrqOyHI0xbwQHAeabs6Hq9Y4TOfNsbbg1\"",
-    "\"wrr54pBwdVWHq9oSWKO2X0KdLKuMydlIrcM94ngmSb0+slPJ/+AQE7P/AKNarjPJ4eBeLmK2GvYs6OUCXwNGWbQyCtrIuOXAl5IraNFxF9q+HezpUHd+wt2Cm9Pux99PZ8R79ldNzg7bfj6ut6CMwIDAQAB\"",
-  ]
+  description = "Zoho DKIM TXT value."
+  type        = string
+  default     = "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCQIN+Mrf0RjA5CpHN5pEed3zUHqwSW0t022X3W/mJWXqUTJuICKyzVmAWDUS1+PwIElJ8BHQ1IGnKoJmVcV1AK61tXiXGJEAbbQN7EfflwQxFQl8cBCbI/OeJEyT2E558qmBROYx1HPVJOLAouzXlOA0Ds8aBrYOH5E88PEqWfLwIDAQAB"
 }
 
 # ---------------------------------------------------------------------------
