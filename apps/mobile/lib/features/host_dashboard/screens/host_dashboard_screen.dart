@@ -204,6 +204,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen> {
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     'Verify your identity to start listing',

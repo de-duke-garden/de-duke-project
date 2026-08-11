@@ -25,15 +25,9 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -47,29 +41,51 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCmQR1l9mPePn3co5-X6CjK700mg8HNFl4',
-    appId: '1:162952114899:web:7e673bde235d10cf599a26',
-    messagingSenderId: '162952114899',
-    projectId: 'project-31cb3884-0cd8-4040-b0c',
-    authDomain: 'project-31cb3884-0cd8-4040-b0c.firebaseapp.com',
-    storageBucket: 'project-31cb3884-0cd8-4040-b0c.firebasestorage.app',
-    measurementId: 'G-5FG7WPL7CE',
+    apiKey: 'AIzaSyB8dACywz8W-e3z_HksgcTfsiec2ogAUJo',
+    appId: '1:531781610440:web:b2aa9fec3547a23ffb2efd',
+    messagingSenderId: '531781610440',
+    projectId: 'de-duke-services',
+    authDomain: 'de-duke-services.firebaseapp.com',
+    storageBucket: 'de-duke-services.firebasestorage.app',
+    measurementId: 'G-F2PZFNZ38G',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCQ2uen7kzCWddSQ_IsPXGj9DtyH3ptf0E',
-    appId: '1:162952114899:android:fa276bd9bcab64e8599a26',
-    messagingSenderId: '162952114899',
-    projectId: 'project-31cb3884-0cd8-4040-b0c',
-    storageBucket: 'project-31cb3884-0cd8-4040-b0c.firebasestorage.app',
+    apiKey: 'AIzaSyC-6fM1Tkk68wICZZjcklsNOlUojAvLl2w',
+    appId: '1:531781610440:android:b3d5d7150f64b005fb2efd',
+    messagingSenderId: '531781610440',
+    projectId: 'de-duke-services',
+    storageBucket: 'de-duke-services.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCnyCYX_uQEAB7qtc88NYmlU5g2b9Ol2wU',
-    appId: '1:162952114899:ios:b63d7f692dbb47c3599a26',
-    messagingSenderId: '162952114899',
-    projectId: 'project-31cb3884-0cd8-4040-b0c',
-    storageBucket: 'project-31cb3884-0cd8-4040-b0c.firebasestorage.app',
-    iosBundleId: 'com.de-duke.app',
+    apiKey: 'AIzaSyDo0dcOaSN4l50TNFfO3PY3KY-WLEL9usE',
+    appId: '1:531781610440:ios:2939c605214549c7fb2efd',
+    messagingSenderId: '531781610440',
+    projectId: 'de-duke-services',
+    storageBucket: 'de-duke-services.firebasestorage.app',
+    iosClientId: '531781610440-et9d0h1p68n6i86kenvvtkiudmb6tegb.apps.googleusercontent.com',
+    iosBundleId: 'com.deduke.deDukeMobile',
   );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyDo0dcOaSN4l50TNFfO3PY3KY-WLEL9usE',
+    appId: '1:531781610440:ios:2939c605214549c7fb2efd',
+    messagingSenderId: '531781610440',
+    projectId: 'de-duke-services',
+    storageBucket: 'de-duke-services.firebasestorage.app',
+    iosClientId: '531781610440-et9d0h1p68n6i86kenvvtkiudmb6tegb.apps.googleusercontent.com',
+    iosBundleId: 'com.deduke.deDukeMobile',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyB8dACywz8W-e3z_HksgcTfsiec2ogAUJo',
+    appId: '1:531781610440:web:bc1afa6d13fd7102fb2efd',
+    messagingSenderId: '531781610440',
+    projectId: 'de-duke-services',
+    authDomain: 'de-duke-services.firebaseapp.com',
+    storageBucket: 'de-duke-services.firebasestorage.app',
+    measurementId: 'G-GB5Y0LVS79',
+  );
+
 }

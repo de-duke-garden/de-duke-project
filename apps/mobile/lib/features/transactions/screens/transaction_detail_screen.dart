@@ -78,8 +78,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       _errorMessage = null;
     });
     try {
-      final txn =
-          await widget.repository.getTransaction(widget.transactionId);
+      final txn = await widget.repository.getTransaction(widget.transactionId);
       if (!mounted) return;
       setState(() {
         _transaction = txn;
@@ -137,8 +136,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       // previously left this awaited Future pending forever with the
       // button showing no feedback at all, indistinguishable from the app
       // having frozen.
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication)
-          .timeout(const Duration(seconds: 10), onTimeout: () => false);
+      final launched =
+          await launchUrl(uri, mode: LaunchMode.externalApplication)
+              .timeout(const Duration(seconds: 10), onTimeout: () => false);
       if (!launched && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -290,8 +290,26 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     _row('Total commission',
                         formatNairaDecimal(txn.commissionAmount)),
                     const Divider(height: AppSpacing.lg),
-                    _row('Payer', txn.payerId),
-                    _row('Payee', txn.payeeId),
+                    // _row('Payer', txn.payerId),
+                    _rowWidget(
+                      'Payer',
+                      SelectableText(
+                        txn.payerId,
+                        textAlign: TextAlign.right,
+                        style: AppTypography.bodySmall
+                            .copyWith(fontFamily: 'monospace'),
+                      ),
+                    ),
+                    // _row('Payee', txn.payeeId),
+                    _rowWidget(
+                      'Payee',
+                      SelectableText(
+                        txn.payeeId,
+                        textAlign: TextAlign.right,
+                        style: AppTypography.bodySmall
+                            .copyWith(fontFamily: 'monospace'),
+                      ),
+                    ),
                     const Divider(height: AppSpacing.lg),
                     _row('Created', _formatDateTime(txn.createdAt)),
                     if (txn.paidAt != null)
@@ -383,6 +401,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           Text(label,
               style: AppTypography.bodySmall.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          SizedBox(
+            width: AppSpacing.lg,
+          ),
           Flexible(child: value),
         ],
       ),

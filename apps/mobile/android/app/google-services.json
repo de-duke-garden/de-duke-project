@@ -1,48 +1,40 @@
 {
   "project_info": {
-    "project_number": "162952114899",
-    "project_id": "project-31cb3884-0cd8-4040-b0c",
-    "storage_bucket": "project-31cb3884-0cd8-4040-b0c.firebasestorage.app"
+    "project_number": "531781610440",
+    "project_id": "de-duke-services",
+    "storage_bucket": "de-duke-services.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:162952114899:android:fa276bd9bcab64e8599a26",
+        "mobilesdk_app_id": "1:531781610440:android:b3d5d7150f64b005fb2efd",
         "android_client_info": {
           "package_name": "com.deduke.de_duke_mobile"
         }
       },
       "oauth_client": [
         {
-          "client_id": "162952114899-dt2guhd5mm2d1oddjos0deqberr5bbhr.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.deduke.de_duke_mobile",
-            "certificate_hash": "43b2b694feab31ac0abe9736364d4eeed5ea6298"
-          }
-        },
-        {
-          "client_id": "162952114899-p6ch59s02ekbgiaag0qubl5cqv4midnl.apps.googleusercontent.com",
+          "client_id": "531781610440-nsof8m9dcguc0r2f3jcgnuv00l9tjobq.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyCQ2uen7kzCWddSQ_IsPXGj9DtyH3ptf0E"
+          "current_key": "AIzaSyC-6fM1Tkk68wICZZjcklsNOlUojAvLl2w"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "162952114899-p6ch59s02ekbgiaag0qubl5cqv4midnl.apps.googleusercontent.com",
+              "client_id": "531781610440-nsof8m9dcguc0r2f3jcgnuv00l9tjobq.apps.googleusercontent.com",
               "client_type": 3
             },
             {
-              "client_id": "162952114899-v6lau2i9qstuusvsq1mk57ai2v0nv00j.apps.googleusercontent.com",
+              "client_id": "531781610440-et9d0h1p68n6i86kenvvtkiudmb6tegb.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.de-duke.app"
+                "bundle_id": "com.deduke.deDukeMobile"
               }
             }
           ]
