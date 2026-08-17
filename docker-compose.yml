@@ -59,28 +59,47 @@ services:
       timeout: 5s
       retries: 10
 
-  # Emulates Amazon SQS (Task Queue) and S3 (File Storage Service, minus
-  # CloudFront -- see storage.py's build_media_url fallback for local dev)
-  # per architecture.md. The queue+DLQ pair matching infra/modules/sqs and
-  # the media bucket matching infra/modules/s3_cdn are both created
-  # automatically on startup by the init-hook scripts below, not by
-  # Terraform, which only ever targets real AWS.
+  # Emulates Amazon SQS (Task Queue) per architecture.md. The queue+DLQ
+  # pair matching infra/modules/sqs is created automatically on startup by
+  # the init-hook script below, not by Terraform, which only ever targets
+  # real AWS. File Storage is emulated separately by the `fake-gcs` service
+  # below (the storage client is google-cloud-storage now, not boto3/S3).
   localstack:
     image: localstack/localstack:3
     environment:
-      SERVICES: sqs,s3
+      SERVICES: sqs
       DEFAULT_REGION: eu-west-1
     ports:
       - "4566:4566"
     volumes:
       - deduke-localstack-data:/var/lib/localstack
       - ./apps/backend/docker/localstack-init-sqs.sh:/etc/localstack/init/ready.d/init-sqs.sh:ro
-      - ./apps/backend/docker/localstack-init-s3.sh:/etc/localstack/init/ready.d/init-s3.sh:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Emulates Google Cloud Storage (the File Storage Service -- see
+  # infra/gcp/storage_cdn.tf for the real bucket + Cloud CDN) so local
+  # uploads exercise the exact same GCS client as production, just pointed
+  # at this emulator via GCS_ENDPOINT_URL (see app/core/storage.py).
+  # fake-gcs-server has no Cloud CDN equivalent, so storage.py's
+  # build_media_url falls back to an emulator-servable URL built from
+  # GCS_ENDPOINT_URL + MEDIA_BUCKET_NAME (browser-side via
+  # MEDIA_LOCAL_PUBLIC_BASE_URL's host-published port below). The bucket
+  # itself is created lazily by storage.py on first upload (emulator mode
+  # only -- real GCS buckets are Terraform-provisioned), so no init script
+  # is needed. No healthcheck: the image ships no shell (plain Go binary);
+  # it starts in milliseconds and `depends_on` ordering below is enough for
+  # practical purposes.
+  fake-gcs:
+    image: fsouza/fake-gcs-server:latest
+    command: ["-scheme", "http", "-port", "4443", "-external-url", "http://localhost:4443"]
+    ports:
+      - "4443:4443"
+    volumes:
+      - deduke-fake-gcs-data:/data
 
   backend:
     build:
@@ -101,19 +120,18 @@ services:
       REDIS_URL: redis://redis:6379/0
       SQS_QUEUE_URL: http://localstack:4566/000000000000/local-de-duke-tasks
       # MEDIA_CDN_DOMAIN deliberately left unset (falls through to .env's
-      # REPLACE_ME default) -- LocalStack has no CloudFront equivalent, so
-      # storage.py's build_media_url falls back to a LocalStack-servable
-      # path-style URL using AWS_ENDPOINT_URL + MEDIA_BUCKET_NAME instead.
+      # REPLACE_ME default) -- fake-gcs-server has no Cloud CDN equivalent,
+      # so storage.py's build_media_url falls back to an
+      # emulator-servable path-style URL using GCS_ENDPOINT_URL +
+      # MEDIA_BUCKET_NAME instead.
       MEDIA_BUCKET_NAME: local-de-duke-media
-      AWS_ENDPOINT_URL: http://localstack:4566
-      # Host-published port, not the `localstack` Docker-network hostname
-      # above -- so a URL returned by an upload can actually be opened in a
-      # browser on the host. See config.py's media_local_public_base_url.
-      MEDIA_LOCAL_PUBLIC_BASE_URL: http://localhost:4566
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      AWS_DEFAULT_REGION: eu-west-1
-      AWS_REGION: eu-west-1
+      # GCS_ENDPOINT_URL is the Docker-network hostname the backend uses to
+      # reach fake-gcs-server; MEDIA_LOCAL_PUBLIC_BASE_URL is the
+      # host-published port so a URL returned by an upload can actually be
+      # opened in a browser on the host. See config.py's
+      # media_local_public_base_url.
+      GCS_ENDPOINT_URL: http://fake-gcs:4443
+      MEDIA_LOCAL_PUBLIC_BASE_URL: http://localhost:4443
     ports:
       # Host-side 8080, not 8000 -- avoids colliding with anything else you
       # may have bound to 8000 locally. The container's own port (right
@@ -136,7 +154,10 @@ services:
         condition: service_healthy
       localstack:
         condition: service_healthy
+      fake-gcs:
+        condition: service_started
 
 volumes:
   deduke-db-data:
   deduke-localstack-data:
+  deduke-fake-gcs-data:

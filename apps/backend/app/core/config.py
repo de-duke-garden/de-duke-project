@@ -1,18 +1,17 @@
 """Application configuration, loaded from environment variables.
 
 In deployed environments, the individual secret fields below do NOT arrive
-as their own flat env vars. The ECS task definition (see
-infra/modules/fargate_service) injects three raw pieces instead:
+as their own flat env vars. The Cloud Run revision (see
+infra/gcp/cloud_run.tf) injects three pieces instead:
 
-  - DB_PROXY_ENDPOINT   (plain env var) -- the RDS Proxy hostname.
-  - DB_CREDENTIALS      (secret)        -- AWS-managed master user secret
-                                           JSON, `{"username": ..., "password": ...}`,
-                                           sourced from RDS's
-                                           `manage_master_user_password`.
-  - APP_SECRETS         (secret)        -- a single JSON blob holding every
-                                           other application-level secret
-                                           (Paystack, JWT, Firebase, etc.),
-                                           see infra/modules/secrets.
+  - DB_PROXY_ENDPOINT   (plain env var) -- the Cloud SQL Auth Proxy
+                         sidecar's fixed loopback address, 127.0.0.1:5432.
+  - DB_CREDENTIALS      (Secret Manager ref) -- Cloud SQL username/password
+                         JSON, sourced from google_secret_manager_secret.
+  - APP_SECRETS         (Secret Manager ref) -- a single JSON blob holding
+                         every other application-level secret
+                         (Paystack, JWT, Firebase, etc.),
+                         see infra/gcp/secrets.tf.
 
 `Settings` assembles `database_url` from the first two, and flattens
 APP_SECRETS' keys onto their matching fields, in `_apply_deployed_secrets`
@@ -35,8 +34,8 @@ class Settings(BaseSettings):
     # -- Environment --
     # validation_alias="DEDUKE_ENVIRONMENT" -- a plain `environment: str`
     # field only ever reads an ENVIRONMENT env var by pydantic-settings'
-    # default convention, but the ECS task definition
-    # (infra/modules/fargate_service/main.tf) and .env.example both set
+    # default convention, but the Cloud Run revision
+    # (infra/gcp/cloud_run.tf) and .env.example both set
     # DEDUKE_ENVIRONMENT specifically. Confirmed bug: without this alias,
     # this field silently stayed "development" in every real deployed
     # environment (staging/production included) regardless of the actual
@@ -60,30 +59,33 @@ class Settings(BaseSettings):
     # -- Task Queue (SQS) --
     sqs_queue_url: str = "REPLACE_ME"
 
-    # -- File Storage (S3 + CDN, see infra/modules/s3_cdn and app/core/storage.py) --
+    # -- File Storage (GCS + Cloud CDN, see infra/gcp/storage_cdn.tf and app/core/storage.py) --
     # media_bucket_name/media_cdn_domain arrive as their own plain env vars
-    # (MEDIA_BUCKET_NAME/MEDIA_CDN_DOMAIN) from the ECS task definition --
-    # unlike database_url/APP_SECRETS above, these aren't secrets, so no
-    # _apply_deployed_secrets-style assembly is needed; pydantic-settings'
-    # env_file/env-var loading picks them up directly.
+    # (MEDIA_BUCKET_NAME/MEDIA_CDN_DOMAIN) from the Cloud Run revision
+    # (infra/gcp/cloud_run.tf) -- unlike database_url/APP_SECRETS above,
+    # these aren't secrets, so no _apply_deployed_secrets-style assembly is
+    # needed; pydantic-settings' env_file/env-var loading picks them up
+    # directly.
     media_bucket_name: str = "REPLACE_ME"
     media_cdn_domain: str = "REPLACE_ME"
-    # AWS region for the S3 client itself (distinct from aws_region used by
-    # Terraform/CI) -- defaults to the same region every environment
-    # deploys into per infra/environments/*/main.tf.
-    aws_region: str = "eu-west-1"
-    # Only ever set locally (docker-compose.yml), to point the S3 client at
-    # LocalStack instead of real AWS. Left empty ("") in every deployed
-    # environment, where boto3 talks to real AWS by default.
-    aws_endpoint_url: str = ""
+    # Only ever set locally (docker-compose.yml), to point the GCS client
+    # (app/core/storage.py) at fake-gcs-server instead of real Cloud
+    # Storage. Left empty ("") in every deployed environment, where the
+    # client uses Application Default Credentials against real GCS.
+    gcs_endpoint_url: str = ""
     # Only relevant locally, and only when media_cdn_domain is unset: the
-    # backend container reaches LocalStack via aws_endpoint_url's Docker
-    # network hostname (`localstack`), but a developer's browser (outside
-    # Docker) needs the host-published port instead (`localhost`) to
-    # actually view an uploaded file. Defaults to aws_endpoint_url when
+    # backend container reaches fake-gcs-server via gcs_endpoint_url's
+    # Docker network hostname (`fake-gcs`), but a developer's browser
+    # (outside Docker) needs the host-published port instead (`localhost`)
+    # to actually view an uploaded file. Defaults to gcs_endpoint_url when
     # unset, so this only needs setting when the two legitimately differ
     # (as they do in docker-compose.yml).
     media_local_public_base_url: str = ""
+    # AWS region for sms_service.py's SNS client only (media storage is
+    # google-cloud-storage now; it needs no region). Defaults to the region
+    # the legacy AWS environments deployed into -- harmless while SNS stays
+    # unused (see sms_service.py's module docstring).
+    aws_region: str = "eu-west-1"
 
     # -- SMS (Amazon SNS, app/services/sms_service.py) --
     # No longer used by FEAT-001 (phone sign-up/login OTP now runs through
@@ -122,7 +124,7 @@ class Settings(BaseSettings):
     # (not a Secrets Manager entry -- this isn't sensitive) rather than a
     # hardcoded literal, so it's replaceable per environment/at any time
     # without a code change -- set PAYSTACK_FALLBACK_EMAIL in .env locally,
-    # or as a plain (non-secret) env var on the ECS task definition/GitHub
+    # or as a plain (non-secret) env var on the Cloud Run revision/GitHub
     # Environment variable in deployed environments.
     paystack_fallback_email: str = "info@de-duke.com"
     google_maps_api_key: str = "REPLACE_ME"
@@ -208,8 +210,9 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _apply_deployed_secrets(self) -> "Settings":
-        """Fill in fields shipped by ECS as DB_PROXY_ENDPOINT/DB_CREDENTIALS/
-        APP_SECRETS instead of their own flat env vars (see module docstring).
+        """Fill in fields shipped by the Cloud Run revision as
+        DB_PROXY_ENDPOINT/DB_CREDENTIALS/APP_SECRETS instead of their own
+        flat env vars (see module docstring).
 
         Only overwrites a field when it is still at its placeholder default,
         so a developer's `.env` (loaded above via env_file) always wins.

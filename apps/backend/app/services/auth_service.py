@@ -444,7 +444,7 @@ async def update_profile(
     `profile_photo_url` is a personal avatar available to EVERY account
     type equally -- deliberately NOT gated by `auth_provider` the way
     `email` is (a photo isn't a Firebase/Google-owned credential). Stored
-    via the same File Storage Service (S3 + CDN) path
+    via the same File Storage Service (GCS + Cloud CDN) path
     verification_service.py uses for HostAccount.host_photo_url, but this
     is a distinct field on a distinct entity -- see this module's FEAT-041
     docstring cross-reference and schema.md's User.profilePhotoUrl vs.

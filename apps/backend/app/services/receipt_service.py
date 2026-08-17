@@ -321,7 +321,7 @@ async def ensure_receipt(session: AsyncSession, txn: Transaction) -> Receipt | N
         # the single asyncio event loop for its entire duration, stalling
         # every OTHER concurrent request this worker is serving, not just
         # this one (the exact same class of bug `upload_bytes` below
-        # already avoids for its own synchronous boto3 call, via
+        # already avoids for its own synchronous GCS client call, via
         # anyio.to_thread). Offloaded the same way for consistency, even
         # though a single-page render is normally fast -- "normally fast"
         # is not a substitute for "never blocks the loop" per AGENTS.md.

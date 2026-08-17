@@ -49,10 +49,13 @@ _CLIENT_CONFIG = Config(connect_timeout=5, read_timeout=10, retries={"max_attemp
 
 @lru_cache
 def _get_client() -> Any:  # noqa: ANN401 -- boto3 has no first-party type stubs in this project
+    # No endpoint_url override (the old LocalStack SNS emulation is gone --
+    # docker-compose.yml runs SQS only, and this feature is dormant anyway):
+    # boto3 talks to real AWS SNS, using the task's IAM/service-account
+    # credentials, the same way it did in every deployed environment.
     return boto3.client(
         "sns",
         region_name=settings.aws_region,
-        endpoint_url=settings.aws_endpoint_url or None,
         config=_CLIENT_CONFIG,
     )
 

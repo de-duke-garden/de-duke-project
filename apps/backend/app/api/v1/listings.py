@@ -336,7 +336,7 @@ async def upload_listing_media_endpoint(
     """Structured multi-file upload: `media_meta` (JSON array of
     MediaMetaIn) + one multipart file field per temp_key, named
     `file_<temp_key>`. Each file is uploaded to the File Storage Service
-    (S3 + CDN, app/core/storage.py) and its durable CDN URL persisted.
+    (GCS + Cloud CDN, app/core/storage.py) and its durable CDN URL persisted.
 
     A `media_type='video'` item is additionally validated against
     MAX_VIDEO_BYTES/MAX_VIDEO_DURATION_SECONDS/MAX_VIDEOS_PER_LISTING

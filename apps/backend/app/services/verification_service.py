@@ -40,7 +40,7 @@ _SUBTYPE_TABLES = {
 
 async def _store_file(upload: UploadFile, *, user_id: str) -> str:
     """Persists an uploaded verification document/photo to the File Storage
-    Service (S3 + CDN, app/core/storage.py) and returns its durable URL.
+    Service (GCS + Cloud CDN, app/core/storage.py) and returns its durable URL.
 
     Namespaced by user_id (not host_account.id) because the profile photo
     is uploaded before the HostAccount row -- and therefore its id -- exists
@@ -101,7 +101,7 @@ async def update_profile(
     if bio is not None:
         host_account.bio = bio
     if photo is not None:
-        # Same File Storage Service (S3 + CDN) path the original Become a
+        # Same File Storage Service (GCS + Cloud CDN) path the original Become a
         # Host submission uses -- see _store_file's docstring. Namespaced
         # by user_id, same as submission time.
         host_account.host_photo_url = await _store_file(photo, user_id=user_id)
