@@ -131,9 +131,7 @@ def test_render_welcome_template_uses_branded_shell() -> None:
     fallback."""
     import json
 
-    html = email_service._render_template(
-        email_service.WELCOME, json.dumps({"full_name": "Amaka"})
-    )
+    html = email_service._render_template(email_service.WELCOME, json.dumps({"full_name": "Amaka"}))
     assert "Welcome to De-Duke" in html
     assert "de-duke.com/logo.png" in html
     assert "Amaka" in html
