@@ -8,6 +8,11 @@ variable "gcp_project_id" {
   type        = string
 }
 
+variable "gcp_project_number" {
+  description = "GCP project NUMBER (not ID) -- used to address the Cloud CDN fetch service account (service-<number>@https-lb.iam.gserviceaccount.com), which the media bucket grants roles/storage.objectViewer so the LB's backend bucket can serve objects through Cloud CDN."
+  type        = string
+}
+
 variable "gcp_region" {
   description = "Region closest to the primary Nigerian user base with GCP services (README proposal)."
   type        = string

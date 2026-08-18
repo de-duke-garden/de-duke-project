@@ -3,6 +3,7 @@
 # Do not commit terraform.tfvars.
 
 gcp_project_id      = "de-duke-services"
+gcp_project_number  = "531781610440" # project NUMBER (for the Cloud CDN fetch SA: service-<number>@cloud-cdn-fetch.iam.gserviceaccount.com)
 media_bucket_suffix = "531781610440" # GCP project number -- globally-unique bucket suffix
 
 # Public hostnames served by this infra. Leave EMPTY until the Cloud DNS zone

@@ -140,6 +140,23 @@ resource "google_storage_bucket_iam_member" "backend_media" {
   depends_on = [terraform_data.api_propagation]
 }
 
+# Cloud CDN fetch identity -- the global LB's backend bucket
+# (storage_cdn.tf) must be able to read objects out of the private media
+# bucket, or every CDN media URL 403s. This is the standard Cloud CDN
+# pattern for a private backend bucket: grant the project's fetch service
+# account roles/storage.objectViewer (the bucket itself stays private --
+# no public IAM). Per GCP docs (cdn/docs/setting-up-cdn-with-bucket), the
+# fetch identity for backend buckets is service-<PROJECT_NUM>@https-lb
+# .iam.gserviceaccount.com, and it is provisioned automatically on first
+# reference (it does not appear in `gcloud iam service-accounts list`).
+resource "google_storage_bucket_iam_member" "cdn_fetch_media" {
+  bucket = google_storage_bucket.media.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:service-${var.gcp_project_number}@https-lb.iam.gserviceaccount.com"
+
+  depends_on = [terraform_data.api_propagation]
+}
+
 # Artifact Registry reader -- Cloud Run pulls the backend image from the repo.
 resource "google_artifact_registry_repository_iam_member" "backend_reader" {
   project    = var.gcp_project_id

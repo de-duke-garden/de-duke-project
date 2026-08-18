@@ -10,6 +10,7 @@
 # cloud_run.tf) -- infra applies never touch or revert the deployed image.
 
 gcp_project_id      = "de-duke-services"
+gcp_project_number  = "531781610440"
 media_bucket_suffix = "531781610440"
 
 api_domain = "api.de-duke.com"
