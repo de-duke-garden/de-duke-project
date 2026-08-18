@@ -12,7 +12,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/routing/app_keys.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import 'push_notification_repository.dart';
@@ -119,29 +118,40 @@ class PushNotificationService {
     final messenger = rootScaffoldMessengerKey.currentState;
     if (messenger == null) return; // app not yet attached to the widget tree
 
+    // The messenger lives inside MaterialApp (scaffoldMessengerKey), so its
+    // context resolves the active light/dark theme. The banner deliberately
+    // uses the inverse-surface pair (same as the app's SnackBarTheme) --
+    // dark surface in light mode, light surface in dark mode -- instead of
+    // hardcoding the light theme's surface/foreground colors, which made
+    // the banner white-on-black-inverted (unreadable) under dark mode.
+    final colorScheme =
+        Theme.of(rootScaffoldMessengerKey.currentContext!).colorScheme;
+
     _bannerDismissTimer?.cancel();
     messenger
       ..clearMaterialBanners()
       ..showMaterialBanner(
         MaterialBanner(
-          backgroundColor: AppColors.surface,
-          leading: const Icon(Icons.notifications_active_outlined,
-              color: AppColors.primary),
+          backgroundColor: colorScheme.inverseSurface,
+          leading: Icon(Icons.notifications_active_outlined,
+              color: colorScheme.inversePrimary),
           content: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               if (title != null)
                 Text(title,
-                    style: AppTypography.h3,
+                    style: AppTypography.h3
+                        .copyWith(color: colorScheme.onInverseSurface),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
               if (body != null)
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.xs),
                   child: Text(body,
-                      style: AppTypography.bodySmall
-                          .copyWith(color: AppColors.textSecondary),
+                      style: AppTypography.bodySmall.copyWith(
+                          color: colorScheme.onInverseSurface
+                              .withValues(alpha: 0.85)),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),
                 ),
@@ -151,7 +161,8 @@ class PushNotificationService {
             TextButton(
               onPressed: () => rootScaffoldMessengerKey.currentState
                   ?.hideCurrentMaterialBanner(),
-              child: const Text('Dismiss'),
+              child: Text('Dismiss',
+                  style: TextStyle(color: colorScheme.inversePrimary)),
             ),
           ],
         ),

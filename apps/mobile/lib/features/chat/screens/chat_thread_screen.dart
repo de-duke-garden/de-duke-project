@@ -524,8 +524,13 @@ class _MessageBubble extends StatelessWidget {
     final bubbleColor = isStaff
         ? colorScheme.tertiaryContainer
         : (isMine ? colorScheme.primary : colorScheme.surfaceContainerHighest);
-    final textColor =
-        isMine && !isStaff ? colorScheme.onPrimary : colorScheme.onSurface;
+    // Staff bubbles pair tertiaryContainer (accentLight -- a light cream
+    // in BOTH light and dark mode per app_theme.dart's token map) with
+    // its own on-color, not onSurface: in dark mode onSurface is
+    // near-white, which rendered white text on the cream bubble.
+    final textColor = isStaff
+        ? colorScheme.onTertiaryContainer
+        : (isMine ? colorScheme.onPrimary : colorScheme.onSurface);
     final isFailed = message.deliveryStatus == ChatDeliveryStatus.failed;
 
     // `radius-md` on 3 corners, sharp (squared) tail corner -- bottom-right

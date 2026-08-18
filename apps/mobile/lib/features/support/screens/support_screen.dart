@@ -220,7 +220,12 @@ class _SupportMessageBubble extends StatelessWidget {
     final bubbleColor = isStaff
         ? colorScheme.tertiaryContainer
         : (isMine ? colorScheme.primary : colorScheme.surfaceContainerHighest);
-    final textColor = isMine && !isStaff ? Colors.white : colorScheme.onSurface;
+    // Staff bubbles use tertiaryContainer's own on-color (dark amber on
+    // the cream bubble) -- onSurface is near-white in dark mode and made
+    // staff text unreadable there.
+    final textColor = isStaff
+        ? colorScheme.onTertiaryContainer
+        : (isMine ? Colors.white : colorScheme.onSurface);
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
