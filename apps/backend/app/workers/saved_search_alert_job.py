@@ -38,6 +38,7 @@ from app.models.host_account import HostAccount
 from app.models.listing import CommercialListing, Listing, ShortletListing
 from app.models.saved_search_alert import SavedSearchAlertLog
 from app.services import push_service
+from app.services.listing_service import is_listing_verified
 from app.services.saved_search_service import ListingSnapshot, listing_matches_saved_search
 
 
@@ -69,7 +70,7 @@ async def _build_snapshot(session: AsyncSession, listing: Listing) -> ListingSna
         price = result.scalar_one_or_none()
 
     host_account = await session.get(HostAccount, listing.host_account_id)
-    is_verified_host = bool(host_account and host_account.status == "verified")
+    is_verified_host = is_listing_verified(listing=listing, host_account=host_account)
 
     return ListingSnapshot(
         listing_type=listing.listing_type,

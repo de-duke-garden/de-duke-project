@@ -378,6 +378,26 @@ async def is_listing_available(
     return (len(conflicts) == 0, sorted(conflicts))
 
 
+def is_listing_verified(*, listing: Listing, host_account: HostAccount | None) -> bool:
+    """The "Verified" badge rule, applied consistently across every surface
+    that shows it (listing detail, search/home cards, share summaries,
+    saved-search alert snapshots).
+
+    Per features.md + screens.md (product clarification): an OWNER listing
+    is itself the verified entity -- staff moderation approval
+    (status `active`) is what makes it verified. Every other host type
+    (agent, company, lawyer, architect, surveyor) was document-verified at
+    host-account level, and its listings are verified automatically when
+    the host account is `verified` (FEAT-008 auto-approval). A missing
+    host account can never be verified.
+    """
+    if host_account is None:
+        return False
+    if host_account.host_type == "owner":
+        return listing.status == "active"
+    return host_account.status == "verified"
+
+
 def listing_to_dict(
     listing: Listing,
     media: list[ListingMedia],
@@ -416,6 +436,12 @@ def listing_to_dict(
         "host_bio": host_account.bio if host_account is not None else None,
         "host_photo_url": host_account.host_photo_url if host_account is not None else None,
         "host_type": host_account.host_type if host_account is not None else None,
+        # Verified badge flags (see is_listing_verified): `is_verified` is
+        # the listing-level badge (owner: moderation-approved/active;
+        # professional host types: host account verified); `host_is_verified`
+        # is the pure host-level signal for the "Verified Host" profile card.
+        "is_verified": is_listing_verified(listing=listing, host_account=host_account),
+        "host_is_verified": bool(host_account is not None and host_account.status == "verified"),
         "media": [
             {
                 "id": item.id,

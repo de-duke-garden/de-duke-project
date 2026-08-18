@@ -17,6 +17,7 @@ from app.services.listing_service import (
     dates_overlap,
     derive_status_for_new_listing,
     is_listing_stale,
+    is_listing_verified,
     listing_to_dict,
     make_location_point_wkt,
 )
@@ -83,6 +84,99 @@ class TestListingToDictHostFields:
         assert out["host_bio"] is None
         assert out["host_photo_url"] is None
         assert out["host_type"] is None
+        assert out["is_verified"] is False
+        assert out["host_is_verified"] is False
+
+
+class TestIsListingVerified:
+    """The "Verified" badge rule: an OWNER listing is itself the verified
+    entity (staff moderation approval -> status active); every other host
+    type was document-verified at host level, so its listings are verified
+    automatically when the host account is `verified` (FEAT-008
+    auto-approval)."""
+
+    def _listing(self, *, status: str = "active") -> Listing:
+        return Listing(
+            host_account_id="host-1",
+            listing_type="shortlet",
+            title="Test Listing",
+            description="A place to stay.",
+            location_latitude=6.5,
+            location_longitude=3.3,
+            location_address_line="1 Test Close",
+            location_city="Lagos",
+            location_state="Lagos",
+            status=status,
+        )
+
+    def _host(self, *, host_type: str, status: str = "verified") -> HostAccount:
+        return HostAccount(user_id="user-1", host_type=host_type, status=status)
+
+    def test_owner_listing_verified_only_when_active(self) -> None:
+        assert (
+            is_listing_verified(
+                listing=self._listing(status="active"),
+                host_account=self._host(host_type="owner"),
+            )
+            is True
+        )
+        assert (
+            is_listing_verified(
+                listing=self._listing(status="under_review"),
+                host_account=self._host(host_type="owner"),
+            )
+            is False
+        )
+        assert (
+            is_listing_verified(
+                listing=self._listing(status="banned"),
+                host_account=self._host(host_type="owner"),
+            )
+            is False
+        )
+
+    @pytest.mark.parametrize("host_type", ["agent", "company", "lawyer", "architect", "surveyor"])
+    def test_professional_host_listing_verified_when_host_verified(self, host_type: str) -> None:
+        assert (
+            is_listing_verified(
+                listing=self._listing(status="active"),
+                host_account=self._host(host_type=host_type, status="verified"),
+            )
+            is True
+        )
+        assert (
+            is_listing_verified(
+                listing=self._listing(status="active"),
+                host_account=self._host(host_type=host_type, status="in_review"),
+            )
+            is False
+        )
+        assert (
+            is_listing_verified(
+                listing=self._listing(status="active"),
+                host_account=self._host(host_type=host_type, status="rejected"),
+            )
+            is False
+        )
+
+    def test_missing_host_account_never_verified(self) -> None:
+        assert is_listing_verified(listing=self._listing(), host_account=None) is False
+
+    def test_listing_to_dict_exposes_both_badge_flags(self) -> None:
+        # Professional host, verified: both the listing badge and the
+        # "Verified Host" profile-card badge are true.
+        lawyer = self._host(host_type="lawyer", status="verified")
+        out = listing_to_dict(self._listing(status="active"), media=[], host_account=lawyer)
+        assert out["is_verified"] is True
+        assert out["host_is_verified"] is True
+
+        # Owner listing approved by moderation while the owner's host
+        # account is still in_review: the LISTING badge is true (property
+        # is the verified entity) but the host-level badge is not.
+        owner = self._host(host_type="owner", status="in_review")
+        out = listing_to_dict(self._listing(status="active"), media=[], host_account=owner)
+        assert out["is_verified"] is True
+        assert out["host_is_verified"] is False
 
 
 class TestIsListingStale:

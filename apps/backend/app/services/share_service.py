@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.discovery import ShareableSummary
 from app.models.host_account import HostAccount
 from app.models.listing import CommercialListing, Listing, ListingMedia, ShortletListing
+from app.services.listing_service import is_listing_verified
 
 # Default link lifetime when the caller doesn't request a shorter one --
 # generous enough for an internal approval loop (Screen 17's user story:
@@ -145,8 +146,11 @@ async def resolve_public_summary(
     host_account = (
         await session.execute(select(HostAccount).where(HostAccount.id == listing.host_account_id))
     ).scalar_one_or_none()
-    is_host_verified = host_account is not None and host_account.status == "verified"
-    verification_status = "verified" if is_host_verified else "unverified"
+    # Same listing-level badge rule as every other surface (detail, search,
+    # alerts): owner listings are verified by moderation approval (active);
+    # professional host types' listings by the host account being verified.
+    is_verified = is_listing_verified(listing=listing, host_account=host_account)
+    verification_status = "verified" if is_verified else "unverified"
 
     primary_image = (
         await session.execute(

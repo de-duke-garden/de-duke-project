@@ -140,6 +140,11 @@ class ListingSearchResult(BaseModel):
     bedrooms: int | None = None
 
     amenities: list[str] = Field(default_factory=list)
+    # The listing-level "Verified" badge (feeds search/home cards):
+    # owner listings are verified by moderation approval (status active);
+    # professional host types' listings by the host account being verified.
+    # Field name kept for API stability; semantics per
+    # listing_service.is_listing_verified.
     is_verified_host: bool = False
     primary_image_url: str | None = None
     created_at: str

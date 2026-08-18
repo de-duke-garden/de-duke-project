@@ -82,6 +82,7 @@ from app.schemas.search import (
     SortField,
 )
 from app.services.embedding_service import embed_text
+from app.services.listing_service import is_listing_verified
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 50
@@ -443,7 +444,7 @@ async def search_listings(
                 nightly_price=shortlet.nightly_price if shortlet else None,
                 bedrooms=shortlet.bedrooms if shortlet else None,
                 amenities=listing.amenities or [],
-                is_verified_host=bool(host_account and host_account.status == "verified"),
+                is_verified_host=is_listing_verified(listing=listing, host_account=host_account),
                 primary_image_url=primary_image_by_listing.get(listing.id),
                 created_at=listing.created_at.isoformat(),
                 bathrooms=bathrooms_value,

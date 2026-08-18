@@ -205,7 +205,7 @@ class TestResolvePublicSummary:
             expires_at=datetime.now(UTC) + timedelta(days=1),
         )
         listing = _listing(listing_type="commercial", status="active")
-        host_account = SimpleNamespace(id="host-account-1", status="verified")
+        host_account = SimpleNamespace(id="host-account-1", host_type="agent", status="verified")
         commercial = SimpleNamespace(
             deal_type="lease",
             price=500000.0,
@@ -244,7 +244,7 @@ class TestResolvePublicSummary:
             expires_at=None,
         )
         listing = _listing(listing_type="shortlet", status="unpublished")
-        host_account = SimpleNamespace(id="host-account-1", status="in_review")
+        host_account = SimpleNamespace(id="host-account-1", host_type="agent", status="in_review")
         shortlet = SimpleNamespace(
             nightly_price=15000.0, bedrooms=2, bathrooms=1, minimum_stay_nights=2
         )
