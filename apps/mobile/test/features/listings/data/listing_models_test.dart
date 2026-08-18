@@ -89,10 +89,37 @@ void main() {
         },
       });
 
-      expect(listing.isVerifiedActive, isTrue);
+      // Badge flags default false when the payload omits them (defensive).
+      expect(listing.isVerified, isFalse);
+      expect(listing.hostIsVerified, isFalse);
       expect(listing.commercial, isNotNull);
       expect(listing.commercial!.propertySubtype, 'office');
       expect(listing.shortlet, isNull);
+    });
+
+    test('parses verified badge flags when present', () {
+      final listing = Listing.fromJson({
+        'id': 'listing-2',
+        'host_account_id': 'ha-1',
+        'listing_type': 'shortlet',
+        'title': 'Serviced apartment',
+        'description': 'Short stay',
+        'location_latitude': 6.5244,
+        'location_longitude': 3.3792,
+        'location_address_line': '2 Admiralty Way',
+        'location_city': 'Lagos',
+        'location_state': 'Lagos',
+        'amenities': <String>[],
+        'status': 'active',
+        'view_count': 0,
+        'is_verified': true,
+        'host_is_verified': false,
+      });
+
+      // Listing-level badge true (owner property approved / professional
+      // host verified) while the host-level flag can differ independently.
+      expect(listing.isVerified, isTrue);
+      expect(listing.hostIsVerified, isFalse);
     });
 
     test('parses host bio/photo/type when present (FEAT-042)', () {

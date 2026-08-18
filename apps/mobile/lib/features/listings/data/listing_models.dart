@@ -220,6 +220,8 @@ class Listing {
     this.hostBio,
     this.hostPhotoUrl,
     this.hostType,
+    this.isVerified = false,
+    this.hostIsVerified = false,
   });
 
   final String id;
@@ -250,8 +252,12 @@ class Listing {
   final String? hostBio;
   final String? hostPhotoUrl;
   final String? hostType;
-
-  bool get isVerifiedActive => status == 'active';
+  // Listing-level "Verified" badge (title badge + share preview): owner
+  // listings are verified by moderation approval (status active);
+  // professional host types' listings by the host account being verified.
+  final bool isVerified;
+  // Pure host-level "Verified Host" signal (Host Profile card badge).
+  final bool hostIsVerified;
 
   factory Listing.fromJson(Map<String, dynamic> json) => Listing(
         id: json['id'] as String,
@@ -284,5 +290,7 @@ class Listing {
         hostBio: json['host_bio'] as String?,
         hostPhotoUrl: json['host_photo_url'] as String?,
         hostType: json['host_type'] as String?,
+        isVerified: json['is_verified'] as bool? ?? false,
+        hostIsVerified: json['host_is_verified'] as bool? ?? false,
       );
 }

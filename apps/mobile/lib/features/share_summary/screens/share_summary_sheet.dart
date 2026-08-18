@@ -212,15 +212,15 @@ class _ShareSummarySheetState extends State<ShareSummarySheet> {
           Row(
             children: [
               Icon(
-                listing.isVerifiedActive ? Icons.verified : Icons.info_outline,
+                listing.isVerified ? Icons.verified : Icons.info_outline,
                 size: 16,
-                color: listing.isVerifiedActive
+                color: listing.isVerified
                     ? semantic.verified
                     : colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: 4),
               Text(
-                listing.isVerifiedActive ? 'Verified' : 'Unverified',
+                listing.isVerified ? 'Verified' : 'Unverified',
                 style: TextStyle(
                     color: colorScheme.onSurfaceVariant, fontSize: 12),
               ),
