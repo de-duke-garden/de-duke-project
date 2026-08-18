@@ -33,6 +33,8 @@
 /// verified, and the two-layer shadow system) live on the `AppSemanticColors`
 /// `ThemeExtension` instead (app_semantic_colors.dart) -- registered below
 /// via `ThemeData.extensions`.
+library;
+
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';

@@ -201,8 +201,7 @@ Future<PlaceDetails?> placeDetails(
     final lng = (location['lng'] as num?)?.toDouble();
     if (lat == null || lng == null) return null;
 
-    final components =
-        (result['address_components'] as List<dynamic>?) ?? [];
+    final components = (result['address_components'] as List<dynamic>?) ?? [];
 
     return PlaceDetails(
       latitude: lat,

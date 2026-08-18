@@ -188,8 +188,8 @@ class _BookingScreenState extends State<BookingScreen> {
       // currently selected.
       selectableDayPredicate: _unavailableDates.isEmpty
           ? null
-          : (day, selectedStart, selectedEnd) => !_unavailableDates.contains(
-              DateTime(day.year, day.month, day.day)),
+          : (day, selectedStart, selectedEnd) => !_unavailableDates
+              .contains(DateTime(day.year, day.month, day.day)),
     );
     if (range == null) return;
     setState(() {
@@ -241,7 +241,8 @@ class _BookingScreenState extends State<BookingScreen> {
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.sm),
               Text(_priceSummary,
-                  style: AppTypography.statDisplay.copyWith(color: Theme.of(context).colorScheme.primary)),
+                  style: AppTypography.statDisplay
+                      .copyWith(color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: AppSpacing.lg),
               OutlinedButton.icon(
                 onPressed: _pickDates,

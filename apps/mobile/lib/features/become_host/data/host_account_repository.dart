@@ -91,7 +91,8 @@ class HostAccountRepository {
       if (refPhoneNo != null) 'ref_phone_no': refPhoneNo,
     };
 
-    debugPrint('host_account_repository: submit() starting, reading ${1 + documents.length} local file(s)');
+    debugPrint(
+        'host_account_repository: submit() starting, reading ${1 + documents.length} local file(s)');
 
     final List<MultipartFile> files;
     try {
@@ -116,12 +117,14 @@ class HostAccountRepository {
         error: e,
         stackTrace: stackTrace,
       );
-      debugPrint('host_account_repository: submit() failed reading a local file: $e\n$stackTrace');
+      debugPrint(
+          'host_account_repository: submit() failed reading a local file: $e\n$stackTrace');
       throw HostAccountException(
           'One of your selected photos could not be read. Please reselect it and try again.');
     }
 
-    debugPrint('host_account_repository: submit() local files read OK, POSTing to /v1/host-accounts');
+    debugPrint(
+        'host_account_repository: submit() local files read OK, POSTing to /v1/host-accounts');
 
     final formMap = <String, dynamic>{
       'submission': jsonEncode(submission),
@@ -136,7 +139,8 @@ class HostAccountRepository {
       debugPrint('host_account_repository: submit() succeeded');
       return HostAccountStatus.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
-      debugPrint('host_account_repository: submit() DioException: ${e.type} ${e.message} response=${e.response?.statusCode} ${e.response?.data}');
+      debugPrint(
+          'host_account_repository: submit() DioException: ${e.type} ${e.message} response=${e.response?.statusCode} ${e.response?.data}');
       throw HostAccountException(
           _errorMessage(e, 'Could not submit your application.'));
     }

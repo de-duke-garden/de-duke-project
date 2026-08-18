@@ -80,7 +80,7 @@ class _SavedSearchesScreenState extends ConsumerState<SavedSearchesScreen> {
                   final ok = await ref
                       .read(savedSearchNotifierProvider.notifier)
                       .toggleAlerts(search.id, enabled);
-                  if (!ok && mounted) {
+                  if (!ok && mounted && context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                           content: Text(
@@ -92,7 +92,7 @@ class _SavedSearchesScreenState extends ConsumerState<SavedSearchesScreen> {
                   final ok = await ref
                       .read(savedSearchNotifierProvider.notifier)
                       .delete(search.id);
-                  if (!ok && mounted) {
+                  if (!ok && mounted && context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                           content: Text(
@@ -137,7 +137,8 @@ class _SavedSearchRow extends StatelessWidget {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Delete saved search?'),
-          content: Text('"${search.label}" will no longer alert you to new matches.'),
+          content: Text(
+              '"${search.label}" will no longer alert you to new matches.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),

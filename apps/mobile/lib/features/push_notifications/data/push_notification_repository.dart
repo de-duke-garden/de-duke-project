@@ -47,17 +47,21 @@ class PushNotificationRepository {
         },
       );
     } on DioException catch (e) {
-      throw PushNotificationException(_errorMessage(e, 'Could not register for push notifications.'));
+      throw PushNotificationException(
+          _errorMessage(e, 'Could not register for push notifications.'));
     }
   }
 
   Future<Map<String, bool>> getPreferences() async {
     try {
-      final response = await _apiClient.dio.get('/v1/notifications/preferences');
+      final response =
+          await _apiClient.dio.get('/v1/notifications/preferences');
       final body = response.data as Map<String, dynamic>;
-      return Map<String, bool>.from(body['push_notification_preferences'] as Map);
+      return Map<String, bool>.from(
+          body['push_notification_preferences'] as Map);
     } on DioException catch (e) {
-      throw PushNotificationException(_errorMessage(e, 'Could not load notification preferences.'));
+      throw PushNotificationException(
+          _errorMessage(e, 'Could not load notification preferences.'));
     }
   }
 
@@ -66,12 +70,14 @@ class PushNotificationRepository {
   /// (UpdatePushNotificationPreferencesRequest).
   Future<Map<String, bool>> updatePreferences(Map<String, bool> updates) async {
     try {
-      final response =
-          await _apiClient.dio.patch('/v1/notifications/preferences', data: updates);
+      final response = await _apiClient.dio
+          .patch('/v1/notifications/preferences', data: updates);
       final body = response.data as Map<String, dynamic>;
-      return Map<String, bool>.from(body['push_notification_preferences'] as Map);
+      return Map<String, bool>.from(
+          body['push_notification_preferences'] as Map);
     } on DioException catch (e) {
-      throw PushNotificationException(_errorMessage(e, 'Could not update notification preferences.'));
+      throw PushNotificationException(
+          _errorMessage(e, 'Could not update notification preferences.'));
     }
   }
 }

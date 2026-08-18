@@ -268,8 +268,7 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
                           "You're offline. Try again once connected.")
                   : _state == _ScreenState.error && _errorMessage != null
                       ? _Banner(
-                          key: const ValueKey('error'),
-                          message: _errorMessage!)
+                          key: const ValueKey('error'), message: _errorMessage!)
                       : const SizedBox.shrink(key: ValueKey('none')),
             ),
             AnimatedBuilder(
@@ -287,7 +286,9 @@ class _DocumentSubmissionScreenState extends State<DocumentSubmissionScreen> {
                         ? BadgePop(
                             triggerKey: complete,
                             child: Icon(Icons.check_circle,
-                                color: Theme.of(context).extension<AppSemanticColors>()!.success),
+                                color: Theme.of(context)
+                                    .extension<AppSemanticColors>()!
+                                    .success),
                           )
                         : null,
                   ),
@@ -443,9 +444,7 @@ class _DocumentPickerCard extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            picked
-                                ? Icons.check_circle
-                                : Icons.info_outline,
+                            picked ? Icons.check_circle : Icons.info_outline,
                             size: 14,
                             color: picked
                                 ? semantic.success
@@ -453,11 +452,16 @@ class _DocumentPickerCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            picked ? 'Uploaded -- tap to replace' : 'Tap to upload',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: picked
-                                    ? semantic.success
-                                    : colorScheme.onSurfaceVariant),
+                            picked
+                                ? 'Uploaded -- tap to replace'
+                                : 'Tap to upload',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                    color: picked
+                                        ? semantic.success
+                                        : colorScheme.onSurfaceVariant),
                           ),
                         ],
                       ),
@@ -503,7 +507,9 @@ class _RegistrationField extends StatelessWidget {
                   ? BadgePop(
                       triggerKey: complete,
                       child: Icon(Icons.check_circle,
-                          color: Theme.of(context).extension<AppSemanticColors>()!.success),
+                          color: Theme.of(context)
+                              .extension<AppSemanticColors>()!
+                              .success),
                     )
                   : null,
             ),

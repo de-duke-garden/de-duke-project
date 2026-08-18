@@ -83,8 +83,7 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
       _loading = true;
     });
 
-    final details =
-        await placeDetails(suggestion.placeId, sessionToken: token);
+    final details = await placeDetails(suggestion.placeId, sessionToken: token);
     // A fresh session token per completed lookup -- Places billing treats
     // an autocomplete-then-details pair sharing a token as one session.
     _sessionToken = null;
@@ -94,10 +93,9 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
     if (details == null) return;
 
     _suppressNextChange = true;
-    widget.controller.text =
-        details.formattedAddress.isNotEmpty
-            ? details.formattedAddress
-            : suggestion.description;
+    widget.controller.text = details.formattedAddress.isNotEmpty
+        ? details.formattedAddress
+        : suggestion.description;
     widget.onPlaceSelected(details);
   }
 

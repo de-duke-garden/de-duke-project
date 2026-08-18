@@ -58,8 +58,8 @@ class ListingImagePlaceholder extends StatelessWidget {
       child: FractionallySizedBox(
         widthFactor: 0.4,
         heightFactor: 0.4,
-        child: Icon(Icons.home_work_outlined,
-            color: colorScheme.primaryContainer),
+        child:
+            Icon(Icons.home_work_outlined, color: colorScheme.primaryContainer),
       ),
     );
   }
@@ -174,8 +174,8 @@ class ListingCard extends StatelessWidget {
                         child: Text(subtitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTypography.bodySmall.copyWith(
-                                color: colorScheme.onSurfaceVariant)),
+                            style: AppTypography.bodySmall
+                                .copyWith(color: colorScheme.onSurfaceVariant)),
                       ),
                     ],
                   ),
@@ -264,7 +264,8 @@ class _FeaturedListingCardState extends State<FeaturedListingCard> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  ListingImage(imageUrl: widget.imageUrl, heroTag: widget.heroTag),
+                  ListingImage(
+                      imageUrl: widget.imageUrl, heroTag: widget.heroTag),
                   const ListingImageScrim(),
                   Positioned(
                     left: AppSpacing.sm,
@@ -290,8 +291,8 @@ class _FeaturedListingCardState extends State<FeaturedListingCard> {
                   Text(widget.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          AppTypography.h2.copyWith(color: colorScheme.onSurface)),
+                      style: AppTypography.h2
+                          .copyWith(color: colorScheme.onSurface)),
                   const SizedBox(height: AppSpacing.xs),
                   Text(widget.subtitle,
                       style: AppTypography.bodySmall

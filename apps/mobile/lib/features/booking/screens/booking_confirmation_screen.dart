@@ -127,10 +127,12 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
 
   void _onChange() => setState(() {});
 
-  bool get _hasDates => widget.checkInDate != null && widget.checkOutDate != null;
+  bool get _hasDates =>
+      widget.checkInDate != null && widget.checkOutDate != null;
 
-  int get _nights =>
-      _hasDates ? widget.checkOutDate!.difference(widget.checkInDate!).inDays : 0;
+  int get _nights => _hasDates
+      ? widget.checkOutDate!.difference(widget.checkInDate!).inDays
+      : 0;
 
   @override
   Widget build(BuildContext context) {
@@ -153,12 +155,15 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
       transitionBuilder: (child, animation) => FadeTransition(
         opacity: animation,
         child: SizeTransition(
-            sizeFactor: animation, alignment: Alignment.topCenter, child: child),
+            sizeFactor: animation,
+            alignment: Alignment.topCenter,
+            child: child),
       ),
       child: KeyedSubtree(
         key: ValueKey(controller.status),
         child: switch (controller.status) {
-          BookingScreenStatus.idle => _buildSummary(controller, submitting: false),
+          BookingScreenStatus.idle =>
+            _buildSummary(controller, submitting: false),
           BookingScreenStatus.submitting =>
             _buildSummary(controller, submitting: true),
           BookingScreenStatus.held => _buildHeld(controller),
@@ -283,7 +288,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(AppRadii.lg),
-                      border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                      border:
+                          Border.all(color: statusColor.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
@@ -293,7 +299,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                           child: Text(
                             'Hold active -- ${minutes}m ${seconds.toString().padLeft(2, '0')}s remaining',
                             style: TextStyle(
-                                color: statusColor, fontWeight: FontWeight.bold),
+                                color: statusColor,
+                                fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -341,10 +348,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
           const SizedBox(height: AppSpacing.md),
           Text(
             'Your hold expired',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(color: colorScheme.error, fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: colorScheme.error, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(

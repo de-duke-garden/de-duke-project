@@ -415,14 +415,15 @@ class _ListingBodyState extends State<_ListingBody> {
         const SizedBox(height: AppSpacing.sm),
         Text(
           '${listing.addressLine}, ${listing.city}, ${listing.state}',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style:
+              TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: AppSpacing.md),
         // Fixed price -- `stat-display` type token, no offer/negotiation
         // controls, by design (AGENTS.md fixed-price rule).
         Text(priceLabel,
-            style:
-                AppTypography.statDisplay.copyWith(color: Theme.of(context).colorScheme.primary)),
+            style: AppTypography.statDisplay
+                .copyWith(color: Theme.of(context).colorScheme.primary)),
         const SizedBox(height: AppSpacing.md),
         Text(listing.description),
         // schema.md base Listing.amenities -- shared by both listing
@@ -679,8 +680,8 @@ class _ListingMediaCarouselState extends State<_ListingMediaCarousel> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: (i == _page
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.5)),
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.5)),
                         boxShadow: const [
                           BoxShadow(
                             color: Color(0x33000000),
@@ -767,7 +768,9 @@ class _VideoTileState extends State<_VideoTile> {
   }
 
   Future<void> _startPlayback() async {
-    if (widget.media.processingStatus == 'pending') return; // no poster/preview ready yet
+    if (widget.media.processingStatus == 'pending') {
+      return; // no poster/preview ready yet
+    }
     setState(() => _initializing = true);
     final controller =
         VideoPlayerController.networkUrl(Uri.parse(widget.media.mediaUrl));
@@ -918,7 +921,8 @@ class _VideoTileState extends State<_VideoTile> {
           if (poster != null)
             ListingImage(imageUrl: poster)
           else
-            Container(color: Theme.of(context).colorScheme.surfaceContainerHighest),
+            Container(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest),
           // `fit: StackFit.expand` above forces every non-positioned child
           // to the full stack size -- a bare CircularProgressIndicator has
           // no intrinsic size to resist that with, so without this
@@ -960,7 +964,8 @@ class _VideoTileState extends State<_VideoTile> {
                 color: Color(0x66000000),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.play_arrow, color: Colors.white, size: 40),
+              child:
+                  const Icon(Icons.play_arrow, color: Colors.white, size: 40),
             ),
           if (widget.media.durationSeconds != null)
             Positioned(
@@ -1229,11 +1234,14 @@ class _VerifiedBadge extends StatelessWidget {
         children: [
           Icon(Icons.verified,
               size: 16,
-              color: Theme.of(context).extension<AppSemanticColors>()!.verified),
+              color:
+                  Theme.of(context).extension<AppSemanticColors>()!.verified),
           const SizedBox(width: 4),
           Text('Verified',
               style: TextStyle(
-                  color: Theme.of(context).extension<AppSemanticColors>()!.verified,
+                  color: Theme.of(context)
+                      .extension<AppSemanticColors>()!
+                      .verified,
                   fontSize: 12)),
         ],
       ),
@@ -1277,7 +1285,9 @@ class _HostProfileCardState extends State<_HostProfileCard> {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.6)),
+        border: Border.all(
+            color:
+                Theme.of(context).colorScheme.outline.withValues(alpha: 0.6)),
         boxShadow: Theme.of(context).extension<AppSemanticColors>()!.shadowSm,
       ),
       child: Column(
@@ -1292,7 +1302,8 @@ class _HostProfileCardState extends State<_HostProfileCard> {
                     ? NetworkImage(widget.photoUrl!)
                     : null,
                 child: widget.photoUrl == null
-                    ? Icon(Icons.person_outline, color: Theme.of(context).colorScheme.primary)
+                    ? Icon(Icons.person_outline,
+                        color: Theme.of(context).colorScheme.primary)
                     : null,
               ),
               const SizedBox(width: AppSpacing.sm),
@@ -1306,7 +1317,9 @@ class _HostProfileCardState extends State<_HostProfileCard> {
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(hostTypeLabel,
                             style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant)),
                       ),
                   ],
                 ),
@@ -1374,7 +1387,8 @@ class _DetailStatsCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(stat.icon,
-                      size: AppSizing.iconSm, color: Theme.of(context).colorScheme.primary),
+                      size: AppSizing.iconSm,
+                      color: Theme.of(context).colorScheme.primary),
                   const SizedBox(width: AppSpacing.xs),
                   Text(stat.label,
                       style: Theme.of(context).textTheme.bodyMedium),
@@ -1403,16 +1417,15 @@ class _RoomRow extends StatelessWidget {
       child: Row(
         children: [
           Icon(Icons.meeting_room_outlined,
-              size: AppSizing.iconSm, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              size: AppSizing.iconSm,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
               child:
                   Text(label, style: Theme.of(context).textTheme.bodyMedium)),
           Text(dimensions,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -1444,7 +1457,8 @@ class _TagChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.check_circle_outline,
-              size: AppSizing.iconSm, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              size: AppSizing.iconSm,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(width: AppSpacing.xs),
           Text(label, style: Theme.of(context).textTheme.bodySmall),
         ],
@@ -1527,18 +1541,24 @@ class _ListingLocationPreview extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surface
+                      .withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(AppRadii.sm),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.open_in_new,
-                        size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        size: 14,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
                     const SizedBox(width: 4),
                     Text('Open in Maps',
                         style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 12)),
                   ],
                 ),
               ),

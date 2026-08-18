@@ -78,7 +78,8 @@ class _ChangeLocationSheetState extends State<_ChangeLocationSheet> {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       setState(() => _locatingDevice = false);
-      _showError('Location services are turned off. Enable them in system settings.');
+      _showError(
+          'Location services are turned off. Enable them in system settings.');
       return;
     }
 
@@ -93,7 +94,8 @@ class _ChangeLocationSheetState extends State<_ChangeLocationSheet> {
     }
     if (permission == LocationPermission.deniedForever) {
       setState(() => _locatingDevice = false);
-      _showError('Location permission permanently denied. Enable it from app settings.');
+      _showError(
+          'Location permission permanently denied. Enable it from app settings.');
       return;
     }
 
@@ -105,7 +107,8 @@ class _ChangeLocationSheetState extends State<_ChangeLocationSheet> {
         ),
       );
       if (!mounted) return;
-      final geocoded = await reverseGeocode(position.latitude, position.longitude);
+      final geocoded =
+          await reverseGeocode(position.latitude, position.longitude);
       if (!mounted) return;
       Navigator.of(context).pop(
         ChangeLocationResult(
@@ -114,7 +117,9 @@ class _ChangeLocationSheetState extends State<_ChangeLocationSheet> {
           // Falls back to a generic label rather than blocking the pick --
           // geocoding is a label-quality nicety here, the coordinate itself
           // is already good the moment GPS resolves.
-          label: (geocoded?.city.isNotEmpty ?? false) ? geocoded!.city : 'Current location',
+          label: (geocoded?.city.isNotEmpty ?? false)
+              ? geocoded!.city
+              : 'Current location',
         ),
       );
     } on TimeoutException {
@@ -135,7 +140,8 @@ class _ChangeLocationSheetState extends State<_ChangeLocationSheet> {
       ChangeLocationResult(
         latitude: details.latitude,
         longitude: details.longitude,
-        label: details.city.isNotEmpty ? details.city : details.formattedAddress,
+        label:
+            details.city.isNotEmpty ? details.city : details.formattedAddress,
       ),
     );
   }
@@ -153,10 +159,12 @@ class _ChangeLocationSheetState extends State<_ChangeLocationSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Change search location', style: Theme.of(context).textTheme.titleMedium),
+          Text('Change search location',
+              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
           if (_errorMessage != null) ...[
-            Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            Text(_errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
             const SizedBox(height: AppSpacing.sm),
           ],
           OutlinedButton.icon(

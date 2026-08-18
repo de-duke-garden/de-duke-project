@@ -29,16 +29,22 @@ Listing _buildListing() => Listing(
       amenities: const [],
       status: 'active',
       viewCount: 0,
+      // The preview badge is driven by the backend's listing-level
+      // is_verified flag (not by status) -- the fixture represents a
+      // verified listing.
+      isVerified: true,
     );
 
 void main() {
   late ApiClient client;
 
   setUp(() {
-    client = ApiClient(baseUrl: 'https://api.test', sessionStore: FakeSessionStore());
+    client = ApiClient(
+        baseUrl: 'https://api.test', sessionStore: FakeSessionStore());
   });
 
-  Future<void> pumpSheet(WidgetTester tester, ShareRepository repository) async {
+  Future<void> pumpSheet(
+      WidgetTester tester, ShareRepository repository) async {
     await tester.pumpWidget(
       MaterialApp(
         // AppTheme.light() registers AppSemanticColors (ThemeData.extensions)
@@ -101,7 +107,10 @@ void main() {
       (tester) async {
     client.dio.httpClientAdapter = FakeHttpClientAdapter(
       (options) => options.method == 'DELETE'
-          ? (statusCode: 200, body: {'share_token': 'tok-abc123', 'is_revoked': true})
+          ? (
+              statusCode: 200,
+              body: {'share_token': 'tok-abc123', 'is_revoked': true}
+            )
           : (
               statusCode: 201,
               body: {

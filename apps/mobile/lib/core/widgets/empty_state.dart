@@ -42,8 +42,7 @@ class EmptyStateView extends StatelessWidget {
           children: [
             const DeDukeIllustration(tier: IllustrationTier.empty),
             const SizedBox(height: AppSpacing.lg),
-            Text(title,
-                style: AppTypography.h3, textAlign: TextAlign.center),
+            Text(title, style: AppTypography.h3, textAlign: TextAlign.center),
             if (message != null) ...[
               const SizedBox(height: AppSpacing.sm),
               Text(message!,

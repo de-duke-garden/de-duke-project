@@ -76,7 +76,9 @@ void main() {
       client.dio.httpClientAdapter = FakeHttpClientAdapter(
         (options) => (
           statusCode: 403,
-          body: {'detail': 'Only the originating user may revoke this share link.'},
+          body: {
+            'detail': 'Only the originating user may revoke this share link.'
+          },
         ),
       );
       final repository = ShareRepository(client);

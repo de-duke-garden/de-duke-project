@@ -2,6 +2,8 @@
 /// the backend for chat: token issuance and conversation creation. Sending/
 /// receiving messages happens directly against Firestore (see
 /// chat_repository.dart), never through this client.
+library;
+
 import '../../../core/api/api_client.dart';
 
 class ChatTokenResult {

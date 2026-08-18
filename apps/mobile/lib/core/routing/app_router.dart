@@ -17,6 +17,8 @@
 /// Feature subagents register their real screens here; this file stays a
 /// shared module (read/extend, do not restructure without coordinating
 /// across subagents to avoid navigation merge conflicts).
+library;
+
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';

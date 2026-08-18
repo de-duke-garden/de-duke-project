@@ -7,6 +7,8 @@
 /// mobile) is relied on for offline handling -- messages sent while offline
 /// queue locally and sync automatically on reconnect; no custom retry/queue
 /// logic is implemented here.
+library;
+
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';

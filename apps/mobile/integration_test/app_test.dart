@@ -41,7 +41,8 @@ void main() {
       expect(find.text('Log In'), findsOneWidget);
     });
 
-    testWidgets('navigating to /auth?mode=login shows the Sign Up / Log In screen',
+    testWidgets(
+        'navigating to /auth?mode=login shows the Sign Up / Log In screen',
         (tester) async {
       await tester.pumpWidget(_app());
       await tester.pumpAndSettle();

@@ -1,6 +1,8 @@
 /// Hardware-backed secure storage for the session token (architecture.md
 /// Client Application: "Sensitive data stored using hardware-backed secure
 /// storage on-device").
+library;
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class SessionStore {

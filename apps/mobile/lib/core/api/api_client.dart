@@ -11,6 +11,8 @@
 /// exchanges the stored refresh token for a new pair via `POST
 /// /v1/auth/refresh` and retries the failed request once, so an expiring
 /// access token is invisible to both the caller and the user.
+library;
+
 import 'package:dio/dio.dart';
 
 import '../auth/session_store.dart';
@@ -32,7 +34,8 @@ class ApiClient {
         onError: (error, handler) async {
           final requestOptions = error.requestOptions;
           final isAuthEndpoint = requestOptions.path.contains('/v1/auth/');
-          final alreadyRetried = requestOptions.extra['retriedAfterRefresh'] == true;
+          final alreadyRetried =
+              requestOptions.extra['retriedAfterRefresh'] == true;
           if (error.response?.statusCode != 401 ||
               isAuthEndpoint ||
               alreadyRetried) {

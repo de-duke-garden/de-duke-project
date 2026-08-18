@@ -110,7 +110,8 @@ class SkeletonListingCard extends StatelessWidget {
                 const SizedBox(height: AppSpacing.sm),
                 const SkeletonBox(width: 100, height: 12),
                 const SizedBox(height: AppSpacing.sm),
-                SkeletonBox(width: featured ? 120 : 80, height: featured ? 28 : 18),
+                SkeletonBox(
+                    width: featured ? 120 : 80, height: featured ? 28 : 18),
               ],
             ),
           ),

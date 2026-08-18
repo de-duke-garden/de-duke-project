@@ -4,6 +4,8 @@
 /// client-side against Firestore's `support_conversations` collection).
 /// Reuses ChatMessage/ChatDeliveryStatus from the chat feature -- message
 /// documents have the identical shape in both collections.
+library;
+
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';

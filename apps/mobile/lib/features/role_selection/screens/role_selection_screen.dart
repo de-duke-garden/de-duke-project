@@ -81,7 +81,8 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
-        _state = e.message == 'offline' ? _ScreenState.offline : _ScreenState.error;
+        _state =
+            e.message == 'offline' ? _ScreenState.offline : _ScreenState.error;
       });
     }
   }
@@ -102,10 +103,12 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 child: MaterialBanner(
-                  content: const Text("Couldn't save your selection, try again."),
+                  content:
+                      const Text("Couldn't save your selection, try again."),
                   actions: [
                     TextButton(
-                      onPressed: () => setState(() => _state = _ScreenState.defaultState),
+                      onPressed: () =>
+                          setState(() => _state = _ScreenState.defaultState),
                       child: const Text('Dismiss'),
                     ),
                   ],
@@ -120,7 +123,8 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                   ),
                   actions: [
                     TextButton(
-                      onPressed: () => setState(() => _state = _ScreenState.defaultState),
+                      onPressed: () =>
+                          setState(() => _state = _ScreenState.defaultState),
                       child: const Text('Dismiss'),
                     ),
                   ],
@@ -201,9 +205,7 @@ class _RoleCard extends StatelessWidget {
         duration: AppDurations.normal,
         curve: AppCurves.easeOutSmooth,
         decoration: BoxDecoration(
-          color: isSaving
-              ? colorScheme.primaryContainer
-              : colorScheme.surface,
+          color: isSaving ? colorScheme.primaryContainer : colorScheme.surface,
           borderRadius: BorderRadius.circular(AppRadii.lg),
           border: Border.all(
             color: colorScheme.outline.withValues(alpha: 0.6),

@@ -2,6 +2,8 @@
 /// Fonts: Manrope (display/headings), Inter (body), JetBrains Mono
 /// (transaction IDs, receipts). Font assets/packages added when the fonts
 /// are vendored -- placeholder family names below until then.
+library;
+
 import 'package:flutter/material.dart';
 
 class AppTypography {

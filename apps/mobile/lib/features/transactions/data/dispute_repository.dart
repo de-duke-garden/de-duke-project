@@ -24,8 +24,7 @@ enum DisputeReason {
       };
 
   String get label => switch (this) {
-        DisputeReason.propertyNotAsDescribed =>
-          'Property not as described',
+        DisputeReason.propertyNotAsDescribed => 'Property not as described',
         DisputeReason.incorrectCharge => 'Incorrect charge',
         DisputeReason.serviceIssue => 'Service issue',
         DisputeReason.other => 'Other',

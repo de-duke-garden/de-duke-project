@@ -331,8 +331,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: AppSpacing.sm),
-                  _row(context, 'Amount',
-                      formatNairaDecimal(txn.grossAmount),
+                  _row(context, 'Amount', formatNairaDecimal(txn.grossAmount),
                       isStat: true),
                   _row(context, 'Commission (platform fee)',
                       formatNairaDecimal(txn.commissionAmount)),
@@ -416,12 +415,11 @@ class _CheckoutScreenState extends State<CheckoutScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: AppTypography.bodySmall.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text(label,
+              style: AppTypography.bodySmall.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
           Text(value,
-              style: isStat
-                  ? AppTypography.statSmall
-                  : AppTypography.body),
+              style: isStat ? AppTypography.statSmall : AppTypography.body),
         ],
       ),
     );

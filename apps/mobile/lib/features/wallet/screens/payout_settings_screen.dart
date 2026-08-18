@@ -78,9 +78,8 @@ class _PayoutSettingsScreenState extends State<PayoutSettingsScreen> {
     } on WalletException catch (e) {
       if (!mounted) return;
       setState(() {
-        _state = e.message == 'offline'
-            ? _ScreenState.offline
-            : _ScreenState.error;
+        _state =
+            e.message == 'offline' ? _ScreenState.offline : _ScreenState.error;
         _errorMessage = e.message == 'offline' ? null : e.message;
       });
     } catch (_) {
@@ -233,8 +232,8 @@ class _PayoutSettingsScreenState extends State<PayoutSettingsScreen> {
                 Expanded(
                   child: Text(
                     'Verified: ${_justSaved!.accountHolderName}',
-                    style:
-                        AppTypography.bodySmall.copyWith(color: semantic.success),
+                    style: AppTypography.bodySmall
+                        .copyWith(color: semantic.success),
                   ),
                 ),
               ],
@@ -263,7 +262,8 @@ class _StatusBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final semantic = Theme.of(context).extension<AppSemanticColors>()!;
-    final tone = payoutSettings.isVerified ? semantic.success : semantic.warning;
+    final tone =
+        payoutSettings.isVerified ? semantic.success : semantic.warning;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(

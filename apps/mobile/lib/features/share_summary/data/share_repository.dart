@@ -14,8 +14,7 @@ class ShareRepository {
 
   /// POST /v1/listings/:id/share -- auth required (enforced server-side).
   Future<ShareLink> generateShareLink(String listingId) async {
-    final response =
-        await _apiClient.dio.post('/v1/listings/$listingId/share');
+    final response = await _apiClient.dio.post('/v1/listings/$listingId/share');
     return ShareLink.fromJson(response.data as Map<String, dynamic>);
   }
 

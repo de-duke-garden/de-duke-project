@@ -229,7 +229,8 @@ class _VerifiedStatusView extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: CelebratorySequence(
           icon: Icons.verified,
-          accentColor: Theme.of(context).extension<AppSemanticColors>()!.success,
+          accentColor:
+              Theme.of(context).extension<AppSemanticColors>()!.success,
           supportingContent: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

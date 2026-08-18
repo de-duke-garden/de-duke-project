@@ -183,7 +183,8 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
       // Was `.apiValue` (raw wire value, e.g. 'commercial') -- chip now
       // shows the normalized `.label` ('Commercial') like every other
       // filter chip here.
-      chips.add(_chip(q.listingType!.label,
+      chips.add(_chip(
+          q.listingType!.label,
           () =>
               notifier.updateQuery((s) => s.copyWith(clearListingType: true))));
     }
@@ -312,9 +313,9 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
               onTap: showOfflineDisabled
                   ? () {}
                   : () => context.pushNamed(
-                      RouteNames.listingDetail,
-                      pathParameters: {'id': result.id},
-                    ),
+                        RouteNames.listingDetail,
+                        pathParameters: {'id': result.id},
+                      ),
             ),
           );
         },
@@ -352,7 +353,8 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Search saved. You\'ll be alerted to new matches.'),
+          content:
+              const Text('Search saved. You\'ll be alerted to new matches.'),
           action: SnackBarAction(
             label: 'View',
             onPressed: () => context.pushNamed(RouteNames.savedSearches),
@@ -362,7 +364,8 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     } on DioException {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Couldn't save this search. Please try again.")),
+        const SnackBar(
+            content: Text("Couldn't save this search. Please try again.")),
       );
     }
   }

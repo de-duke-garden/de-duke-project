@@ -37,10 +37,12 @@ class HostDashboardRepository {
       final response = await _apiClient.dio.get('/v1/host/listings');
       final body = response.data as Map<String, dynamic>;
       return (body['items'] as List)
-          .map((e) => HostDashboardListingItem.fromJson(e as Map<String, dynamic>))
+          .map((e) =>
+              HostDashboardListingItem.fromJson(e as Map<String, dynamic>))
           .toList();
     } on DioException catch (e) {
-      throw HostDashboardException(_errorMessage(e, 'Could not load your listings.'));
+      throw HostDashboardException(
+          _errorMessage(e, 'Could not load your listings.'));
     }
   }
 }

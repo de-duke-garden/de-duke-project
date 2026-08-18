@@ -80,8 +80,8 @@ class _PortfolioListScreenState extends State<PortfolioListScreen> {
       setState(() {
         _listings = listings;
         _team = team;
-        _selectedIds.removeWhere(
-            (id) => !listings.any((listing) => listing.id == id));
+        _selectedIds
+            .removeWhere((id) => !listings.any((listing) => listing.id == id));
         _state = listings.isEmpty ? _ScreenState.empty : _ScreenState.loaded;
       });
     } on AgencyException catch (e) {
@@ -189,12 +189,13 @@ class _PortfolioListScreenState extends State<PortfolioListScreen> {
             if (_agentFilter != null && _selectedIds.isEmpty)
               _buildAgentFilterBanner(),
             Expanded(child: _buildBody(context)),
-            if (_selectedIds.isNotEmpty) _BulkActionBar(
-              selectedCount: _selectedIds.length,
-              busy: _bulkActionInFlight,
-              onRelist: () => _runBulkAction('relist'),
-              onArchive: () => _runBulkAction('archive'),
-            ),
+            if (_selectedIds.isNotEmpty)
+              _BulkActionBar(
+                selectedCount: _selectedIds.length,
+                busy: _bulkActionInFlight,
+                onRelist: () => _runBulkAction('relist'),
+                onArchive: () => _runBulkAction('archive'),
+              ),
           ],
         ),
       ),
@@ -323,7 +324,8 @@ class _PortfolioListScreenState extends State<PortfolioListScreen> {
                 color: colorScheme.surface,
                 borderRadius: BorderRadius.circular(AppRadii.lg),
                 border: Border.all(
-                    color: isSelected ? colorScheme.primary : colorScheme.outline,
+                    color:
+                        isSelected ? colorScheme.primary : colorScheme.outline,
                     width: isSelected ? 2 : 1),
                 boxShadow: shadows.shadowSm,
               ),

@@ -1,6 +1,8 @@
 /// State machine for the booking confirmation screen (FEAT-032).
 /// Screens/screens.md states covered: loading, submitting, error, held
 /// (with live countdown), expired.
+library;
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';

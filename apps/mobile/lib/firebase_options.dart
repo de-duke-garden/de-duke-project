@@ -64,7 +64,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '531781610440',
     projectId: 'de-duke-services',
     storageBucket: 'de-duke-services.firebasestorage.app',
-    iosClientId: '531781610440-et9d0h1p68n6i86kenvvtkiudmb6tegb.apps.googleusercontent.com',
+    iosClientId:
+        '531781610440-et9d0h1p68n6i86kenvvtkiudmb6tegb.apps.googleusercontent.com',
     iosBundleId: 'com.deduke.deDukeMobile',
   );
 
@@ -74,7 +75,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '531781610440',
     projectId: 'de-duke-services',
     storageBucket: 'de-duke-services.firebasestorage.app',
-    iosClientId: '531781610440-et9d0h1p68n6i86kenvvtkiudmb6tegb.apps.googleusercontent.com',
+    iosClientId:
+        '531781610440-et9d0h1p68n6i86kenvvtkiudmb6tegb.apps.googleusercontent.com',
     iosBundleId: 'com.deduke.deDukeMobile',
   );
 
@@ -87,5 +89,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'de-duke-services.firebasestorage.app',
     measurementId: 'G-GB5Y0LVS79',
   );
-
 }

@@ -2,6 +2,8 @@
 /// Firestore documents (app/firestore_models.py on the backend). These are
 /// read directly from Firestore client-side; there is no backend "chat
 /// messages" REST endpoint (FEAT-010: real-time is client-to-Firestore).
+library;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ChatConversation {

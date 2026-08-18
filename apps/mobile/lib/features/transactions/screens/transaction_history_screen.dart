@@ -396,16 +396,14 @@ class _ReportIssueSheetState extends State<_ReportIssueSheet> {
             const SizedBox(height: AppSpacing.md),
             if (_errorMessage != null) ...[
               Text(_errorMessage!,
-                  style: TextStyle(
-                      color: Theme.of(context).colorScheme.error)),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
               const SizedBox(height: AppSpacing.sm),
             ],
             DropdownButtonFormField<DisputeReason>(
               initialValue: _reason,
               decoration: const InputDecoration(labelText: 'Reason'),
               items: DisputeReason.values
-                  .map((r) =>
-                      DropdownMenuItem(value: r, child: Text(r.label)))
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
                   .toList(),
               onChanged: _submitting
                   ? null

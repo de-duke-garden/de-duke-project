@@ -91,8 +91,7 @@ class PayoutSettings {
 
   bool get isVerified => verificationStatus == 'verified';
 
-  factory PayoutSettings.fromJson(Map<String, dynamic> json) =>
-      PayoutSettings(
+  factory PayoutSettings.fromJson(Map<String, dynamic> json) => PayoutSettings(
         id: json['id'] as String,
         accountNumber: json['account_number'] as String,
         bankCode: json['bank_code'] as String,

@@ -73,9 +73,8 @@ class _WalletScreenState extends State<WalletScreen> {
     } on WalletException catch (e) {
       if (!mounted) return;
       setState(() {
-        _state = e.message == 'offline'
-            ? _ScreenState.offline
-            : _ScreenState.error;
+        _state =
+            e.message == 'offline' ? _ScreenState.offline : _ScreenState.error;
         _errorMessage = e.message == 'offline' ? null : e.message;
       });
     } catch (_) {
@@ -237,7 +236,8 @@ class _LedgerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCredit = entry.direction == 'credit';
     final semantic = Theme.of(context).extension<AppSemanticColors>()!;
-    final tone = isCredit ? semantic.success : Theme.of(context).colorScheme.error;
+    final tone =
+        isCredit ? semantic.success : Theme.of(context).colorScheme.error;
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: CircleAvatar(

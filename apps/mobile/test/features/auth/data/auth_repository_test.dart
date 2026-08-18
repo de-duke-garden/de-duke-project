@@ -105,9 +105,7 @@ void main() {
       await expectLater(
         () => built.repository.signInWithEmail(
             email: 'new@example.com', password: 'supersecret1'),
-        throwsA(isA<AuthException>().having(
-            (e) => e.message,
-            'message',
+        throwsA(isA<AuthException>().having((e) => e.message, 'message',
             "We couldn't sign you in with that email and password. New here? Switch to Sign Up.")),
       );
     });
@@ -135,9 +133,7 @@ void main() {
       await expectLater(
         () => built.repository.signInWithEmail(
             email: 'brandnew@example.com', password: 'supersecret1'),
-        throwsA(isA<AuthException>().having(
-            (e) => e.message,
-            'message',
+        throwsA(isA<AuthException>().having((e) => e.message, 'message',
             "We couldn't sign you in with that email and password. New here? Switch to Sign Up.")),
       );
     });
@@ -155,8 +151,8 @@ void main() {
       );
 
       await expectLater(
-        () => built.repository.signInWithEmail(
-            email: 'amaka@example.com', password: 'wrong'),
+        () => built.repository
+            .signInWithEmail(email: 'amaka@example.com', password: 'wrong'),
         throwsA(isA<AuthException>().having((e) => e.message, 'message',
             "That password's incorrect. Try again.")),
       );
@@ -303,9 +299,7 @@ void main() {
             email: 'amaka@example.com',
             password: 'supersecret1',
             fullName: 'Amaka Okafor'),
-        throwsA(isA<AuthException>().having(
-            (e) => e.message,
-            'message',
+        throwsA(isA<AuthException>().having((e) => e.message, 'message',
             'An account already exists for that email. Switch to Sign In instead.')),
       );
     });
@@ -361,8 +355,8 @@ void main() {
       );
 
       await expectLater(
-        () => built.repository.linkEmailIdentity(
-            email: 'amaka@example.com', password: 'wrong'),
+        () => built.repository
+            .linkEmailIdentity(email: 'amaka@example.com', password: 'wrong'),
         throwsA(isA<AuthException>().having((e) => e.message, 'message',
             "That password's incorrect. Try again.")),
       );
@@ -481,9 +475,7 @@ void main() {
           smsCode: '123456',
           expectingNewUser: true,
         ),
-        throwsA(isA<AuthException>().having(
-            (e) => e.message,
-            'message',
+        throwsA(isA<AuthException>().having((e) => e.message, 'message',
             'An account already exists for that phone number. Switch to Sign In instead.')),
       );
       // The mismatched session must not be left in place.
@@ -519,9 +511,7 @@ void main() {
           smsCode: '123456',
           expectingNewUser: false,
         ),
-        throwsA(isA<AuthException>().having(
-            (e) => e.message,
-            'message',
+        throwsA(isA<AuthException>().having((e) => e.message, 'message',
             "We couldn't find an account for that phone number. Switch to Sign Up instead.")),
       );
       expect(built.sessionStore.cleared, isTrue);
@@ -611,8 +601,8 @@ void main() {
       expect(result.profilePhotoUrl, isNull);
       final fields = (captured!.data as FormData).fields;
       expect(
-          fields.any(
-              (f) => f.key == 'clear_profile_photo' && f.value == 'true'),
+          fields
+              .any((f) => f.key == 'clear_profile_photo' && f.value == 'true'),
           isTrue);
     });
 

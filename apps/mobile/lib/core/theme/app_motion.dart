@@ -2,6 +2,8 @@
 /// Durations and curves for every interaction/entrance/celebratory moment
 /// in the mobile app. Screens compose these rather than hand-rolling
 /// one-off animation values.
+library;
+
 import 'package:flutter/animation.dart';
 
 class AppDurations {

@@ -37,8 +37,8 @@ class FakeSessionStore extends SessionStore {
 
 HostAccountRepository _buildRepository(
     {required FakeHttpClientAdapter Function() adapter}) {
-  final client = ApiClient(
-      baseUrl: 'https://api.test', sessionStore: FakeSessionStore());
+  final client =
+      ApiClient(baseUrl: 'https://api.test', sessionStore: FakeSessionStore());
   client.dio.httpClientAdapter = adapter();
   return HostAccountRepository(client);
 }
@@ -161,8 +161,8 @@ void main() {
       );
 
       await expectLater(
-        () => repository.updateProfile(
-            photoLocalPath: '/nonexistent/photo.jpg'),
+        () =>
+            repository.updateProfile(photoLocalPath: '/nonexistent/photo.jpg'),
         throwsA(isA<HostAccountException>().having(
           (e) => e.message,
           'message',

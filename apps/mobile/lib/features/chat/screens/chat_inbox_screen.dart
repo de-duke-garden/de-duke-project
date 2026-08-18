@@ -162,7 +162,8 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
         // Consistent tab-root AppBar treatment (mark + label) across Home,
         // Chat, Dashboard, Profile -- see TabAppBarTitle.
         title: const TabAppBarTitle('Messages'),
-        automaticallyImplyLeading: false, // tab root (core/routing/app_shell.dart)
+        automaticallyImplyLeading:
+            false, // tab root (core/routing/app_shell.dart)
       ),
       body: BrandedRefreshIndicator(
         onRefresh: _init,
@@ -276,8 +277,7 @@ class _ConversationTile extends StatelessWidget {
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(roleLabel,
-                      style: Theme.of(context).textTheme.bodySmall),
+                  Text(roleLabel, style: Theme.of(context).textTheme.bodySmall),
                   BadgePop(
                     triggerKey: badgeTriggerKey,
                     child: Text(

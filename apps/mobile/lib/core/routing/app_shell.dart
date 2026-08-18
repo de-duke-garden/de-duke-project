@@ -125,9 +125,8 @@ class _AppShellState extends State<AppShell> {
     // landing path right after a role change removes the branch the user
     // was previously on (e.g. Agency -> Guest removes branch index 3).
     final onHiddenBranch = !_visibleBranches.contains(currentBranchIndex);
-    final selectedVisibleIndex = onHiddenBranch
-        ? 0
-        : _visibleBranches.indexOf(currentBranchIndex);
+    final selectedVisibleIndex =
+        onHiddenBranch ? 0 : _visibleBranches.indexOf(currentBranchIndex);
 
     // If a role change just removed the branch currently being VIEWED
     // (not merely a deep-link edge case, but a live "I was looking at the

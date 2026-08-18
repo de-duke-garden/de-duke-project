@@ -368,7 +368,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             itemBuilder: (context, index) {
               final message = _messages[index];
               if (message.isSystemMessage) {
-                final isStaffJoined = message.body.toLowerCase().contains('staff');
+                final isStaffJoined =
+                    message.body.toLowerCase().contains('staff');
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   child: Center(

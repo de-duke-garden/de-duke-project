@@ -168,7 +168,8 @@ class AuthRepository {
   /// centrally here (in `getCurrentUser`, which `updateRole` already calls
   /// at the end of its own flow) rather than duplicated at every call site
   /// that might change the role.
-  final ValueNotifier<String?> currentRoleNotifier = ValueNotifier<String?>(null);
+  final ValueNotifier<String?> currentRoleNotifier =
+      ValueNotifier<String?>(null);
 
   String _errorMessage(DioException e, String fallback) {
     if (e.type == DioExceptionType.connectionError ||
@@ -423,7 +424,8 @@ class AuthRepository {
         email: email,
         password: password,
       );
-      final result = await _completeFirebaseFlow(credential.user, linking: false);
+      final result =
+          await _completeFirebaseFlow(credential.user, linking: false);
       if (fullName.trim().isNotEmpty) {
         try {
           await updateProfile(fullName: fullName.trim());

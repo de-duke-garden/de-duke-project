@@ -1,6 +1,8 @@
 /// De-Duke color tokens -- transcribed directly from branding.md.
 /// Never hardcode a hex value in a screen; always reference these tokens
 /// (or the equivalent Material ColorScheme mapping in app_theme.dart).
+library;
+
 import 'package:flutter/material.dart';
 
 class AppColors {

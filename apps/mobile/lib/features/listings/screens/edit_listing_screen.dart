@@ -19,6 +19,7 @@ import '../data/listing_models.dart';
 import '../data/listing_repository.dart';
 
 enum _ScreenState { loading, loaded, error, offline }
+
 enum _SaveState { idle, saving, error }
 
 class EditListingScreen extends StatefulWidget {
@@ -263,8 +264,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
             ),
             keyboardType: TextInputType.number,
             enabled: _saveState != _SaveState.saving,
-            validator: (v) =>
-                (double.tryParse(v ?? '') == null) ? 'Enter a valid price.' : null,
+            validator: (v) => (double.tryParse(v ?? '') == null)
+                ? 'Enter a valid price.'
+                : null,
           ),
           const SizedBox(height: AppSpacing.sm),
           // FEAT-018 AC "originating client/owner" tagging -- optional for

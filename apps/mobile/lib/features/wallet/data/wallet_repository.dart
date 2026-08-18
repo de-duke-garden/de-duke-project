@@ -123,8 +123,7 @@ class WalletRepository {
     try {
       final response = await _apiClient.dio.get('/v1/wallet/withdrawals');
       return (response.data as List)
-          .map((e) =>
-              WithdrawalRequestItem.fromJson(e as Map<String, dynamic>))
+          .map((e) => WithdrawalRequestItem.fromJson(e as Map<String, dynamic>))
           .toList();
     } on DioException catch (e) {
       throw WalletException(

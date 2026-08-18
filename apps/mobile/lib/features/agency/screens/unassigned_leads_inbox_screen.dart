@@ -276,8 +276,7 @@ class _LeadRow extends StatelessWidget {
               padding: const EdgeInsets.only(top: AppSpacing.xs),
               child: Row(
                 children: [
-                  Icon(Icons.error_outline,
-                      size: 14, color: colorScheme.error),
+                  Icon(Icons.error_outline, size: 14, color: colorScheme.error),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(

@@ -86,8 +86,7 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       TextButton(
-                          onPressed: _load,
-                          child: const Text('Check status')),
+                          onPressed: _load, child: const Text('Check status')),
                     ],
                     if (_state == _ScreenState.loaded &&
                         _transaction != null) ...[
@@ -96,15 +95,19 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
                           padding: const EdgeInsets.all(AppSpacing.md),
                           child: Column(
                             children: [
-                              _row(context, 'Listing', _transaction!.listingTitle),
+                              _row(context, 'Listing',
+                                  _transaction!.listingTitle),
                               _row(
                                 context,
                                 'Amount paid',
                                 formatNairaDecimal(_transaction!.grossAmount),
                                 isStat: true,
                               ),
-                              _row(context, 'Commission',
-                                  formatNairaDecimal(_transaction!.commissionAmount)),
+                              _row(
+                                  context,
+                                  'Commission',
+                                  formatNairaDecimal(
+                                      _transaction!.commissionAmount)),
                             ],
                           ),
                         ),
@@ -112,8 +115,9 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         'A receipt has also been emailed to your registered address.',
-                        style: AppTypography.bodySmall
-                            .copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        style: AppTypography.bodySmall.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -149,8 +153,8 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: AppTypography.bodySmall
-                  .copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              style: AppTypography.bodySmall.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
           Text(value,
               style: isStat ? AppTypography.statSmall : AppTypography.body),
         ],

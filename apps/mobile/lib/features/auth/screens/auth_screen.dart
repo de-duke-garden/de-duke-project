@@ -459,7 +459,8 @@ class _LegalNotice extends StatelessWidget {
 /// Hero/Featured Card formula, scaled to this screen's most prominent
 /// placement), holding the onboarding-tier illustration + wordmark
 /// lockup + tagline.
-class _HeroSection extends StatelessWidget {  const _HeroSection({required this.opacity});
+class _HeroSection extends StatelessWidget {
+  const _HeroSection({required this.opacity});
 
   final double opacity;
 
@@ -807,9 +808,8 @@ class _EmailFields extends StatelessWidget {
             decoration: const InputDecoration(labelText: 'Full name'),
             textCapitalization: TextCapitalization.words,
             enabled: enabled,
-            validator: (v) => (v == null || v.trim().isEmpty)
-                ? 'Enter your full name'
-                : null,
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Enter your full name' : null,
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
@@ -960,15 +960,12 @@ class _Banner extends StatelessWidget {
 /// renders Google's 4-color ring + crossbar directly rather than pulling in
 /// a new asset/package for one icon.
 class _GoogleGlyph extends StatelessWidget {
-  const _GoogleGlyph({this.size = 18});
-  final double size;
+  const _GoogleGlyph();
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-        width: size,
-        height: size,
-        child: CustomPaint(painter: _GoogleGPainter()));
+        width: 18, height: 18, child: CustomPaint(painter: _GoogleGPainter()));
   }
 }
 

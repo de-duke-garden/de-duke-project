@@ -84,7 +84,8 @@ class PushNotificationService {
       _tokenRefreshSubscription?.cancel();
       _tokenRefreshSubscription = _messaging.onTokenRefresh.listen(
         (refreshedToken) => _repository.registerToken(refreshedToken),
-        onError: (Object e) => debugPrint('push_notification_service: token refresh failed: $e'),
+        onError: (Object e) =>
+            debugPrint('push_notification_service: token refresh failed: $e'),
       );
 
       FirebaseMessaging.onMessage.listen(_onForegroundMessage);
@@ -106,11 +107,14 @@ class PushNotificationService {
   /// user actively in the app previously saw nothing at all for a push
   /// that arrived while they were looking right at it.
   void _onForegroundMessage(RemoteMessage message) {
-    debugPrint('push_notification_service: foreground message: ${message.messageId}');
+    debugPrint(
+        'push_notification_service: foreground message: ${message.messageId}');
 
     final title = message.notification?.title;
     final body = message.notification?.body;
-    if (title == null && body == null) return; // data-only message, nothing to show
+    if (title == null && body == null) {
+      return; // data-only message, nothing to show
+    }
 
     final messenger = rootScaffoldMessengerKey.currentState;
     if (messenger == null) return; // app not yet attached to the widget tree
@@ -129,7 +133,9 @@ class PushNotificationService {
             children: [
               if (title != null)
                 Text(title,
-                    style: AppTypography.h3, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    style: AppTypography.h3,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
               if (body != null)
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.xs),

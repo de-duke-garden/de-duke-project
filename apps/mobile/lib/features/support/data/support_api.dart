@@ -2,6 +2,8 @@
 /// shape exactly: the backend only creates the conversation document and
 /// relays a push-notify trigger. Sending/receiving messages happens
 /// directly against Firestore (see support_repository.dart).
+library;
+
 import '../../../core/api/api_client.dart';
 
 class SupportConversationResult {

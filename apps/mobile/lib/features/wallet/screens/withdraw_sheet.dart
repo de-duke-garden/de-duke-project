@@ -134,7 +134,8 @@ class _WithdrawSheetState extends State<WithdrawSheet> {
             TextField(
               controller: _amountController,
               enabled: !_submitting,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'Amount (₦)',
                 prefixText: '₦',

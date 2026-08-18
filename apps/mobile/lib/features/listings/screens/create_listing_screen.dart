@@ -385,7 +385,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
   void _reorderMedia(int oldIndex, int newIndex) {
     setState(() {
-      if (newIndex > oldIndex) newIndex -= 1;
+      // ReorderableListView's onReorderItem (Flutter 3.41+) pre-adjusts
+      // newIndex for the removed item, so no `newIndex -= 1` here (the old
+      // onReorder callback required it).
       final item = _media.removeAt(oldIndex);
       _media.insert(newIndex, item);
       for (var i = 0; i < _media.length; i++) {
@@ -893,7 +895,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           const SizedBox(height: AppSpacing.xs),
           Text(
             'Size: ${_computedSizeSquareMeters.toStringAsFixed(1)} sqm',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ],
         const SizedBox(height: AppSpacing.sm),
@@ -1205,8 +1208,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             Expanded(
               child: TextFormField(
                 controller: _houseRuleController,
-                decoration: const InputDecoration(
-                    hintText: 'e.g. No smoking, No pets'),
+                decoration:
+                    const InputDecoration(hintText: 'e.g. No smoking, No pets'),
                 enabled: !submitting,
                 onFieldSubmitted: (_) => _addHouseRule(),
               ),
@@ -1428,12 +1431,16 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         const SizedBox(height: AppSpacing.xs),
         Text(
           'Up to $_maxVideos videos (5 min / 100MB each), any number of photos.',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
+          style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12),
         ),
         const SizedBox(height: AppSpacing.sm),
         _MediaReorderList(
           media: _media,
-          onReorder: submitting ? (_, __) {} : _reorderMedia,
+          // onReorderItem (Flutter 3.41+) replaces the deprecated
+          // onReorder -- semantics differ, see _reorderMedia.
+          onReorderItem: submitting ? (_, __) {} : _reorderMedia,
           onSetPrimary: submitting ? (_) {} : _setPrimaryMedia,
           onRemove: submitting ? (_) {} : _removeMedia,
         ),
@@ -1446,8 +1453,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             ),
             const SizedBox(width: AppSpacing.sm),
             TextButton.icon(
-              onPressed:
-                  submitting || _videoCount >= _maxVideos ? null : _addPickedVideo,
+              onPressed: submitting || _videoCount >= _maxVideos
+                  ? null
+                  : _addPickedVideo,
               icon: const Icon(Icons.videocam_outlined),
               label: Text('Add video ($_videoCount/$_maxVideos)'),
             ),
@@ -1482,7 +1490,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 _reviewRow('Description', _descriptionController.text),
                 _reviewRow(
                   'Amenities',
-                  _amenities.isEmpty ? 'None selected' : '${_amenities.length} selected',
+                  _amenities.isEmpty
+                      ? 'None selected'
+                      : '${_amenities.length} selected',
                 ),
                 if (_listingType == 'commercial') ...[
                   _reviewRow('Deal type', humanizeEnumValue(_dealType)),
@@ -1503,14 +1513,20 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   _reviewRow('Nightly price', _nightlyPriceController.text),
                   _reviewRow('Bedrooms', _bedroomsController.text),
                   _reviewRow('Bathrooms', _shortletBathroomsController.text),
-                  _reviewRow('House rules',
-                      _houseRules.isEmpty ? 'None' : '${_houseRules.length} added'),
+                  _reviewRow(
+                      'House rules',
+                      _houseRules.isEmpty
+                          ? 'None'
+                          : '${_houseRules.length} added'),
                   _reviewRow(
                     'Blocked dates',
-                    _blockedDates.isEmpty ? 'None' : '${_blockedDates.length} blocked',
+                    _blockedDates.isEmpty
+                        ? 'None'
+                        : '${_blockedDates.length} blocked',
                   ),
                 ],
-                _reviewRow('Photos', '${_media.where((m) => !m.isVideo).length}'),
+                _reviewRow(
+                    'Photos', '${_media.where((m) => !m.isVideo).length}'),
                 _reviewRow('Videos', '$_videoCount'),
               ],
             ),
@@ -1558,7 +1574,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           SizedBox(
             width: 110,
             child: Text(label,
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
           Expanded(child: Text(value.isEmpty ? '--' : value)),
         ],
@@ -1595,7 +1612,8 @@ class _StepIndicator extends StatelessWidget {
                 value: value,
                 minHeight: 4,
                 backgroundColor: Theme.of(context).colorScheme.outline,
-                valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
+                valueColor: AlwaysStoppedAnimation(
+                    Theme.of(context).colorScheme.primary),
               ),
             ),
           ),
@@ -1632,7 +1650,9 @@ class _TypeSelectorCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.md),
         side: BorderSide(
-          color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline,
+          color: selected
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.outline,
           width: selected ? 2 : 1,
         ),
       ),
@@ -1645,8 +1665,9 @@ class _TypeSelectorCard extends StatelessWidget {
             children: [
               Icon(icon,
                   size: AppSizing.iconMd,
-                  color:
-                      selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant),
+                  color: selected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
@@ -1654,12 +1675,16 @@ class _TypeSelectorCard extends StatelessWidget {
                   children: [
                     Text(title, style: Theme.of(context).textTheme.titleMedium),
                     Text(subtitle,
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                        style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant)),
                   ],
                 ),
               ),
               if (selected)
-                Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
+                Icon(Icons.check_circle,
+                    color: Theme.of(context).colorScheme.primary),
             ],
           ),
         ),
@@ -1687,7 +1712,8 @@ class _ListingLiveScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
           child: CelebratorySequence(
-            accentColor: Theme.of(context).extension<AppSemanticColors>()!.success,
+            accentColor:
+                Theme.of(context).extension<AppSemanticColors>()!.success,
             supportingContent: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1696,7 +1722,8 @@ class _ListingLiveScreen extends StatelessWidget {
                     textAlign: TextAlign.center),
                 const SizedBox(height: AppSpacing.sm),
                 Text(listing.title,
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
                     textAlign: TextAlign.center),
                 const SizedBox(height: AppSpacing.lg),
                 SizedBox(
@@ -1732,7 +1759,9 @@ class _Banner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.error, size: AppSizing.iconMd),
+          Icon(icon,
+              color: Theme.of(context).colorScheme.error,
+              size: AppSizing.iconMd),
           const SizedBox(width: AppSpacing.sm),
           Expanded(child: Text(message)),
         ],
@@ -1755,13 +1784,13 @@ class _Banner extends StatelessWidget {
 class _MediaReorderList extends StatelessWidget {
   const _MediaReorderList({
     required this.media,
-    required this.onReorder,
+    required this.onReorderItem,
     required this.onSetPrimary,
     required this.onRemove,
   });
 
   final List<PendingListingMedia> media;
-  final void Function(int, int) onReorder;
+  final void Function(int, int) onReorderItem;
   final void Function(int) onSetPrimary;
   final void Function(int) onRemove;
 
@@ -1769,13 +1798,14 @@ class _MediaReorderList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (media.isEmpty) {
       return Text('No photos or videos added yet.',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant));
+          style:
+              TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant));
     }
     return ReorderableListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: media.length,
-      onReorder: onReorder,
+      onReorderItem: onReorderItem,
       // Confirmed real bug: with the default drag handles, the WHOLE tile
       // (including the star/remove IconButtons on top of it) was a
       // long-press drag target -- pressing and holding anywhere on a row,
@@ -1826,9 +1856,11 @@ class _MediaReorderList extends StatelessWidget {
                   ? Container(
                       width: 48,
                       height: 48,
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       child: Icon(Icons.videocam,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant),
                     )
                   : Image.file(
                       File(item.localPath),
@@ -1838,9 +1870,12 @@ class _MediaReorderList extends StatelessWidget {
                       errorBuilder: (context, error, stackTrace) => Container(
                         width: 48,
                         height: 48,
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
                         child: Icon(Icons.broken_image_outlined,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant),
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ),
             ),
@@ -1850,7 +1885,8 @@ class _MediaReorderList extends StatelessWidget {
               children: [
                 if (!item.isVideo)
                   if (item.isPrimary)
-                    Icon(Icons.star, color: Theme.of(context).colorScheme.tertiary)
+                    Icon(Icons.star,
+                        color: Theme.of(context).colorScheme.tertiary)
                   else
                     IconButton(
                       icon: const Icon(Icons.star_border),

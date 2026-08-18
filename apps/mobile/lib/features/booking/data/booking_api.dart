@@ -1,6 +1,8 @@
 /// Data access for FEAT-032 (Booking Hold & Confirm-Before-Pay).
 /// All network access for this feature goes through here -- screens/logic
 /// never call Dio directly, per architecture.md's layered client structure.
+library;
+
 import 'package:dio/dio.dart';
 
 import '../../../core/api/api_client.dart';

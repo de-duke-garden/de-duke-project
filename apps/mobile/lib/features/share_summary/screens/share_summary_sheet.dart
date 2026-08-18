@@ -73,11 +73,12 @@ class _ShareSummarySheetState extends State<ShareSummarySheet> {
     } on Exception catch (e) {
       if (!mounted) return;
       final message = e.toString();
-      final isOffline = message.contains('SocketException') ||
-          message.contains('connection');
+      final isOffline =
+          message.contains('SocketException') || message.contains('connection');
       if (isOffline) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("You're offline. Try again once connected.")),
+          const SnackBar(
+              content: Text("You're offline. Try again once connected.")),
         );
         setState(() => _state = _SheetState.preview);
       } else {
@@ -116,7 +117,8 @@ class _ShareSummarySheetState extends State<ShareSummarySheet> {
 
     setState(() => _state = _SheetState.revoking);
     try {
-      await widget.repository.revokeShareLink(widget.listing.id, link.shareToken);
+      await widget.repository
+          .revokeShareLink(widget.listing.id, link.shareToken);
       if (!mounted) return;
       // Edge case (screens.md Screen 17): after revoking, the sheet returns
       // to its pre-generation state -- a fresh "Generate Link" tap always
@@ -165,7 +167,8 @@ class _ShareSummarySheetState extends State<ShareSummarySheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Share Summary', style: Theme.of(context).textTheme.titleLarge),
+            Text('Share Summary',
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: AppSpacing.md),
             _buildPreview(context),
             const SizedBox(height: AppSpacing.lg),

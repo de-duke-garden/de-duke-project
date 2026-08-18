@@ -125,7 +125,8 @@ class _ReportSheetState extends State<_ReportSheet> {
           children: [
             Row(
               children: [
-                Icon(Icons.flag_outlined, color: Theme.of(context).colorScheme.error),
+                Icon(Icons.flag_outlined,
+                    color: Theme.of(context).colorScheme.error),
                 const SizedBox(width: AppSpacing.sm),
                 Text(title, style: Theme.of(context).textTheme.titleLarge),
               ],
@@ -135,19 +136,31 @@ class _ReportSheetState extends State<_ReportSheet> {
               'Why are you reporting this?',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            for (final reason in ReportReason.values)
-              ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: RadioListTile<ReportReason>(
-                  value: reason,
-                  groupValue: _reason,
-                  onChanged: submitting
-                      ? null
-                      : (value) => setState(() => _reason = value!),
-                  title: Text(reason.label),
-                  contentPadding: EdgeInsets.zero,
-                ),
+            // RadioGroup ancestor (Flutter 3.32+) replaces the deprecated
+            // per-tile groupValue/onChanged pair. The tile-level `enabled`
+            // flag carries the submitting-disabled behavior (RadioGroup's
+            // onChanged is not nullable, so a no-op guard is used).
+            RadioGroup<ReportReason>(
+              groupValue: _reason,
+              onChanged: (value) {
+                if (submitting) return;
+                setState(() => _reason = value!);
+              },
+              child: Column(
+                children: [
+                  for (final reason in ReportReason.values)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: RadioListTile<ReportReason>(
+                        value: reason,
+                        enabled: !submitting,
+                        title: Text(reason.label),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                ],
               ),
+            ),
             const SizedBox(height: AppSpacing.sm),
             TextField(
               controller: _detailController,
@@ -170,7 +183,8 @@ class _ReportSheetState extends State<_ReportSheet> {
                   Expanded(
                     child: Text(
                       _errorMessage ?? 'Something went wrong.',
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      style:
+                          TextStyle(color: Theme.of(context).colorScheme.error),
                     ),
                   ),
                 ],
@@ -201,7 +215,9 @@ class _ReportSheetState extends State<_ReportSheet> {
                   child: SizedBox(
                     height: 48,
                     child: OutlinedButton(
-                      onPressed: submitting ? null : () => Navigator.of(context).pop(false),
+                      onPressed: submitting
+                          ? null
+                          : () => Navigator.of(context).pop(false),
                       child: const Text('Cancel'),
                     ),
                   ),

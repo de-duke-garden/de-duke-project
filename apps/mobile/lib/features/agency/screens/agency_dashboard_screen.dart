@@ -235,8 +235,8 @@ class _ConversionFunnelCard extends StatelessWidget {
               for (var i = 0; i < stages.length; i++) ...[
                 if (i > 0)
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.xs),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
                     child: Icon(Icons.arrow_forward,
                         size: 16, color: colorScheme.onSurfaceVariant),
                   ),
@@ -244,7 +244,8 @@ class _ConversionFunnelCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(stages[i].$3, size: 18, color: colorScheme.onSurfaceVariant),
+                      Icon(stages[i].$3,
+                          size: 18, color: colorScheme.onSurfaceVariant),
                       const SizedBox(height: 4),
                       Text(stages[i].$2.toString(),
                           style: AppTypography.statSmall),

@@ -138,14 +138,12 @@ class AppShadowValues {
 
   static const List<BoxShadow> lg = [
     BoxShadow(color: Color(0x1A12201C), offset: Offset(0, 4), blurRadius: 8),
-    BoxShadow(
-        color: Color(0x2412201C), offset: Offset(0, 16), blurRadius: 36),
+    BoxShadow(color: Color(0x2412201C), offset: Offset(0, 16), blurRadius: 36),
   ];
 
   static const List<BoxShadow> xl = [
     BoxShadow(color: Color(0x1F12201C), offset: Offset(0, 8), blurRadius: 16),
-    BoxShadow(
-        color: Color(0x2912201C), offset: Offset(0, 24), blurRadius: 48),
+    BoxShadow(color: Color(0x2912201C), offset: Offset(0, 24), blurRadius: 48),
   ];
 
   static const List<BoxShadow> xsDark = [
@@ -165,13 +163,11 @@ class AppShadowValues {
 
   static const List<BoxShadow> lgDark = [
     BoxShadow(color: Color(0x8C000000), offset: Offset(0, 4), blurRadius: 8),
-    BoxShadow(
-        color: Color(0x8C000000), offset: Offset(0, 16), blurRadius: 36),
+    BoxShadow(color: Color(0x8C000000), offset: Offset(0, 16), blurRadius: 36),
   ];
 
   static const List<BoxShadow> xlDark = [
     BoxShadow(color: Color(0x99000000), offset: Offset(0, 8), blurRadius: 16),
-    BoxShadow(
-        color: Color(0x99000000), offset: Offset(0, 24), blurRadius: 48),
+    BoxShadow(color: Color(0x99000000), offset: Offset(0, 24), blurRadius: 48),
   ];
 }

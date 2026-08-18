@@ -9,7 +9,8 @@ import 'saved_search_models.dart';
 import 'search_models.dart';
 
 class SavedSearchRepository {
-  SavedSearchRepository({required ApiClient apiClient}) : _apiClient = apiClient;
+  SavedSearchRepository({required ApiClient apiClient})
+      : _apiClient = apiClient;
 
   final ApiClient _apiClient;
 

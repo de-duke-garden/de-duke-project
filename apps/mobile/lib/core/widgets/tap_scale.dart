@@ -54,8 +54,9 @@ class _TapScaleState extends State<TapScale> {
         : (widget.emphasis
             ? AppDurations.tapScaleEmphasisUp
             : AppDurations.tapScaleUp);
-    final curve =
-        _pressed || !widget.emphasis ? Curves.easeOut : AppCurves.easeSpringSoft;
+    final curve = _pressed || !widget.emphasis
+        ? Curves.easeOut
+        : AppCurves.easeSpringSoft;
 
     return GestureDetector(
       onTap: widget.onTap,

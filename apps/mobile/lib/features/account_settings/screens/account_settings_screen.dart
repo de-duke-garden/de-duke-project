@@ -421,7 +421,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               ListTile(
                 leading: CircleAvatar(
                   radius: 20,
-                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  backgroundColor:
+                      Theme.of(context).colorScheme.primaryContainer,
                   backgroundImage: profile?.profilePhotoUrl != null
                       ? NetworkImage(profile!.profilePhotoUrl!)
                       : null,
@@ -438,7 +439,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                       opacity: _justSavedKey == 'profile:combined' ? 1 : 0,
                       duration: AppDurations.fast,
                       child: Icon(Icons.check_circle,
-                          size: 18, color: Theme.of(context).colorScheme.primary),
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary),
                     ),
                     const SizedBox(width: AppSpacing.xs),
                     const Icon(Icons.edit_outlined, size: 18),
@@ -463,7 +465,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                               opacity: _justSavedKey == 'profile:email' ? 1 : 0,
                               duration: AppDurations.fast,
                               child: Icon(Icons.check_circle,
-                                  size: 18, color: Theme.of(context).colorScheme.primary),
+                                  size: 18,
+                                  color: Theme.of(context).colorScheme.primary),
                             ),
                             const SizedBox(width: AppSpacing.xs),
                             const Icon(Icons.edit_outlined, size: 18),
@@ -537,14 +540,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               ListTile(
                 leading: const Icon(Icons.badge_outlined),
                 title: Text(_roleLabel(user.role)),
-                trailing:
-                    (user.role == 'host' || user.role == 'agency')
-                        ? TextButton(
-                            onPressed: () =>
-                                context.pushNamed(RouteNames.verification),
-                            child: const Text('Verification status'),
-                          )
-                        : null,
+                trailing: (user.role == 'host' || user.role == 'agency')
+                    ? TextButton(
+                        onPressed: () =>
+                            context.pushNamed(RouteNames.verification),
+                        child: const Text('Verification status'),
+                      )
+                    : null,
               ),
               // FEAT-003 AC: "Role can be changed later in account
               // settings." Reuses RoleSelectionScreen -- its Data Flow's
@@ -794,7 +796,8 @@ class _PreferenceSwitchRow extends StatelessWidget {
           AnimatedOpacity(
             opacity: justSaved ? 1 : 0,
             duration: AppDurations.fast,
-            child: Icon(Icons.check_circle, size: 18, color: Theme.of(context).colorScheme.primary),
+            child: Icon(Icons.check_circle,
+                size: 18, color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(width: AppSpacing.xs),
           BadgePop(
@@ -965,11 +968,13 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                 children: [
                   CircleAvatar(
                     radius: 40,
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
                     backgroundImage: avatarImage,
                     child: avatarImage == null
                         ? Icon(Icons.person_outline,
-                            color: Theme.of(context).colorScheme.primary, size: 32)
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 32)
                         : null,
                   ),
                   const CircleAvatar(
