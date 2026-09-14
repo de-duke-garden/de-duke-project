@@ -1,0 +1,12 @@
+# frozen_string_literal: true
+
+# fastlane Matchfile -- stores the encrypted App Store distribution
+# certificate + provisioning profile in a private git repo (MATCH_GIT_URL).
+# Values come from env vars (GitHub Actions secrets) so no Apple-specific
+# data is hardcoded in the repo. CI runs match with `readonly: true`; the
+# one-time bootstrap lane overrides readonly to create the assets.
+git_url(ENV["MATCH_GIT_URL"])
+app_identifier("com.de-duke.mobile")
+team_id(ENV["APPLE_TEAM_ID"])
+type("appstore")
+readonly(true)

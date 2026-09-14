@@ -60,13 +60,13 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDo0dcOaSN4l50TNFfO3PY3KY-WLEL9usE',
-    appId: '1:531781610440:ios:2939c605214549c7fb2efd',
+    appId: '1:531781610440:ios:c6ee90008d9fde12fb2efd',
     messagingSenderId: '531781610440',
     projectId: 'de-duke-services',
     storageBucket: 'de-duke-services.firebasestorage.app',
-    iosClientId:
-        '531781610440-et9d0h1p68n6i86kenvvtkiudmb6tegb.apps.googleusercontent.com',
-    iosBundleId: 'com.deduke.deDukeMobile',
+    androidClientId: '531781610440-hkn921c0du2j89porlp4d6mr0vn6o7kb.apps.googleusercontent.com',
+    iosClientId: '531781610440-5ahlon3g0juq38vtsp0pcg13vgofvlvg.apps.googleusercontent.com',
+    iosBundleId: 'com.de-duke.mobile',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -75,8 +75,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '531781610440',
     projectId: 'de-duke-services',
     storageBucket: 'de-duke-services.firebasestorage.app',
-    iosClientId:
-        '531781610440-et9d0h1p68n6i86kenvvtkiudmb6tegb.apps.googleusercontent.com',
+    androidClientId: '531781610440-hkn921c0du2j89porlp4d6mr0vn6o7kb.apps.googleusercontent.com',
+    iosClientId: '531781610440-et9d0h1p68n6i86kenvvtkiudmb6tegb.apps.googleusercontent.com',
     iosBundleId: 'com.deduke.deDukeMobile',
   );
 
@@ -89,4 +89,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'de-duke-services.firebasestorage.app',
     measurementId: 'G-GB5Y0LVS79',
   );
+
 }

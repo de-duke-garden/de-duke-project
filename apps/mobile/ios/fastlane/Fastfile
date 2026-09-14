@@ -1,0 +1,92 @@
+# frozen_string_literal: true
+
+# De-Duke iOS release lanes.
+#
+# These lanes are driven by .github/workflows/ios-release.yml. They cover
+# the two things that need Apple-side credentials: (1) signing assets via
+# fastlane match, and (2) uploading the built IPA to App Store Connect.
+# The actual `flutter build ipa` runs as a workflow step (from apps/mobile/)
+# so the Flutter toolchain -- not xcodebuild -- drives the build.
+#
+# App Store Connect API key env vars (from GitHub secrets):
+#   APP_STORE_CONNECT_API_KEY_KEY_ID
+#   APP_STORE_CONNECT_API_KEY_ISSUER_ID
+#   APP_STORE_CONNECT_API_KEY_KEY            <- full .p8 content
+#
+# match env vars:
+#   MATCH_GIT_URL
+#   MATCH_PASSWORD
+#   MATCH_GIT_BASIC_AUTHORIZATION           <- base64("x-access-token:<PAT>")
+#
+# Other:
+#   APPLE_TEAM_ID                           <- Apple Developer Team ID
+default_platform(:ios)
+
+platform :ios do
+  desc "One-time: create the App Store distribution cert + profile and push them to the match repo"
+  lane :bootstrap_match do
+    setup_ci
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"],
+      key_content: ENV["APP_STORE_CONNECT_API_KEY_KEY"]
+    )
+    match(
+      type: "appstore",
+      readonly: false,
+      api_key: api_key
+    )
+  end
+
+  desc "Sync App Store signing assets from the match repo (read-only) and set the team in the Xcode project"
+  lane :match_appstore do
+    setup_ci
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"],
+      key_content: ENV["APP_STORE_CONNECT_API_KEY_KEY"]
+    )
+    match(
+      type: "appstore",
+      readonly: true,
+      api_key: api_key
+    )
+    # CODE_SIGN_STYLE is Automatic in the pbxproj; Xcode needs the team ID
+    # to resolve the profile. Injected at build time from the secret --
+    # never hardcoded into project.pbxproj.
+    update_project_team(teamid: ENV["APPLE_TEAM_ID"])
+  end
+
+  desc "Upload an already-built IPA (IPA_PATH) to TestFlight"
+  lane :upload_testflight do
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"],
+      key_content: ENV["APP_STORE_CONNECT_API_KEY_KEY"]
+    )
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: ENV["IPA_PATH"],
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Upload an already-built IPA (IPA_PATH) to App Store Connect without submitting for review"
+  lane :upload_appstore do
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"],
+      key_content: ENV["APP_STORE_CONNECT_API_KEY_KEY"]
+    )
+    deliver(
+      api_key: api_key,
+      ipa: ENV["IPA_PATH"],
+      skip_metadata: true,
+      skip_screenshots: true,
+      skip_app_version_update: true,
+      submit_for_review: false,
+      force: true,
+      run_precheck_before_submit: false
+    )
+  end
+end

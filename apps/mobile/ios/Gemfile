@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+# fastlane -- iOS release automation (signing via match, upload via
+# pilot/deliver). Pinned to the current stable line (2.238.0, Aug 2026);
+# CI resolves the exact patch and generates Gemfile.lock on first run.
+gem "fastlane", "~> 2.238"

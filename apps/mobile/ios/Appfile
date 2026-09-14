@@ -1,0 +1,7 @@
+# frozen_string_literal: true
+
+# fastlane Appfile -- identity for the De-Duke mobile iOS app.
+# The Apple Developer Team ID comes from the APPLE_TEAM_ID env var (a
+# GitHub Actions secret in CI), never hardcoded here.
+app_identifier("com.de-duke.mobile")
+team_id(ENV["APPLE_TEAM_ID"])

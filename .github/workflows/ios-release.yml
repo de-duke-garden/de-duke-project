@@ -1,0 +1,169 @@
+# iOS Release -- builds a signed App Store IPA on a GitHub-hosted macOS
+# runner and uploads it to App Store Connect (TestFlight or App Store),
+# with zero local Mac required.
+#
+#   * Runner: macos-15 (Xcode 26.3 / iOS 26.2 SDK). Meets Apple's
+#     requirement (in effect since April 28, 2026) that new submissions be
+#     built with the iOS 26 SDK. macos-latest currently maps to macos-26
+#     (Xcode 26.6) -- either works; macos-15 is pinned for determinism.
+#
+#   * Signing: fastlane match stores the App Store distribution cert +
+#     provisioning profile, encrypted, in a private git repo. The first
+#     run (input `bootstrap: true`) CREATES the cert/profile on the runner
+#     via the App Store Connect API key and pushes them to the match repo.
+#     Every later run syncs them read-only. No Mac is ever needed.
+#
+#   * Team ID: injected into the Xcode project at build time from the
+#     APPLE_TEAM_ID secret (update_project_team). Nothing Apple-specific
+#     is hardcoded in project.pbxproj.
+#
+#   * Upload: TestFlight via `upload_to_testflight`; App Store binary via
+#     `deliver` with submit_for_review: false -- metadata, screenshots and
+#     the final "Submit for Review" stay in App Store Connect's web UI.
+#
+# Required repository secrets:
+#   APPLE_TEAM_ID                              Apple Developer Team ID (Membership page)
+#   APP_STORE_CONNECT_API_KEY_KEY_ID           ASC API key ID
+#   APP_STORE_CONNECT_API_KEY_ISSUER_ID        ASC API key issuer ID
+#   APP_STORE_CONNECT_API_KEY_KEY              Full .p8 key content (multi-line)
+#   MATCH_GIT_URL                              Private cert repo URL (https://github.com/you/deduke-ios-certs.git)
+#   MATCH_PASSWORD                             Passphrase encrypting the match repo
+#   MATCH_GIT_BASIC_AUTHORIZATION              base64("x-access-token:<PAT>") for the match repo
+#   GOOGLE_MAPS_API_KEY                        Real Maps key (production .env.json)
+#
+# Required repository variables:
+#   API_BASE_URL                               e.g. https://api.de-duke.com
+#   PUBLIC_SHARE_BASE_URL                      e.g. https://de-duke.com
+#
+# Prerequisite (outside this repo): an app record with bundle ID
+
+# Local fastlane runbook (from apps/mobile/ios/; requires a local Mac with
+# bundle, fastlane and the match repo access):
+#   bundle install
+#   bundle exec fastlane ios bootstrap_match       # one-time cert/profile creation
+#   bundle exec fastlane ios match_appstore        # read-only sync + set team
+#   bundle exec fastlane ios upload_testflight     # TestFlight upload (needs IPA_PATH)
+#   bundle exec fastlane ios upload_appstore       # App Store binary upload, no auto-submit (needs IPA_PATH)
+# com.de-duke.mobile must exist in App Store Connect, and the ASC API
+# key must have App Manager (or Admin) role.
+
+name: iOS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      distribution:
+        description: "Upload target"
+        type: choice
+        options:
+          - testflight
+          - appstore
+        default: testflight
+      bootstrap:
+        description: "First run? Create App Store cert + profile in the match repo (idempotent, safe to re-run)"
+        type: boolean
+        default: false
+      build-number:
+        description: "Build number (CFBundleVersion). Blank = GitHub run number"
+        type: string
+        default: ""
+      build-name:
+        description: "Version (CFBundleShortVersionString). Blank = pubspec.yaml version"
+        type: string
+        default: ""
+
+concurrency:
+  group: ios-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+      APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY }}
+      MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Ruby (fastlane)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+          working-directory: apps/mobile/ios
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Matches apps/mobile/.fvmrc and mobile-ci.yml -- keep in sync.
+          flutter-version: "3.44.4"
+          channel: "stable"
+          cache: true
+
+      - name: Write production .env.json
+        # .env.prod.json is gitignored (contains the real Maps key), so the
+        # release build reconstructs .env.json from repo variables/secrets.
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          PUBLIC_SHARE_BASE_URL: ${{ vars.PUBLIC_SHARE_BASE_URL }}
+        run: |
+          jq -n \
+            --arg api "${API_BASE_URL:-https://api.de-duke.com}" \
+            --arg maps "${GOOGLE_MAPS_API_KEY:-}" \
+            --arg share "${PUBLIC_SHARE_BASE_URL:-https://de-duke.com}" \
+            '{API_BASE_URL: $api, GOOGLE_MAPS_API_KEY: $maps, PUBLIC_SHARE_BASE_URL: $share}' > .env.json
+
+      - run: flutter pub get
+
+      - name: Bootstrap signing assets (first run only)
+        if: inputs.bootstrap
+        working-directory: apps/mobile/ios
+        run: bundle exec fastlane ios bootstrap_match
+
+      - name: Sync signing assets (read-only)
+        if: ${{ !inputs.bootstrap }}
+        working-directory: apps/mobile/ios
+        run: bundle exec fastlane ios match_appstore
+
+      - name: Build release IPA
+        env:
+          BUILD_NUMBER: ${{ inputs.build-number || github.run_number }}
+          BUILD_NAME: ${{ inputs.build-name }}
+        run: |
+          ARGS=(--release --export-method app-store-connect --dart-define-from-file=.env.json --build-number="$BUILD_NUMBER")
+          if [ -n "$BUILD_NAME" ]; then ARGS+=(--build-name="$BUILD_NAME"); fi
+          flutter build ipa "${ARGS[@]}"
+
+      - name: Locate built IPA
+        id: ipa
+        run: echo "path=$PWD/build/ios/ipa/$(ls build/ios/ipa | grep '\.ipa$' | head -n1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to TestFlight
+        if: inputs.distribution == 'testflight'
+        working-directory: apps/mobile/ios
+        env:
+          IPA_PATH: ${{ steps.ipa.outputs.path }}
+        run: bundle exec fastlane ios upload_testflight
+
+      - name: Upload to App Store Connect (no submit for review)
+        if: inputs.distribution == 'appstore'
+        working-directory: apps/mobile/ios
+        env:
+          IPA_PATH: ${{ steps.ipa.outputs.path }}
+        run: bundle exec fastlane ios upload_appstore
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: de-duke-ios-${{ inputs.distribution }}-${{ github.run_number }}
+          path: apps/mobile/build/ios/ipa/*.ipa
+          if-no-files-found: error

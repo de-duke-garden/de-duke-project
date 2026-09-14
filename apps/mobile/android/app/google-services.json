@@ -14,6 +14,46 @@
       },
       "oauth_client": [
         {
+          "client_id": "531781610440-hkn921c0du2j89porlp4d6mr0vn6o7kb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.deduke.de_duke_mobile",
+            "certificate_hash": "43b2b694feab31ac0abe9736364d4eeed5ea6298"
+          }
+        },
+        {
+          "client_id": "531781610440-kq2ql5hk6tsb3td3b5935tv5k3pco77h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.deduke.de_duke_mobile",
+            "certificate_hash": "cc8012fe5b6bf747552135e192edfebabb0151f7"
+          }
+        },
+        {
+          "client_id": "531781610440-mcavpq13pt9k5es23rr9h01d9elgc7sh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.deduke.de_duke_mobile",
+            "certificate_hash": "c5f50d307e688321aff240ceebc2e7b69db284f0"
+          }
+        },
+        {
+          "client_id": "531781610440-n8mdfc195puc3b69o8q19ncs6ou0vp7p.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.deduke.de_duke_mobile",
+            "certificate_hash": "da0a7e8e615079d5e43ee63ed4833473bd37c615"
+          }
+        },
+        {
+          "client_id": "531781610440-qc6i00cdc496vcfc5us5utr03v9phl20.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.deduke.de_duke_mobile",
+            "certificate_hash": "69f2abc4156b2a25d7a93d2e78951139411e770a"
+          }
+        },
+        {
           "client_id": "531781610440-nsof8m9dcguc0r2f3jcgnuv00l9tjobq.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -31,10 +71,10 @@
               "client_type": 3
             },
             {
-              "client_id": "531781610440-et9d0h1p68n6i86kenvvtkiudmb6tegb.apps.googleusercontent.com",
+              "client_id": "531781610440-5ahlon3g0juq38vtsp0pcg13vgofvlvg.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.deduke.deDukeMobile"
+                "bundle_id": "com.de-duke.mobile"
               }
             }
           ]
