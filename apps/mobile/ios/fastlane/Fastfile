@@ -40,6 +40,19 @@ platform :ios do
     # automatic signing to resolve the freshly-created profile. Inject it
     # here (same as match_appstore) so the bootstrap run builds correctly.
     update_project_team(teamid: ENV["APPLE_TEAM_ID"])
+    # Switch the Runner target's Release config to MANUAL signing pointing
+    # at the exact profile match installed. Automatic signing on CI has no
+    # Xcode account to resolve profiles with and fails with
+    # "No profiles for ... were found" during the archive step.
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Runner.xcodeproj",
+      team_id: ENV["APPLE_TEAM_ID"],
+      code_sign_identity: "Apple Distribution",
+      profile_name: "match AppStore com.de-duke.mobile",
+      targets: ["Runner"],
+      build_configurations: ["Release"]
+    )
   end
 
   desc "Sync App Store signing assets from the match repo (read-only) and set the team in the Xcode project"
@@ -59,6 +72,17 @@ platform :ios do
     # to resolve the profile. Injected at build time from the secret --
     # never hardcoded into project.pbxproj.
     update_project_team(teamid: ENV["APPLE_TEAM_ID"])
+    # Manual signing with the exact match profile (same as bootstrap_match):
+    # automatic signing on CI has no Xcode account and fails during archive.
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Runner.xcodeproj",
+      team_id: ENV["APPLE_TEAM_ID"],
+      code_sign_identity: "Apple Distribution",
+      profile_name: "match AppStore com.de-duke.mobile",
+      targets: ["Runner"],
+      build_configurations: ["Release"]
+    )
   end
 
   desc "Upload an already-built IPA (IPA_PATH) to TestFlight"
