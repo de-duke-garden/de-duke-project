@@ -138,8 +138,33 @@ jobs:
         env:
           BUILD_NUMBER: ${{ inputs.build-number || github.run_number }}
           BUILD_NAME: ${{ inputs.build-name }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          ARGS=(--release --export-method app-store --dart-define-from-file=.env.json --build-number="$BUILD_NUMBER")
+          # Export with MANUAL signing, pointing at the exact profile match
+          # installed (match names it "match AppStore <bundle-id>"). Automatic
+          # signing fails on CI: Xcode looks for a logged-in Apple account to
+          # resolve profiles ("No Accounts" / "No profiles found").
+          mkdir -p build
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store-connect</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>teamID</key>
+              <string>${APPLE_TEAM_ID}</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>com.de-duke.mobile</key>
+                  <string>match AppStore com.de-duke.mobile</string>
+              </dict>
+          </dict>
+          </plist>
+          PLIST
+          ARGS=(--release --export-options-plist=build/ExportOptions.plist --dart-define-from-file=.env.json --build-number="$BUILD_NUMBER")
           if [ -n "$BUILD_NAME" ]; then ARGS+=(--build-name="$BUILD_NAME"); fi
           flutter build ipa "${ARGS[@]}"
 
