@@ -78,7 +78,11 @@ concurrency:
 
 jobs:
   release:
-    runs-on: macos-15
+    # macos-26: default Xcode is 26.x (iOS 26.5 SDK). Apple rejects any
+    # upload built with an older SDK (iOS 26 SDK required since 2026-04-28).
+    # macos-15's DEFAULT Xcode is 16.4 (iOS 18.5 SDK) and would be rejected
+    # with a 409 at upload time, so do not downgrade this label.
+    runs-on: macos-26
     defaults:
       run:
         working-directory: apps/mobile
