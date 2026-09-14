@@ -139,7 +139,7 @@ jobs:
           BUILD_NUMBER: ${{ inputs.build-number || github.run_number }}
           BUILD_NAME: ${{ inputs.build-name }}
         run: |
-          ARGS=(--release --export-method app-store-connect --dart-define-from-file=.env.json --build-number="$BUILD_NUMBER")
+          ARGS=(--release --export-method app-store --dart-define-from-file=.env.json --build-number="$BUILD_NUMBER")
           if [ -n "$BUILD_NAME" ]; then ARGS+=(--build-name="$BUILD_NAME"); fi
           flutter build ipa "${ARGS[@]}"
 

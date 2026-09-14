@@ -36,6 +36,10 @@ platform :ios do
       readonly: false,
       api_key: api_key
     )
+    # The build that follows this lane needs a team ID in the project for
+    # automatic signing to resolve the freshly-created profile. Inject it
+    # here (same as match_appstore) so the bootstrap run builds correctly.
+    update_project_team(teamid: ENV["APPLE_TEAM_ID"])
   end
 
   desc "Sync App Store signing assets from the match repo (read-only) and set the team in the Xcode project"
