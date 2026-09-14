@@ -1,8 +1,8 @@
 # Uncomment this line to define a global platform for your project
-# De-Duke: pinned to 14.0 -- google_maps_flutter_ios rejects anything below
-# iOS 14.0 at pod install time. Keep in sync with IPHONEOS_DEPLOYMENT_TARGET
-# in Runner.xcodeproj/project.pbxproj.
-platform :ios, '14.0'
+# De-Duke: pinned to 15.0 -- google_maps_flutter_ios requires >= 14.0 and
+# Apple requires >= 15.0 for uploads starting Spring 2027. Keep in sync with
+# IPHONEOS_DEPLOYMENT_TARGET in Runner.xcodeproj/project.pbxproj.
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'

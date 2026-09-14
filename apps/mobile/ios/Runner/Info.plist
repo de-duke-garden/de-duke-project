@@ -37,6 +37,16 @@
 		</array>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+		<key>NSCameraUsageDescription</key>
+		<string>De-Duke uses the camera to take photos and videos of properties and to capture verification documents for hosting.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>De-Duke uses your location to set a listing's position and to centre search results near you.</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>De-Duke uses your location to set a listing's position and to centre search results near you.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>De-Duke uses the microphone to record video walkthroughs of properties.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>De-Duke accesses your photo library so you can upload property photos, videos, and verification documents.</string>
 		<key>UIApplicationSceneManifest</key>
 		<dict>
 			<key>UIApplicationSupportsMultipleScenes</key>
