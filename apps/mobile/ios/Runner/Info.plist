@@ -35,6 +35,18 @@
 				</array>
 			</dict>
 		</array>
+		<!-- Google Maps iOS SDK reads GMSApiKey from Info.plist natively
+		     (GMSServices requires it before any GMSMapView can initialize).
+		     Keep this EMPTY in source: the CI release workflow
+		     (.github/workflows/ios-release.yml) injects the real value from
+		     the GOOGLE_MAPS_API_KEY repository secret before `flutter build
+		     ipa`. Local iOS builds must set it the same way, e.g. with
+		     PlistBuddy:
+		       /usr/libexec/PlistBuddy -c 'Set :GMSApiKey <real-key>'
+		     or plutil -replace GMSApiKey -string '<real-key>' ios/Runner/Info.plist
+		     Never commit a real key to this file. -->
+		<key>GMSApiKey</key>
+		<string></string>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
 		<key>LSRequiresIPhoneOS</key>
