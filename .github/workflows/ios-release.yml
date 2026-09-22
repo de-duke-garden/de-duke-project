@@ -29,7 +29,10 @@
 #   MATCH_GIT_URL                              Private cert repo URL (https://github.com/you/deduke-ios-certs.git)
 #   MATCH_PASSWORD                             Passphrase encrypting the match repo
 #   MATCH_GIT_BASIC_AUTHORIZATION              base64("x-access-token:<PAT>") for the match repo
-#   GOOGLE_MAPS_API_KEY                        Real Maps key (production .env.json)
+#   GOOGLE_MAPS_API_KEY                        Real Maps key. Used TWICE at release time: (1) written into
+#                                              .env.json as the Dart define feeding places_service.dart REST
+#                                              calls, and (2) injected into ios/Runner/Info.plist as GMSApiKey
+#                                              for the native Google Maps iOS SDK.
 #
 # Required repository variables:
 #   API_BASE_URL                               e.g. https://api.de-duke.com
@@ -137,6 +140,23 @@ jobs:
         if: ${{ !inputs.bootstrap }}
         working-directory: apps/mobile/ios
         run: bundle exec fastlane ios match_appstore
+
+      - name: Inject Google Maps API key into Info.plist (native SDK)
+        # The Flutter map UI reads GOOGLE_MAPS_API_KEY from .env.json (Dart
+        # define) for REST calls, but the native Google Maps iOS SDK reads
+        # GMSApiKey from Info.plist and crashes on first map render (Listing
+        # Detail) when it is missing or empty. The source plist keeps an
+        # EMPTY placeholder (frontend-owned), so inject insert-or-replace:
+        # `Set` when the key already exists, `Add` when it does not -- the
+        # two states are robust to commit ordering. Never inline the secret.
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: |
+          if /usr/libexec/PlistBuddy -c "Print :GMSApiKey" ios/Runner/Info.plist >/dev/null 2>&1; then
+            /usr/libexec/PlistBuddy -c "Set :GMSApiKey \"${GOOGLE_MAPS_API_KEY}\"" ios/Runner/Info.plist
+          else
+            /usr/libexec/PlistBuddy -c "Add :GMSApiKey string \"${GOOGLE_MAPS_API_KEY}\"" ios/Runner/Info.plist
+          fi
 
       - name: Build release IPA
         env:
