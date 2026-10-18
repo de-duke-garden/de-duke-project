@@ -19,6 +19,7 @@ import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/session_store.dart';
@@ -144,19 +145,72 @@ class AuthException implements Exception {
   String toString() => message;
 }
 
+/// The subset of a Sign in with Apple authorization [AuthRepository] needs,
+/// as a plain value type rather than the plugin's own
+/// `AuthorizationCredentialAppleID` -- so the repository can be unit-tested
+/// through an injected [AppleCredentialFetcher] without touching platform
+/// channels.
+class AppleIdCredential {
+  const AppleIdCredential({
+    required this.identityToken,
+    required this.authorizationCode,
+    this.givenName,
+    this.familyName,
+  });
+
+  /// The OIDC identity token, exchanged as the Firebase credential's ID
+  /// token. Null when Apple couldn't mint one (treated as a failed sign-in).
+  final String? identityToken;
+
+  /// Apple's authorization code, exchanged as the Firebase credential's
+  /// access token.
+  final String authorizationCode;
+
+  /// Present only on the user's FIRST authorization for this app.
+  final String? givenName;
+  final String? familyName;
+}
+
+/// Injectable seam over [SignInWithApple.getAppleIDCredential] -- defaults to
+/// the real plugin call, overridden in tests. See [AppleIdCredential].
+typedef AppleCredentialFetcher = Future<AppleIdCredential> Function();
+
 class AuthRepository {
   AuthRepository(
     this._apiClient,
     this._sessionStore, {
     fb_auth.FirebaseAuth? firebaseAuth,
     GoogleSignIn? googleSignIn,
+    AppleCredentialFetcher? appleCredentialFetcher,
   })  : _firebaseAuth = firebaseAuth ?? fb_auth.FirebaseAuth.instance,
-        _googleSignIn = googleSignIn ?? GoogleSignIn();
+        _googleSignIn = googleSignIn ?? GoogleSignIn(),
+        _fetchAppleCredential =
+            appleCredentialFetcher ?? _fetchAppleCredentialFromPlugin;
 
   final ApiClient _apiClient;
   final SessionStore _sessionStore;
   final fb_auth.FirebaseAuth _firebaseAuth;
   final GoogleSignIn _googleSignIn;
+  final AppleCredentialFetcher _fetchAppleCredential;
+
+  /// Default [AppleCredentialFetcher] -- the real plugin call. Requests the
+  /// email + full-name scopes: Sign in with Apple returns those only on the
+  /// FIRST authorization for an app, never in the ID token, so the backend
+  /// would otherwise default `User.fullName` to the email's local-part.
+  static Future<AppleIdCredential> _fetchAppleCredentialFromPlugin() async {
+    final credential = await SignInWithApple.getAppleIDCredential(
+      scopes: const [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+    );
+    return AppleIdCredential(
+      identityToken: credential.identityToken,
+      authorizationCode: credential.authorizationCode,
+      givenName: credential.givenName,
+      familyName: credential.familyName,
+    );
+  }
 
   /// Live current-role signal -- lets app_shell.dart's bottom nav react to
   /// a role change (FEAT-003's Account Settings "Change role" re-entry
@@ -352,6 +406,80 @@ class AuthRepository {
       return 'cancelled';
     }
     return 'Google sign-in failed. Please try again.';
+  }
+
+  /// Screen 1 "Continue with Apple" -- App Store Review Guideline 4.8's
+  /// equivalent login option, required because the app also offers Google
+  /// Sign-In. Presents the native Apple authorization sheet, then funnels
+  /// the resulting Firebase ID token through the same
+  /// `_completeFirebaseFlow` exchange every other provider uses.
+  Future<AuthResult> signInWithApple() => _signInWithApple(linking: false);
+
+  /// Screen 21 "Link a sign-in method" -> Apple (FEAT-040) -- identical
+  /// Apple authorization, but attaches the credential to the caller's
+  /// EXISTING session instead of starting a new one.
+  Future<AuthResult> linkAppleIdentity() => _signInWithApple(linking: true);
+
+  Future<AuthResult> _signInWithApple({required bool linking}) async {
+    AppleIdCredential apple;
+    try {
+      apple = await _fetchAppleCredential();
+    } on SignInWithAppleAuthorizationException catch (e) {
+      // User dismissed the native sheet -- same 'cancelled' sentinel the
+      // Google flow uses, so the screen returns to Default without an
+      // error banner.
+      if (e.code == AuthorizationErrorCode.canceled) {
+        throw AuthException('cancelled');
+      }
+      throw AuthException('Apple sign-in failed. Please try again.');
+    } on SignInWithAppleNotSupportedException {
+      throw AuthException("Apple sign-in isn't available on this device.");
+    } on PlatformException {
+      throw AuthException('Apple sign-in failed. Please try again.');
+    }
+
+    final identityToken = apple.identityToken;
+    if (identityToken == null || identityToken.isEmpty) {
+      throw AuthException(
+          'Your sign-in could not be verified. Please try again.');
+    }
+
+    try {
+      // Apple's authorization code is passed as the Firebase credential's
+      // access token -- the documented OAuthProvider('apple.com') exchange,
+      // mirroring `GoogleAuthProvider.credential` above.
+      final credential = fb_auth.OAuthProvider('apple.com').credential(
+        idToken: identityToken,
+        accessToken: apple.authorizationCode,
+      );
+      final userCredential =
+          await _firebaseAuth.signInWithCredential(credential);
+      final result =
+          await _completeFirebaseFlow(userCredential.user, linking: linking);
+
+      if (!linking) {
+        // Apple returns the name only on the FIRST authorization and never
+        // in the ID token, so -- like registerWithEmail -- apply it here
+        // best-effort rather than leaving fullName defaulted to the email
+        // local-part.
+        final name = [apple.givenName, apple.familyName]
+            .whereType<String>()
+            .map((part) => part.trim())
+            .where((part) => part.isNotEmpty)
+            .join(' ');
+        if (name.isNotEmpty) {
+          try {
+            await updateProfile(fullName: name);
+          } catch (_) {
+            // Best-effort -- the account itself was just created fine.
+          }
+        }
+      }
+
+      return result;
+    } on fb_auth.FirebaseAuthException catch (e) {
+      throw AuthException(_firebaseErrorMessage(e));
+    }
   }
 
   /// screens.md Screen 1 Edge Case: "Google Sign-In succeeds at the

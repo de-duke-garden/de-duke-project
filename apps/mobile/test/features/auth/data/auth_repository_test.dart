@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mock_exceptions/mock_exceptions.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'package:de_duke_mobile/core/api/api_client.dart';
 import 'package:de_duke_mobile/core/auth/session_store.dart';
@@ -44,13 +45,18 @@ class FakeSessionStore extends SessionStore {
 ({AuthRepository repository, FakeSessionStore sessionStore}) _buildRepository({
   required MockFirebaseAuth firebaseAuth,
   required HttpClientAdapter Function() adapter,
+  AppleCredentialFetcher? appleCredentialFetcher,
 }) {
   final sessionStore = FakeSessionStore();
   final client =
       ApiClient(baseUrl: 'https://api.test', sessionStore: sessionStore);
   client.dio.httpClientAdapter = adapter();
-  final repository =
-      AuthRepository(client, sessionStore, firebaseAuth: firebaseAuth);
+  final repository = AuthRepository(
+    client,
+    sessionStore,
+    firebaseAuth: firebaseAuth,
+    appleCredentialFetcher: appleCredentialFetcher,
+  );
   return (repository: repository, sessionStore: sessionStore);
 }
 
@@ -694,6 +700,121 @@ void main() {
       await repository.logout();
 
       expect(sessionStore.cleared, isTrue);
+    });
+  });
+
+  // FEAT-001 / App Store Guideline 4.8 -- Sign in with Apple as the required
+  // equivalent login alongside Google Sign-In. The repository's Apple
+  // credential fetch is injected, so these run without platform channels.
+  group('AuthRepository.signInWithApple', () {
+    test(
+        'exchanges the Firebase ID token for a session and applies the Apple name',
+        () async {
+      final firebaseAuth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'uid-apple', email: 'ada@example.com'));
+      final paths = <String>[];
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        appleCredentialFetcher: () async => const AppleIdCredential(
+          identityToken: 'apple-id-token',
+          authorizationCode: 'apple-auth-code',
+          givenName: 'Ada',
+          familyName: 'Obi',
+        ),
+        adapter: () => FakeHttpClientAdapter((options) {
+          paths.add(options.path);
+          if (options.path == '/v1/user/profile') {
+            return (
+              statusCode: 200,
+              body: {
+                'user_id': 'user-apple',
+                'full_name': 'Ada Obi',
+                'email': 'ada@example.com',
+                'phone_number': null,
+                'auth_provider': 'firebase',
+                'is_firebase_linked': true,
+                'profile_photo_url': null,
+              },
+            );
+          }
+          return (
+            statusCode: 200,
+            body: {
+              'access_token': 'apple-access',
+              'refresh_token': 'apple-refresh',
+              'token_type': 'bearer',
+              'user_id': 'user-apple',
+              'role': 'guest',
+              'is_verified_host': false,
+              'is_new_user': true,
+            },
+          );
+        }),
+      );
+
+      final result = await built.repository.signInWithApple();
+
+      expect(result.userId, 'user-apple');
+      expect(result.isNewUser, isTrue);
+      expect(built.sessionStore.savedAccessToken, 'apple-access');
+      // Exchange first, then the best-effort name PATCH (Apple returns the
+      // name only on the first authorization, never in the ID token).
+      expect(paths.first, '/v1/auth/firebase-exchange');
+      expect(paths, contains('/v1/user/profile'));
+    });
+
+    test('maps a canceled authorization to the "cancelled" sentinel', () async {
+      final built = _buildRepository(
+        firebaseAuth: MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1')),
+        appleCredentialFetcher: () async =>
+            throw const SignInWithAppleAuthorizationException(
+          code: AuthorizationErrorCode.canceled,
+          message: 'The user canceled the authorization attempt.',
+        ),
+        adapter: () => FakeHttpClientAdapter(
+            (options) => (statusCode: 200, body: {'ok': true})),
+      );
+
+      await expectLater(
+        built.repository.signInWithApple(),
+        throwsA(isA<AuthException>()
+            .having((e) => e.message, 'message', 'cancelled')),
+      );
+    });
+
+    test('treats a missing identity token as a failed sign-in', () async {
+      final built = _buildRepository(
+        firebaseAuth: MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1')),
+        appleCredentialFetcher: () async => const AppleIdCredential(
+          identityToken: null,
+          authorizationCode: 'apple-auth-code',
+        ),
+        adapter: () => FakeHttpClientAdapter(
+            (options) => (statusCode: 200, body: {'ok': true})),
+      );
+
+      await expectLater(
+        built.repository.signInWithApple(),
+        throwsA(isA<AuthException>().having((e) => e.message, 'message',
+            'Your sign-in could not be verified. Please try again.')),
+      );
+    });
+
+    test('maps an unsupported device to a specific message', () async {
+      final built = _buildRepository(
+        firebaseAuth: MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1')),
+        appleCredentialFetcher: () async =>
+            throw const SignInWithAppleNotSupportedException(
+                message: 'Sign in with Apple is not supported'),
+        adapter: () => FakeHttpClientAdapter(
+            (options) => (statusCode: 200, body: {'ok': true})),
+      );
+
+      await expectLater(
+        built.repository.signInWithApple(),
+        throwsA(isA<AuthException>().having((e) => e.message, 'message',
+            "Apple sign-in isn't available on this device.")),
+      );
     });
   });
 }

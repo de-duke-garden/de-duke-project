@@ -23,9 +23,11 @@ library;
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/routing/route_names.dart';
@@ -50,6 +52,7 @@ enum _Phase {
   idle,
   submitting,
   googleInProgress,
+  appleInProgress,
   error,
   offline,
   accountDeactivated,
@@ -111,7 +114,15 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   bool get _submitting =>
-      _phase == _Phase.submitting || _phase == _Phase.googleInProgress;
+      _phase == _Phase.submitting ||
+      _phase == _Phase.googleInProgress ||
+      _phase == _Phase.appleInProgress;
+
+  /// Sign in with Apple is an Apple-platform capability -- the official
+  /// button is hidden where the plugin cannot run (Android/Windows/Linux).
+  bool get _isApplePlatform =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS;
 
   /// +234-prefixed per the Phone field component spec -- accepts either a
   /// bare local number (leading 0 stripped) or one already typed with a
@@ -198,6 +209,38 @@ class _AuthScreenState extends State<AuthScreen> {
       // layer while the backend exchange fails -- retry the exchange
       // once, automatically, without re-prompting the account picker,
       // before falling back to a normal Auth Error state.
+      try {
+        final retried = await widget.repository.retryPendingExchange();
+        if (retried != null) {
+          _onAuthSuccess(retried);
+          return;
+        }
+      } catch (retryError) {
+        _handleAuthException(retryError);
+        return;
+      }
+      _handleAuthException(e);
+    }
+  }
+
+  /// "Continue with Apple" -- App Store Review Guideline 4.8's required
+  /// equivalent login (the app also offers Google). Same shape as
+  /// [_handleGoogle], including the one-shot pending-exchange retry: Apple
+  /// sign-in can likewise succeed at the Firebase layer while the backend
+  /// exchange drops mid-flight.
+  Future<void> _handleApple() async {
+    setState(() {
+      _phase = _Phase.appleInProgress;
+      _errorMessage = null;
+    });
+    try {
+      _onAuthSuccess(await widget.repository.signInWithApple());
+      return;
+    } catch (e) {
+      if (e is AuthException && e.message == 'cancelled') {
+        if (mounted) setState(() => _phase = _Phase.idle);
+        return;
+      }
       try {
         final retried = await widget.repository.retryPendingExchange();
         if (retried != null) {
@@ -350,6 +393,12 @@ class _AuthScreenState extends State<AuthScreen> {
                       phoneController: _phoneController,
                       otpController: _otpController,
                       onGoogle: _submitting ? null : _handleGoogle,
+                      // Sign in with Apple only exists on Apple platforms
+                      // (guideline 4.8): showApple hides the button
+                      // elsewhere, while a null onApple merely disables it
+                      // during an in-flight sign-in.
+                      showApple: _isApplePlatform,
+                      onApple: _submitting ? null : _handleApple,
                       onSwitchMode: _submitting ? null : _switchMode,
                       onSwitchMethod: _submitting ? null : _switchMethod,
                       onContinue: _submitting
@@ -519,6 +568,8 @@ class _AuthCard extends StatelessWidget {
     required this.phoneController,
     required this.otpController,
     required this.onGoogle,
+    required this.showApple,
+    required this.onApple,
     required this.onSwitchMode,
     required this.onSwitchMethod,
     required this.onContinue,
@@ -540,6 +591,14 @@ class _AuthCard extends StatelessWidget {
   final TextEditingController phoneController;
   final TextEditingController otpController;
   final VoidCallback? onGoogle;
+
+  /// Whether to show the Sign in with Apple button at all (Apple platforms
+  /// only -- the plugin no-ops elsewhere).
+  final bool showApple;
+
+  /// Null disables the button without hiding it (during an in-flight
+  /// sign-in), so the card's layout doesn't jump.
+  final VoidCallback? onApple;
   final void Function(_Mode)? onSwitchMode;
   final void Function(_Method)? onSwitchMethod;
   final VoidCallback? onContinue;
@@ -578,6 +637,22 @@ class _AuthCard extends StatelessWidget {
               message: errorMessage!,
               retryable: false,
             ),
+          // -- "Continue with Apple" -- App Store Review Guideline 4.8
+          // requires an equivalent, privacy-preserving login alongside
+          // Google Sign-In. Uses Apple's own button widget (their HIG
+          // mandates the official styling/asset), shown only on Apple
+          // platforms, and placed above Google so it is at least as
+          // prominent -- as the guideline requires.
+          if (showApple) ...[
+            SignInWithAppleButton(
+              onPressed: onApple,
+              height: 48,
+              style: Theme.of(context).brightness == Brightness.dark
+                  ? SignInWithAppleButtonStyle.white
+                  : SignInWithAppleButtonStyle.black,
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
           // -- "Continue with Google" -- first and most prominent action,
           // ahead of the Phone/Email method toggle. Mode-agnostic: Google
           // OAuth resolves new-vs-returning identity on its own, so there's
