@@ -103,7 +103,7 @@ variable "vercel_marketing_cname_target" {
 }
 
 variable "domain_name" {
-  description = "Apex domain for the Cloud DNS zone (de-duke.org)."
+  description = "Apex of the NEW primary de-duke.org Cloud DNS zone. The legacy de-duke.com zone is managed separately and pinned by the legacy_* variables."
   type        = string
   default     = "de-duke.org"
 }
@@ -181,16 +181,17 @@ variable "hold_expiry_cron" {
 }
 
 # ---------------------------------------------------------------------------
-# DNS records for de-duke.org.
+# DNS records for the NEW primary domain, de-duke.org.
 #
-# This is a GREENFIELD zone, not a copy of the old de-duke.com zone: the .org
-# records are sourced from the provider dashboards, not from Route53 (the old
-# domain is on AWS and is no longer under our control).
-#   - Zoho Mail          -> MX hosts, SPF include, domain-verification TXT,
-#                           DKIM selector/value
-#   - ZeptoMail          -> send-subdomain DKIM host/value, bounce CNAME
+# de-duke.org is a new zone (its records are sourced from the provider
+# dashboards, not copied from the legacy .com zone). The legacy de-duke.com
+# zone is separate and is preserved by dns.tf, with its inputs pinned under
+# the "Legacy de-duke.com zone inputs" block below.
+#   - Zoho Mail             -> MX hosts, SPF include, domain-verification TXT,
+#                              DKIM selector/value
+#   - ZeptoMail             -> send-subdomain DKIM host/value, bounce CNAME
 #   - Google Search Console -> site-verification TXT (only if DNS verification
-#                           is used; the HTML/analytics methods need no record)
+#                              is used; the HTML/analytics methods need no record)
 #
 # MX hosts and the SPF include are provider-generic and safe to default. Every
 # other value is domain-specific and defaults to "" (or is omitted) so nothing
@@ -216,7 +217,8 @@ variable "mx_records" {
 # covers both Zoho mailboxes and Zepto transactional mail.
 # TODO(operator): new Google Search Console and Zoho verification tokens must
 # be supplied per environment (terraform.tfvars) BEFORE apply. The old .com
-# tokens are invalid for .org, so they were removed rather than carried over.
+# tokens are invalid for .org; they are preserved for the legacy .com zone in
+# legacy_root_txt_records rather than reused here.
 variable "root_txt_records" {
   description = "TXT records for the apex domain."
   type        = list(string)
@@ -280,6 +282,118 @@ variable "zepto_bounce_cname" {
   description = "ZeptoMail return-path CNAME target from the ZeptoMail dashboard. Empty = record not created."
   type        = string
   default     = ""
+}
+
+# ---------------------------------------------------------------------------
+# Legacy de-duke.com zone inputs.
+#
+# The de-duke.com REGISTRATION is locked to AWS, but its DNS records were
+# migrated to Google Cloud DNS before the AWS account closed. The .com zone is
+# live and authoritative and must keep resolving while (and after) registration
+# recovery. These defaults are the EXACT values the .com records carried before
+# the .org migration; they are pinned here so the legacy zone can never drift.
+# Do not repoint them at the .org values.
+# ---------------------------------------------------------------------------
+variable "legacy_api_domain" {
+  description = "Legacy de-duke.com API hostname (pinned so the .com record never drifts)."
+  type        = string
+  default     = "api.de-duke.com"
+}
+
+variable "legacy_cdn_domain" {
+  description = "Legacy de-duke.com CDN hostname (pinned so the .com record never drifts)."
+  type        = string
+  default     = "cdn.de-duke.com"
+}
+
+variable "legacy_admin_fqdn" {
+  description = "Legacy de-duke.com Admin Web Console hostname (Vercel CNAME)."
+  type        = string
+  default     = "admin.de-duke.com"
+}
+
+variable "legacy_marketing_fqdn" {
+  description = "Legacy de-duke.com Marketing Site apex hostname (Vercel A record)."
+  type        = string
+  default     = "de-duke.com"
+}
+
+variable "legacy_marketing_www_fqdn" {
+  description = "Legacy de-duke.com Marketing Site www hostname (Vercel CNAME)."
+  type        = string
+  default     = "www.de-duke.com"
+}
+
+# Vercel targets captured for the OLD .com projects. They stay pinned here so
+# the .com records keep their exact targets; the .org records use the
+# separately re-captured vercel_* variables.
+variable "legacy_vercel_cname_target" {
+  description = "Vercel CNAME target for the legacy admin.de-duke.com record."
+  type        = string
+  default     = "4e88bf4fa2333825.vercel-dns-017.com."
+}
+
+variable "legacy_vercel_marketing_cname_target" {
+  description = "Vercel CNAME target for the legacy www.de-duke.com record."
+  type        = string
+  default     = "1c969cc0900a2edb.vercel-dns-017.com."
+}
+
+variable "legacy_vercel_apex_ips" {
+  description = "Vercel A-record IP(s) for the legacy de-duke.com apex."
+  type        = list(string)
+  default     = ["216.198.79.1"]
+}
+
+# Exact pre-migration .com apex TXT set: SPF + Google site verification +
+# Zoho domain verification. These tokens remain valid only for de-duke.com.
+variable "legacy_root_txt_records" {
+  description = "TXT records for the legacy de-duke.com apex (exact pre-migration values)."
+  type        = list(string)
+  default = [
+    "\"v=spf1 include:zohomail.com include:zeptomail.net ~all\"",
+    "\"google-site-verification=TDf3Xy_2XQitmbVtdlj41ZHG1orI26gvvyHPJXTtwvE\"",
+    "\"zoho-verification=zb48910551.zmverify.zoho.com\"",
+  ]
+}
+
+# Zoho Mail DKIM for de-duke.com -- 1024-bit key fits a single <=255-char TXT
+# string, which Zoho's checker accepts.
+variable "legacy_zoho_dkim_selector" {
+  description = "Zoho DKIM selector for the legacy de-duke.com zone."
+  type        = string
+  default     = "zoho"
+}
+
+variable "legacy_zoho_dkim_txt" {
+  description = "Zoho DKIM TXT value for de-duke.com (exact pre-migration value)."
+  type        = string
+  default     = "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCQIN+Mrf0RjA5CpHN5pEed3zUHqwSW0t022X3W/mJWXqUTJuICKyzVmAWDUS1+PwIElJ8BHQ1IGnKoJmVcV1AK61tXiXGJEAbbQN7EfflwQxFQl8cBCbI/OeJEyT2E558qmBROYx1HPVJOLAouzXlOA0Ds8aBrYOH5E88PEqWfLwIDAQAB"
+}
+
+# ZeptoMail DKIM + return-path for de-duke.com -- exact pre-migration values.
+variable "legacy_zepto_dkim_host" {
+  description = "ZeptoMail DKIM host for the legacy de-duke.com zone."
+  type        = string
+  default     = "1110642._domainkey.send"
+}
+
+variable "legacy_zepto_dkim_txt" {
+  description = "ZeptoMail DKIM TXT value for de-duke.com (exact pre-migration value)."
+  type        = string
+  default     = "k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCG1JLXCEF/8PmuFpMNw7lmN9kGBsB+Pqt//NU4R9xADHaoZFEWeWtE3b5WbLbp9yzQP2FQGFyhSScqbubH0+wsaCx/AhNJRdlpUs8Ucs4D6Lw4/TRzQFhaTdV2/6plTh9yxg/GGsDVM4vrXc2s2B4StGBXb+5eA4dp03jv2BzI2QIDAQAB"
+}
+
+variable "legacy_zepto_bounce_host" {
+  description = "ZeptoMail return-path CNAME host for the legacy de-duke.com zone."
+  type        = string
+  default     = "bounce-zem.send"
+}
+
+variable "legacy_zepto_bounce_cname" {
+  description = "ZeptoMail return-path CNAME target for the legacy de-duke.com zone."
+  type        = string
+  default     = "cluster89.zeptomail.com."
 }
 
 variable "labels" {

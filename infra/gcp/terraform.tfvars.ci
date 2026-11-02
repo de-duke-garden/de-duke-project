@@ -13,13 +13,17 @@ gcp_project_id      = "de-duke-services"
 gcp_project_number  = "531781610440"
 media_bucket_suffix = "531781610440"
 
+# de-duke.org is the new PRIMARY domain. The legacy de-duke.com zone is
+# preserved separately by dns.tf; its records are pinned to the legacy_*
+# variable defaults, so no .com values need to be repeated here.
 api_domain = "api.de-duke.org"
 cdn_domain = "cdn.de-duke.org"
 
 # Vercel CNAME targets must be re-captured from the Vercel projects after
 # de-duke.org / admin.de-duke.org are added there (see README, "Domain
 # migration"). The values below are stale .com-era targets, kept only so
-# plan/apply remains syntactically complete.
+# plan/apply remains syntactically complete. The legacy .com records keep
+# their own targets via the legacy_vercel_* variable defaults.
 admin_fqdn                    = "admin.de-duke.org"
 vercel_cname_target           = "4e88bf4fa2333825.vercel-dns-017.com."
 marketing_fqdn                = "de-duke.org"

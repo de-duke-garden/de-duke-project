@@ -41,6 +41,11 @@ output "artifact_registry_repo" {
 }
 
 output "dns_nameservers" {
-  description = "Cloud DNS nameservers for de-duke.org -- set these at the registrar (Google Cloud Domains) at cutover."
+  description = "Cloud DNS nameservers for the NEW primary zone de-duke.org -- set these at the registrar (Google Cloud Domains) at cutover."
+  value       = google_dns_managed_zone.deduke_org.name_servers
+}
+
+output "dns_nameservers_legacy" {
+  description = "Cloud DNS nameservers for the live legacy de-duke.com zone (do not change at the AWS-locked registrar unless recovering)."
   value       = google_dns_managed_zone.deduke.name_servers
 }

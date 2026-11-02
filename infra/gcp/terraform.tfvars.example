@@ -6,10 +6,12 @@ gcp_project_id      = "de-duke-services"
 gcp_project_number  = "531781610440" # project NUMBER (for the Cloud CDN fetch SA: service-<number>@cloud-cdn-fetch.iam.gserviceaccount.com)
 media_bucket_suffix = "531781610440" # GCP project number -- globally-unique bucket suffix
 
-# Public hostnames served by this infra. de-duke.org is a greenfield Cloud DNS
-# zone. Leave EMPTY until cutover is ready (the LB + CDN still build; the DNS
-# records and managed cert only complete once these are set and the registrar
-# nameservers point at the zone's name servers).
+# Public hostnames served by this infra. de-duke.org is the new PRIMARY Cloud
+# DNS zone. Leave EMPTY until cutover is ready (the LB + CDN still build; the
+# DNS records and managed cert only complete once these are set and the
+# registrar nameservers point at the zone's name servers).
+# The legacy de-duke.com zone is preserved separately and pinned to the
+# legacy_* variable defaults, so no .com values are needed here.
 # api_domain          = "api.de-duke.org"
 # cdn_domain          = "cdn.de-duke.org"
 

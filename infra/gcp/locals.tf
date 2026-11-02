@@ -18,7 +18,8 @@ locals {
 
   # Public hostnames this infra serves. api/cdn only when cutover-ready vars
   # are supplied; admin/marketing only when their Vercel hostnames are set.
-  # All hostnames live in de-duke.org (greenfield Cloud DNS zone).
+  # These are the de-duke.org PRIMARY hostnames; the live legacy de-duke.com
+  # zone is pinned separately through the legacy_* variables in dns.tf.
   api_fqdn     = var.api_domain != "" ? var.api_domain : ""
   cdn_fqdn     = var.cdn_domain != "" ? var.cdn_domain : ""
   admin_fqdn   = var.admin_fqdn != "" ? var.admin_fqdn : ""
