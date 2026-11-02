@@ -1,16 +1,25 @@
-# De-Duke GCP Infrastructure -- Cloud DNS (replaces Route53 subdomain records).
-# The de-duke.com public zone is created HERE, mirroring the AWS dns module's
-# records. The zone is harmless until the registrar nameservers are repointed
-# at cutover (README migration step 5) -- creating it now means zero DNS work
-# at cutover beyond the registrar change.
+# De-Duke GCP Infrastructure -- Cloud DNS for de-duke.org.
+# This is a GREENFIELD zone: there is no legacy zone to mirror. Every record
+# below is either domain-agnostic (MX, SPF, DMARC) or supplied by an external
+# provider dashboard (Zoho Mail, ZeptoMail, Google Search Console) via the
+# variables in variables.tf.
+#
+# NOTE: renaming the managed zone (`de-duke-com` -> `de-duke-org`) is a
+# destroy/create of the GCP zone, not an in-place update. That is expected and
+# safe because GCP Cloud DNS was never authoritative for de-duke.com (the old
+# domain is on AWS/Route53 and is no longer under our control), so no live
+# resolution depends on this zone. Confirm with the operator that Cloud DNS
+# has NOT been made authoritative for the apex before applying -- once the
+# registrar's nameservers point at this zone, a destroy would drop resolution.
 
-# The public zone. The registrar currently points de-duke.com at Route53;
-# this zone only becomes authoritative when nameservers are switched.
+# The de-duke.org public zone. Safe to create while the registrar still points
+# elsewhere; it only becomes authoritative when the registrar nameservers are
+# switched to the name servers this zone reports (output dns_nameservers).
 resource "google_dns_managed_zone" "deduke" {
-  name        = "de-duke-com"
+  name        = "de-duke-org"
   dns_name    = "${var.domain_name}."
   project     = var.gcp_project_id
-  description = "De-Duke public DNS (replaces Route53 zone records)"
+  description = "De-Duke public DNS for de-duke.org (Google Cloud DNS)"
   labels      = local.labels
 
   depends_on = [terraform_data.api_propagation]
@@ -93,7 +102,10 @@ resource "google_dns_record_set" "mx" {
   rrdatas      = var.mx_records
 }
 
-# Apex TXT (Zoho SPF + Google site verification + Zoho domain verification).
+# Apex TXT -- SPF only by default (Zoho mailboxes + Zepto transactional).
+# Verification tokens (Google Search Console, Zoho domain verification) are
+# domain-specific and are supplied per environment via root_txt_records; they
+# are not committed here.
 resource "google_dns_record_set" "root_txt" {
   name         = "${var.domain_name}."
   type         = "TXT"
@@ -114,8 +126,13 @@ resource "google_dns_record_set" "dmarc_txt" {
 }
 
 # Zoho Mail DKIM -- TXT record at <selector>._domainkey.<domain>.
-# 1024-bit value fits a single TXT string.
+# 1024-bit value fits a single TXT string. The count guard creates the record
+# only once the domain-specific value is supplied from the Zoho dashboard;
+# with count = 0 Terraform does not evaluate the name/rrdatas expressions, so
+# an empty value can never produce a malformed record name.
 resource "google_dns_record_set" "zoho_dkim" {
+  count = var.zoho_dkim_txt != "" ? 1 : 0
+
   name         = "${var.zoho_dkim_selector}._domainkey.${var.domain_name}."
   type         = "TXT"
   ttl          = 300
@@ -124,8 +141,12 @@ resource "google_dns_record_set" "zoho_dkim" {
   rrdatas      = ["\"${var.zoho_dkim_txt}\""]
 }
 
-# ZeptoMail DKIM -- TXT at <selector>._domainkey.send.de-duke.com.
+# ZeptoMail DKIM -- TXT at <selector>._domainkey.send.de-duke.org.
+# Both host and value are issued per domain (ZeptoMail dashboard), so this is
+# count-guarded on both: no record is created while either is empty.
 resource "google_dns_record_set" "zepto_dkim" {
+  count = var.zepto_dkim_txt != "" && var.zepto_dkim_host != "" ? 1 : 0
+
   name         = "${var.zepto_dkim_host}.${var.domain_name}."
   type         = "TXT"
   ttl          = 300
@@ -134,8 +155,12 @@ resource "google_dns_record_set" "zepto_dkim" {
   rrdatas      = ["\"${var.zepto_dkim_txt}\""]
 }
 
-# ZeptoMail return-path CNAME -- bounce.<send-subdomain>.de-duke.com.
+# ZeptoMail return-path CNAME -- bounce.<send-subdomain>.de-duke.org.
+# Count-guarded on both host and target; the bounce host prefix is part of the
+# provider-issued record, so it must be confirmed in the ZeptoMail dashboard.
 resource "google_dns_record_set" "zepto_bounce" {
+  count = var.zepto_bounce_cname != "" && var.zepto_bounce_host != "" ? 1 : 0
+
   name         = "${var.zepto_bounce_host}.${var.domain_name}."
   type         = "CNAME"
   ttl          = 300

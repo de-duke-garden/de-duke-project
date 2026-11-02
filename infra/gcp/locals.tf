@@ -17,7 +17,8 @@ locals {
   db_connection_name = "${var.gcp_project_id}:${var.gcp_region}:de-duke-primary"
 
   # Public hostnames this infra serves. api/cdn only when cutover-ready vars
-  # are supplied; admin/marketing always mirrored from the AWS dns module.
+  # are supplied; admin/marketing only when their Vercel hostnames are set.
+  # All hostnames live in de-duke.org (greenfield Cloud DNS zone).
   api_fqdn     = var.api_domain != "" ? var.api_domain : ""
   cdn_fqdn     = var.cdn_domain != "" ? var.cdn_domain : ""
   admin_fqdn   = var.admin_fqdn != "" ? var.admin_fqdn : ""

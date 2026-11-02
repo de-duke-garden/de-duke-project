@@ -41,6 +41,6 @@ output "artifact_registry_repo" {
 }
 
 output "dns_nameservers" {
-  description = "Cloud DNS nameservers for de-duke.com -- set these at the registrar at cutover."
+  description = "Cloud DNS nameservers for de-duke.org -- set these at the registrar (Google Cloud Domains) at cutover."
   value       = google_dns_managed_zone.deduke.name_servers
 }

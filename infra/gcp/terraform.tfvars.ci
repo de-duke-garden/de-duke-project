@@ -13,11 +13,15 @@ gcp_project_id      = "de-duke-services"
 gcp_project_number  = "531781610440"
 media_bucket_suffix = "531781610440"
 
-api_domain = "api.de-duke.com"
-cdn_domain = "cdn.de-duke.com"
+api_domain = "api.de-duke.org"
+cdn_domain = "cdn.de-duke.org"
 
-admin_fqdn                    = "admin.de-duke.com"
+# Vercel CNAME targets must be re-captured from the Vercel projects after
+# de-duke.org / admin.de-duke.org are added there (see README, "Domain
+# migration"). The values below are stale .com-era targets, kept only so
+# plan/apply remains syntactically complete.
+admin_fqdn                    = "admin.de-duke.org"
 vercel_cname_target           = "4e88bf4fa2333825.vercel-dns-017.com."
-marketing_fqdn                = "de-duke.com"
-marketing_www_fqdn            = "www.de-duke.com"
+marketing_fqdn                = "de-duke.org"
+marketing_www_fqdn            = "www.de-duke.org"
 vercel_marketing_cname_target = "1c969cc0900a2edb.vercel-dns-017.com."

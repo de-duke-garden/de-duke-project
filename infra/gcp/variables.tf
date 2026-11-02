@@ -103,9 +103,9 @@ variable "vercel_marketing_cname_target" {
 }
 
 variable "domain_name" {
-  description = "Apex domain for the Cloud DNS zone (de-duke.com)."
+  description = "Apex domain for the Cloud DNS zone (de-duke.org)."
   type        = string
-  default     = "de-duke.com"
+  default     = "de-duke.org"
 }
 
 variable "api_min_instances" {
@@ -159,19 +159,19 @@ variable "worker_memory" {
 variable "paystack_fallback_email" {
   description = "Plain (non-secret) fallback email for Paystack checkout (mirrors the AWS task env var)."
   type        = string
-  default     = "info@de-duke.com"
+  default     = "info@de-duke.org"
 }
 
 variable "admin_console_url" {
   description = "Public origin of the Admin Web Console (used for staff invite links)."
   type        = string
-  default     = "https://admin.de-duke.com"
+  default     = "https://admin.de-duke.org"
 }
 
 variable "marketing_site_url" {
   description = "Public origin of the Marketing Site (used for Paystack callback + share links)."
   type        = string
-  default     = "https://de-duke.com"
+  default     = "https://de-duke.org"
 }
 
 variable "hold_expiry_cron" {
@@ -181,15 +181,27 @@ variable "hold_expiry_cron" {
 }
 
 # ---------------------------------------------------------------------------
-# DNS records mirrored from the live Route53 zone (de-duke.com, Z0515278P16TK8J7UPOF)
-# at cutover-planning time. These keep email (SES/WorkMail) and verification
-# working after the nameserver switch. Override in terraform.tfvars if the
-# email provider changes (the SES keep-vs-replace decision is still open).
-# The ACM validation CNAME (_cda1e1...) is deliberately NOT mirrored -- it
-# validates an AWS cert that does not exist on GCP (Google-managed certs).
+# DNS records for de-duke.org.
+#
+# This is a GREENFIELD zone, not a copy of the old de-duke.com zone: the .org
+# records are sourced from the provider dashboards, not from Route53 (the old
+# domain is on AWS and is no longer under our control).
+#   - Zoho Mail          -> MX hosts, SPF include, domain-verification TXT,
+#                           DKIM selector/value
+#   - ZeptoMail          -> send-subdomain DKIM host/value, bounce CNAME
+#   - Google Search Console -> site-verification TXT (only if DNS verification
+#                           is used; the HTML/analytics methods need no record)
+#
+# MX hosts and the SPF include are provider-generic and safe to default. Every
+# other value is domain-specific and defaults to "" (or is omitted) so nothing
+# invalid can be created: the records in dns.tf are count-guarded and appear
+# only once the operator supplies the real values. Do NOT invent these values.
+#
+# Deliberately absent: the old ACM validation CNAME -- it validated an AWS
+# certificate that does not exist on GCP (Google-managed certs are used here).
 # ---------------------------------------------------------------------------
 
-# MX -- Zoho Mail (mailboxes for info/hello/legal@de-duke.com).
+# MX -- Zoho Mail (mailboxes for info/hello/legal@de-duke.org).
 variable "mx_records" {
   description = "MX records for the apex domain (priority + host, per Zoho's setup wizard)."
   type        = list(string)
@@ -200,20 +212,21 @@ variable "mx_records" {
   ]
 }
 
-# Root TXT records: SPF (Zoho mailboxes + Zepto transactional) + Google site
-# verification + Zoho domain verification.
+# Root TXT records. SPF only by default: the SPF policy is domain-agnostic and
+# covers both Zoho mailboxes and Zepto transactional mail.
+# TODO(operator): new Google Search Console and Zoho verification tokens must
+# be supplied per environment (terraform.tfvars) BEFORE apply. The old .com
+# tokens are invalid for .org, so they were removed rather than carried over.
 variable "root_txt_records" {
   description = "TXT records for the apex domain."
   type        = list(string)
   default = [
     "\"v=spf1 include:zohomail.com include:zeptomail.net ~all\"",
-    "\"google-site-verification=TDf3Xy_2XQitmbVtdlj41ZHG1orI26gvvyHPJXTtwvE\"",
-    "\"zoho-verification=zb48910551.zmverify.zoho.com\"",
   ]
 }
 
 variable "dmarc_txt" {
-  description = "TXT record for _dmarc.de-duke.com."
+  description = "TXT record for _dmarc.de-duke.org."
   type        = string
   default     = "\"v=DMARC1;p=quarantine;pct=100;fo=1\""
 }
@@ -225,41 +238,48 @@ variable "zoho_dkim_selector" {
   default     = "zoho"
 }
 
-# Zoho DKIM TXT value (v=DKIM1; k=rsa; p=...). 1024-bit key -- fits a single
-# <=255-char TXT string, which Zoho's checker accepts (the earlier 2048-bit
-# key exceeded the limit and had to be split, which their checker rejected).
+# Zoho DKIM TXT value (v=DKIM1; k=rsa; p=...). Domain-specific: it is issued
+# by the Zoho Mail admin console for de-duke.org. Empty by default so the
+# record is not created until the operator supplies it (count-guarded in
+# dns.tf). 1024-bit keys fit a single <=255-char TXT string, which Zoho's
+# checker accepts (a 2048-bit key exceeds the limit and must be split, which
+# their checker rejected).
 variable "zoho_dkim_txt" {
-  description = "Zoho DKIM TXT value."
+  description = "Zoho DKIM TXT value for de-duke.org (from the Zoho dashboard). Empty = record not created."
   type        = string
-  default     = "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCQIN+Mrf0RjA5CpHN5pEed3zUHqwSW0t022X3W/mJWXqUTJuICKyzVmAWDUS1+PwIElJ8BHQ1IGnKoJmVcV1AK61tXiXGJEAbbQN7EfflwQxFQl8cBCbI/OeJEyT2E558qmBROYx1HPVJOLAouzXlOA0Ds8aBrYOH5E88PEqWfLwIDAQAB"
+  default     = ""
 }
 
 # ---------------------------------------------------------------------------
-# ZeptoMail (transactional, noreply@) -- 1024-bit DKIM (fits a single TXT
-# string) + return-path CNAME on the `send` subdomain.
+# ZeptoMail (transactional, noreply@) -- DKIM TXT + return-path CNAME on the
+# `send` subdomain. All values are issued per domain by ZeptoMail; empty
+# defaults mean the records are simply not created until supplied.
 # ---------------------------------------------------------------------------
 variable "zepto_dkim_host" {
-  description = "ZeptoMail DKIM host (<selector>._domainkey.send)."
+  description = "ZeptoMail DKIM host (<selector>._domainkey.send) from the ZeptoMail dashboard. Empty = record not created."
   type        = string
-  default     = "1110642._domainkey.send"
+  default     = ""
 }
 
 variable "zepto_dkim_txt" {
-  description = "ZeptoMail DKIM TXT value."
+  description = "ZeptoMail DKIM TXT value from the ZeptoMail dashboard. Empty = record not created."
   type        = string
-  default     = "k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCG1JLXCEF/8PmuFpMNw7lmN9kGBsB+Pqt//NU4R9xADHaoZFEWeWtE3b5WbLbp9yzQP2FQGFyhSScqbubH0+wsaCx/AhNJRdlpUs8Ucs4D6Lw4/TRzQFhaTdV2/6plTh9yxg/GGsDVM4vrXc2s2B4StGBXb+5eA4dp03jv2BzI2QIDAQAB"
+  default     = ""
 }
 
+# ZeptoMail's return-path host follows a provider-standard shape
+# (bounce-zem.send) but the exact prefix is part of the issued record, so it
+# is overridable. The CNAME target is what actually gates creation.
 variable "zepto_bounce_host" {
-  description = "ZeptoMail return-path CNAME host (bounce.<subdomain>)."
+  description = "ZeptoMail return-path CNAME host (bounce.<subdomain>) from the ZeptoMail dashboard."
   type        = string
   default     = "bounce-zem.send"
 }
 
 variable "zepto_bounce_cname" {
-  description = "ZeptoMail return-path CNAME target."
+  description = "ZeptoMail return-path CNAME target from the ZeptoMail dashboard. Empty = record not created."
   type        = string
-  default     = "cluster89.zeptomail.com."
+  default     = ""
 }
 
 variable "labels" {
