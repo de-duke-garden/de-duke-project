@@ -72,7 +72,7 @@ your wallet balance so that a failed transfer never leaves your wallet balance i
 - **Guest refunds:** Handled manually by De-Duke support on a case-by-case basis, for situations
   such as a cancelled booking, a transaction dispute, or a Host/Agency failing to honor a
   transaction. Approved refunds are processed back through Paystack to your original payment
-  method. Contact support through the in-app three-way chat or **support@de-duke.com** to request a
+  method. Contact support through the in-app three-way chat or **support@de-duke.org** to request a
   refund review.
 - **Funds already released to a Host/Agency's wallet or withdrawn** are handled through De-Duke's
   dispute-resolution process rather than an automatic reversal, given they have already left
@@ -110,5 +110,5 @@ in-app notification and/or email before a material change takes effect.
 ## 13. Contact Us
 
 **De-Duke**
-Email: support@de-duke.com
+Email: support@de-duke.org
 

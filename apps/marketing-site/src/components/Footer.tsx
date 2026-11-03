@@ -24,7 +24,7 @@ export function Footer() {
         </div>
         <div className={styles.column}>
           <span className={styles.columnTitle}>Contact</span>
-          <a href="mailto:hello@de-duke.com">hello@de-duke.com</a>
+          <a href="mailto:hello@de-duke.org">hello@de-duke.org</a>
         </div>
       </div>
       <p className={styles.legal}>© {new Date().getFullYear()} De-Duke. All rights reserved.</p>

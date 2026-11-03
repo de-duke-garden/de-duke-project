@@ -1,0 +1,350 @@
+# Android Release -- builds a signed release App Bundle (AAB) on a
+# GitHub-hosted Ubuntu runner and uploads it to a Google Play track, with
+# no local keystore, Android Studio or signing setup on anyone's machine.
+#
+# Sibling workflow: ios-release.yml does the same for TestFlight / the App
+# Store. Both are manual (workflow_dispatch) -- nothing reaches real users
+# without a human picking the track and the rollout. mobile-ci.yml is the
+# verification-only workflow and ships nothing.
+#
+# SIGNING -- upload key only
+#   apps/mobile/android/app/build.gradle.kts loads signing material from the
+#   two paths below and nothing else, so that is exactly what this workflow
+#   reconstructs on the runner:
+#
+#     apps/mobile/android/app/upload-keystore.jks   <- ANDROID_KEYSTORE_BASE64
+#     apps/mobile/android/key.properties            <- the three password/alias
+#                                                      secrets (see below)
+#
+#   key.properties lives at the Gradle root (apps/mobile/android/) because
+#   build.gradle.kts loads it via rootProject.file("key.properties"); its
+#   storeFile value is resolved by the app module's file(), i.e. relative to
+#   apps/mobile/android/app/, hence the bare filename. Both paths are
+#   gitignored by apps/mobile/android/.gitignore. Nothing signing-related is
+#   ever committed, and no secret is ever written into the workflow itself.
+#
+# PLAY APP SIGNING -- what the keystore above does and does not do
+#   New Play apps are enrolled in Play App Signing by default: Google holds
+#   the APP SIGNING key and re-signs every bundle we upload. The keystore in
+#   ANDROID_KEYSTORE_BASE64 is then only the UPLOAD key -- it authorises the
+#   upload, it is NOT the certificate end users' installs are signed with.
+#   Consequences:
+#     * The upload key can be rotated (Play Console -> Setup -> App signing
+#       -> "Request upload key reset") without breaking existing installs.
+#     * apps/marketing-site/public/.well-known/assetlinks.json's
+#       sha256_cert_fingerprints entry for Android App Links must be the PLAY
+#       APP SIGNING certificate's SHA-256, not this upload keystore's --
+#       otherwise the https://de-duke.org/payment-complete intent-filter in
+#       AndroidManifest.xml silently stops verifying on Play-installed builds
+#       and Paystack's redirect opens the browser instead of the app.
+#   If the app is NOT enrolled in Play App Signing, this keystore is also
+#   the signing key: losing it means never shipping an update again. Keep the
+#   original file and its passwords in a password manager, not just in CI.
+#
+# REQUIRED REPOSITORY SECRETS (Settings -> Secrets and variables -> Actions)
+#   ANDROID_KEYSTORE_BASE64          base64 of the upload keystore .jks, one
+#                                    line. Create/encode locally once:
+#                                      keytool -genkeypair -v -keystore upload-keystore.jks \
+#                                        -alias upload -keyalg RSA -keysize 2048 -validity 10000
+#                                      base64 -w0 upload-keystore.jks
+#                                    (on macOS: base64 -i upload-keystore.jks)
+#   ANDROID_KEYSTORE_PASSWORD        store password of that keystore
+#   ANDROID_KEY_ALIAS                alias of the key inside it (e.g. upload)
+#   ANDROID_KEY_PASSWORD             password of that key
+#   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON full JSON key of the Play Developer API
+#                                    service account (paste the whole file)
+#   GOOGLE_MAPS_API_KEY              Real Maps key. Used TWICE at release
+#                                    time: (1) written into .env.json as the
+#                                    Dart define feeding places_service.dart's
+#                                    REST calls, and (2) written into
+#                                    apps/mobile/android/local.properties as
+#                                    googleMaps.apiKey, which
+#                                    app/build.gradle.kts injects into the
+#                                    AndroidManifest googleMapsApiKey
+#                                    placeholder for the native Maps SDK.
+#                                    Without (2) the shipped app renders a
+#                                    blank map (Search map view, Create
+#                                    Listing map pin).
+#
+# REQUIRED REPOSITORY VARIABLES
+#   API_BASE_URL                     e.g. https://api.de-duke.org
+#   PUBLIC_SHARE_BASE_URL            e.g. https://de-duke.org
+#   (same two variables ios-release.yml reads; keep them identical or the two
+#   store builds will talk to different backends)
+#
+# ONE-TIME PLAY CONSOLE PREREQUISITES (outside this repo)
+#   1. The app record must ALREADY EXIST in Play Console under package
+#      com.deduke.de_duke_mobile. The Play Developer API cannot create an app
+#      record, so the very first bundle of a brand-new app has to be uploaded
+#      by hand in the Play Console web UI. Once that first bundle is in, this
+#      workflow owns every later release.
+#   2. Play Console -> Setup -> API access: link the Google Cloud project that
+#      owns the service account, then grant the service account release
+#      permissions for the app ("Release to testing tracks" / "Release to
+#      production", i.e. the release-manager role -- Admin is not needed).
+#      Enable the "Google Play Android Developer API" on that Cloud project.
+#   3. Play Console -> Setup -> App signing: confirm the Play App Signing
+#      state (see the section above) and grab the signing certificate's
+#      SHA-256 for assetlinks.json.
+#   4. The target track must exist and be able to accept a bundle: internal
+#      testing accepts anything, but alpha/beta/production additionally need
+#      the store listing, content rating and data-safety declarations filled
+#      in before Play will take the upload.
+#
+# VERSION CODE
+#   --build-number becomes the AAB's versionCode. Play rejects any upload
+#   whose versionCode is not strictly greater than the highest one already in
+#   Play for that app, so leaving the input blank (GitHub run number, which
+#   never repeats within this repo) is almost always right; use the override
+#   only to jump past a versionCode uploaded from somewhere else.
+#
+# STAGED ROLLOUT
+#   Play only accepts a user fraction on an `inProgress` release, so setting
+#   `user_fraction` publishes the bundle as inProgress with that fraction
+#   regardless of `release_status` (which then only governs the full-rollout
+#   path). Leave `user_fraction` blank for a normal draft/completed upload.
+
+name: Android Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: "Play track to publish to"
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+        default: internal
+      release_status:
+        description: "Release status (used only when user_fraction is blank)"
+        type: choice
+        options:
+          - draft
+          - completed
+        default: draft
+      user_fraction:
+        description: "Staged rollout fraction strictly between 0 and 1 (e.g. 0.1). Blank = full rollout. Setting this forces status inProgress"
+        type: string
+        default: ""
+      build_number:
+        description: "versionCode. Blank = GitHub run number"
+        type: string
+        default: ""
+
+# Least privilege: this workflow only reads the repo. The Play credential is
+# a secret passed to the upload step, never a GitHub token permission.
+permissions:
+  contents: read
+
+# Two release runs racing each other would both bump the versionCode against
+# the same Play app; queue them instead of cancelling (a cancelled run could
+# leave a half-published edit).
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    # Every `run:` step below is under apps/mobile, matching mobile-ci.yml.
+    # NOTE: paths in `uses:` blocks (e.g. releaseFiles below) are resolved
+    # from the workspace root, so they carry the apps/mobile/ prefix.
+    working-directory: apps/mobile
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          # apps/mobile/android/app/build.gradle.kts targets JVM 17 and
+          # Gradle 9.1 / AGP 9.0 (android/gradle/wrapper + settings.gradle.kts)
+          # require a JDK 17+ toolchain. Temurin = the build-tested OpenJDK.
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Matches apps/mobile/.fvmrc, mobile-ci.yml and ios-release.yml --
+          # keep all four in sync.
+          flutter-version: "3.44.4"
+          channel: "stable"
+          cache: true
+
+      - name: Reconstruct Android upload keystore + key.properties
+        # The keystore is stored base64-encoded so a multi-line/binary file
+        # survives a GitHub secret. Decoded here, in the one place
+        # app/build.gradle.kts looks for it.
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::${name} is not set. See this workflow's header for the required secrets."
+              exit 1
+            fi
+          done
+
+          # No whitespace/newlines tolerated: base64 is single-line by design,
+          # but a copy-paste can introduce wrapped lines.
+          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > android/app/upload-keystore.jks
+
+          cat > android/key.properties <<PROPS
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          storeFile=upload-keystore.jks
+          PROPS
+
+          # Short-lived runner, but tighten permissions anyway: the build only
+          # needs read access to these two files.
+          chmod 600 android/key.properties android/app/upload-keystore.jks
+
+          # Fail fast with a readable message instead of a Gradle stack trace
+          # if the alias/password pair does not match the keystore.
+          keytool -list -keystore android/app/upload-keystore.jks \
+            -storepass "${ANDROID_KEYSTORE_PASSWORD}" \
+            -alias "${ANDROID_KEY_ALIAS}" > /dev/null
+          echo "Upload keystore decoded and verified."
+
+      - name: Write production .env.json
+        # .env.prod.json is gitignored (it holds the real Maps key), so the
+        # release build reconstructs .env.json from repo variables/secrets --
+        # identical to ios-release.yml's step, same variable names.
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          PUBLIC_SHARE_BASE_URL: ${{ vars.PUBLIC_SHARE_BASE_URL }}
+        run: |
+          jq -n \
+            --arg api "${API_BASE_URL:-https://api.de-duke.org}" \
+            --arg maps "${GOOGLE_MAPS_API_KEY:-}" \
+            --arg share "${PUBLIC_SHARE_BASE_URL:-https://de-duke.org}" \
+            '{API_BASE_URL: $api, GOOGLE_MAPS_API_KEY: $maps, PUBLIC_SHARE_BASE_URL: $share}' > .env.json
+
+      - run: flutter pub get
+
+      - name: Inject Google Maps key into android/local.properties
+        # The Dart define in .env.json covers places_service.dart's REST
+        # calls, but the native Maps SDK reads the googleMapsApiKey manifest
+        # placeholder, which app/build.gradle.kts fills from
+        # android/local.properties. local.properties is gitignored and is
+        # where Flutter already keeps machine-specific paths (flutter.sdk,
+        # sdk.dir); the Flutter tool preserves unknown keys when it rewrites
+        # the file during the build. Append-only so nothing existing is lost.
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "${GOOGLE_MAPS_API_KEY}" ]; then
+            touch android/local.properties
+            # Drop any stale entry first so a re-run cannot duplicate the key.
+            grep -v '^googleMaps\.apiKey=' android/local.properties > android/local.properties.tmp || true
+            printf 'googleMaps.apiKey=%s\n' "${GOOGLE_MAPS_API_KEY}" >> android/local.properties.tmp
+            mv android/local.properties.tmp android/local.properties
+          else
+            echo "::warning::GOOGLE_MAPS_API_KEY is not set -- this bundle will ship with a blank map."
+          fi
+
+      - name: Validate rollout inputs
+        # Play's API requires a user fraction strictly inside (0, 1) -- 0 and 1
+        # are rejected -- and only accepts one on the production track.
+        # Catching it here beats a 403 from Google after a full build.
+        env:
+          TRACK: ${{ inputs.track }}
+          USER_FRACTION: ${{ inputs.user_fraction }}
+        run: |
+          set -euo pipefail
+          if [ -z "${USER_FRACTION}" ]; then
+            echo "Full rollout to '${TRACK}'."
+            exit 0
+          fi
+          if [ "${TRACK}" != "production" ]; then
+            echo "::error::user_fraction is only valid for the production track (got '${TRACK}')."
+            exit 1
+          fi
+          if ! printf '%s' "${USER_FRACTION}" | grep -Eq '^[0-9]*\.?[0-9]+$'; then
+            echo "::error::user_fraction must be a decimal number such as 0.1 (got '${USER_FRACTION}')."
+            exit 1
+          fi
+          if ! awk -v f="${USER_FRACTION}" 'BEGIN { exit (f > 0 && f < 1) ? 0 : 1 }'; then
+            echo "::error::user_fraction must be greater than 0 and less than 1 (got '${USER_FRACTION}')."
+            exit 1
+          fi
+          echo "Staged rollout: ${USER_FRACTION} of production."
+
+      - name: Build release App Bundle
+        env:
+          BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
+        run: |
+          set -euo pipefail
+          echo "Building versionCode ${BUILD_NUMBER}"
+          flutter build appbundle \
+            --release \
+            --dart-define-from-file=.env.json \
+            --build-number="${BUILD_NUMBER}"
+
+      - name: Verify the bundle is signed with the upload key
+        # A silent fallback to the debug key would be uploaded to Play and
+        # adopted as the permanent upload key (an AAB is a JAR, so a signed
+        # one carries META-INF/*.SF + a PKCS#7 block), so assert the file
+        # exists where the upload step expects it and warn loudly if no
+        # signature block is present.
+        run: |
+          set -euo pipefail
+          AAB=build/app/outputs/bundle/release/app-release.aab
+          test -f "${AAB}" || { echo "::error::${AAB} was not produced."; exit 1; }
+          ls -lh "${AAB}"
+          if ! unzip -l "${AAB}" | grep -Eq 'META-INF/[^/]+\.(SF|RSA|EC|DSA)'; then
+            echo "::warning::No JAR signature block found in the AAB -- check the release signing config."
+          fi
+
+      - name: Upload to Google Play (staged rollout)
+        if: inputs.user_fraction != ''
+        # userFraction is only set on this path; the action receives no
+        # userFraction at all on the full-rollout path below. Play only
+        # accepts a fraction on an inProgress release, hence the forced
+        # status here.
+        #
+        # Release notes are intentionally not supplied (no whatsNewDirectory):
+        # Play's API treats them as optional, and store copy is curated in the
+        # Play Console. If Play ever rejects the edit with "changes cannot be
+        # sent for review automatically" (common for an app that has not been
+        # through review yet), add `changesNotSentForReview: true` here.
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.deduke.de_duke_mobile
+          # Workspace-relative: a `uses:` step ignores the job's
+          # defaults.run.working-directory.
+          releaseFiles: apps/mobile/build/app/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.track }}
+          status: inProgress
+          userFraction: ${{ inputs.user_fraction }}
+
+      - name: Upload to Google Play (full rollout)
+        if: inputs.user_fraction == ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.deduke.de_duke_mobile
+          releaseFiles: apps/mobile/build/app/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.track }}
+          status: ${{ inputs.release_status }}
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: de-duke-android-${{ inputs.track }}-${{ github.run_number }}
+          path: apps/mobile/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error

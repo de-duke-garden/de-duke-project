@@ -14,7 +14,7 @@ locals {
     "pubsub.googleapis.com",               # Task queue
     "secretmanager.googleapis.com",        # Secrets
     "artifactregistry.googleapis.com",     # Container registry
-    "dns.googleapis.com",                  # Cloud DNS zone for de-duke.com
+    "dns.googleapis.com",                  # Cloud DNS zones for de-duke.com (legacy) + de-duke.org (primary)
     "compute.googleapis.com",              # HTTPS LB + CDN backend bucket
     "cloudscheduler.googleapis.com",       # Hold-expiry / recurring jobs
     "cloudresourcemanager.googleapis.com", # project metadata

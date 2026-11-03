@@ -36,11 +36,11 @@ class AppConfig {
 
   /// Public origin hosting the Marketing Site's unauthenticated
   /// `/s/:token` route (FEAT-020, screens.md Screen 18) -- i.e.
-  /// `https://de-duke.com`. The backend only ever returns a bare
+  /// `https://de-duke.org`. The backend only ever returns a bare
   /// `share_token`; this base is what Screen 17 (Generate) prefixes onto it
   /// to build the full external URL handed to Copy/Share actions.
   static const String publicShareBaseUrl = String.fromEnvironment(
     'PUBLIC_SHARE_BASE_URL',
-    defaultValue: 'https://de-duke.com',
+    defaultValue: 'https://de-duke.org',
   );
 }

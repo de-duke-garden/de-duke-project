@@ -2,7 +2,7 @@
 (see architecture.md / AGENTS.md tech stack table). FEAT-024:
 Transactional Email Notifications (Onboarding, Payments, Verification).
 
-ZeptoMail is the transactional provider for noreply@de-duke.com; the
+ZeptoMail is the transactional provider for noreply@de-duke.org; the
 mailboxes (info/hello/legal@) live in Zoho Mail. Every external dependency
 call must use a bounded timeout + circuit breaker and degrade gracefully
 (AGENTS.md Behavior Rules) -- an email failure must never block or roll
@@ -29,7 +29,7 @@ logger = logging.getLogger("app.services.email_service")
 settings = get_settings()
 
 # Jinja2 environment over the email_templates/ directory. Each template
-# extends base.html (shared branded shell -- logo from de-duke.com, tokens
+# extends base.html (shared branded shell -- logo from de-duke.org, tokens
 # from branding.md). autoescape is on for HTML safety since template
 # contexts can contain user-provided strings (listing titles, names).
 _TEMPLATES_DIR = Path(__file__).parent / "email_templates"
@@ -181,7 +181,7 @@ async def _send_via_zeptomail(to: str, template: str, context: dict[str, Any]) -
     """Renders `template` + `context` into branded HTML (Jinja2, base.html
     shell) plus a plain-text fallback, then POSTs both to ZeptoMail's
     SendMail API. ZeptoMail requires the sender to be a verified address on
-    the `send.de-duke.com` subdomain; the mail_from uses the verified bounce
+    the `send.de-duke.org` subdomain; the mail_from uses the verified bounce
     (return-path) domain."""
     import json
 

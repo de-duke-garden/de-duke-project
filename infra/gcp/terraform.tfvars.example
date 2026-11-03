@@ -6,18 +6,22 @@ gcp_project_id      = "de-duke-services"
 gcp_project_number  = "531781610440" # project NUMBER (for the Cloud CDN fetch SA: service-<number>@cloud-cdn-fetch.iam.gserviceaccount.com)
 media_bucket_suffix = "531781610440" # GCP project number -- globally-unique bucket suffix
 
-# Public hostnames served by this infra. Leave EMPTY until the Cloud DNS zone
-# is authoritative / cutover is ready (the LB + CDN still build; the DNS
-# records and managed cert only complete once these are set and the registrar
-# nameservers point at the zone's name servers).
-# api_domain          = "api.de-duke.com"
-# cdn_domain          = "cdn.de-duke.com"
+# Public hostnames served by this infra. de-duke.org is the new PRIMARY Cloud
+# DNS zone. Leave EMPTY until cutover is ready (the LB + CDN still build; the
+# DNS records and managed cert only complete once these are set and the
+# registrar nameservers point at the zone's name servers).
+# The legacy de-duke.com zone is preserved separately and pinned to the
+# legacy_* variable defaults, so no .com values are needed here.
+# api_domain          = "api.de-duke.org"
+# cdn_domain          = "cdn.de-duke.org"
 
 # Vercel-hosted Admin Web Console + Marketing Site -- DNS-only records.
-# admin_fqdn                    = "admin.de-duke.com"
+# Re-capture both CNAME targets from the Vercel projects AFTER de-duke.org and
+# admin.de-duke.org are added there; the old .com targets are not valid.
+# admin_fqdn                    = "admin.de-duke.org"
 # vercel_cname_target           = "REPLACE_ME"   # from Vercel dashboard
-# marketing_fqdn                = "de-duke.com"
-# marketing_www_fqdn            = "www.de-duke.com"
+# marketing_fqdn                = "de-duke.org"
+# marketing_www_fqdn            = "www.de-duke.org"
 # vercel_marketing_cname_target = "REPLACE_ME"
 # vercel_apex_ips               = ["216.198.79.1"]  # Vercel's recommended IP (replaces legacy 76.76.21.21)
 

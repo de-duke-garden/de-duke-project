@@ -126,7 +126,7 @@ class Settings(BaseSettings):
     # without a code change -- set PAYSTACK_FALLBACK_EMAIL in .env locally,
     # or as a plain (non-secret) env var on the Cloud Run revision/GitHub
     # Environment variable in deployed environments.
-    paystack_fallback_email: str = "info@de-duke.com"
+    paystack_fallback_email: str = "info@de-duke.org"
     google_maps_api_key: str = "REPLACE_ME"
     firebase_service_account_json: str = "REPLACE_ME"
     # No fcm_server_key here: push notifications authenticate with the
@@ -138,14 +138,14 @@ class Settings(BaseSettings):
     firestore_project_id: str = "REPLACE_ME"
     # Transactional email via ZeptoMail (replaces Amazon SES). `zeptomail_api_key`
     # is the SendMail token from the ZeptoMail dashboard; `zeptomail_bounce_domain`
-    # is the return-path subdomain we verified in DNS (bounce-zem.send.de-duke.com).
+    # is the return-path subdomain we verified in DNS (bounce-zem.send.de-duke.org).
     zeptomail_api_key: str = "REPLACE_ME"
-    zeptomail_bounce_domain: str = "bounce-zem.send.de-duke.com"
+    zeptomail_bounce_domain: str = "bounce-zem.send.de-duke.org"
     # From-address for all transactional mail. MUST be on the verified
-    # send.de-duke.com subdomain -- ZeptoMail rejects any other sender
+    # send.de-duke.org subdomain -- ZeptoMail rejects any other sender
     # domain at auth time (401), since only the send subdomain is verified
-    # for outbound (root de-duke.com is Zoho Mail mailboxes).
-    transactional_sender_email: str = "noreply@send.de-duke.com"
+    # for outbound (root de-duke.org is Zoho Mail mailboxes).
+    transactional_sender_email: str = "noreply@send.de-duke.org"
     sentry_dsn: str = "REPLACE_ME"
     analytics_write_key: str = "REPLACE_ME"
 
@@ -206,7 +206,7 @@ class Settings(BaseSettings):
     # `.well-known/assetlinks.json` declares the app as the verified
     # handler for, so Android intercepts the redirect and opens the app
     # directly instead of the browser ever rendering the fallback page.
-    marketing_site_url: str = "https://de-duke.com"
+    marketing_site_url: str = "https://de-duke.org"
 
     @model_validator(mode="after")
     def _apply_deployed_secrets(self) -> "Settings":

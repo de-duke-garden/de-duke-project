@@ -27,8 +27,8 @@ consolidates the whole platform into that same project.
 - Media: **GCS + Cloud CDN** (direct S3 + CloudFront replacement).
 - Queue: **Pub/Sub + Cloud Run job worker** (direct SQS + Fargate worker
   replacement).
-- DNS: **Cloud DNS** zone for `de-duke.com`; registrar nameservers repointed
-  to Cloud DNS at cutover.
+- DNS: **Cloud DNS** zone for `de-duke.org`; registrar nameservers repointed
+  to Cloud DNS at cutover (domain is registered via Google Cloud Domains).
 - State backend: **GCS bucket in the GCP project** (`de-duke-services`).
 - Cutover: **parallel** — GCP built and verified while AWS stays live; DNS
   repointed; then AWS production `terraform destroy`ed.
@@ -68,7 +68,7 @@ for near-zero traffic.
 | TLS + routing | ALB | **Global HTTPS Load Balancer** (host-based: api → Cloud Run, cdn → media bucket) |
 | Secrets | Secrets Manager | **Secret Manager** |
 | Container registry | ECR | **Artifact Registry** |
-| DNS records | Route53 subdomains in de-duke.com zone | **Cloud DNS** zone for de-duke.com |
+| DNS records | `de-duke.com` DNS zone (live on Google Cloud DNS) | **Cloud DNS** dual zone: preserved `de-duke-com` + new primary `de-duke-org` |
 | WAF | WAFv2 (ALB-attached) | **Deferred** — Cloud Armor attaches to the same LB later |
 | Cache | ElastiCache Redis | **Deferred** — Memorystore only when search/rate-limiting needs it |
 | Connection pooler | RDS Proxy | **Replaced** — Cloud SQL Auth Proxy sidecar on 127.0.0.1:5432 |
@@ -218,5 +218,56 @@ as-is; only this one must be a string.)
 - [ ] App-side wiring at cutover: worker Pub/Sub push endpoint, SQS/SNS/SES
       client swaps
 - [ ] SES handling at cutover (keep vs. replace with Resend/Postmark)
-- [ ] Who holds the `de-duke.com` registration (registrar), for the NS repoint
+- [x] Domain `de-duke.org` registered via **Google Cloud Domains**; the new
+      Cloud DNS zone `de-duke-org` is the primary target (see "Domain
+      migration"). The live `de-duke-com` zone is preserved in the same tree.
 - [ ] Review the full `terraform plan` before any apply
+
+## 10. Domain migration (de-duke.com + de-duke.org)
+
+This tree manages **two Cloud DNS zones side by side**:
+
+| Zone resource | Zone name | Status |
+|---|---|---|
+| `google_dns_managed_zone.deduke` | `de-duke-com` | **Live legacy zone.** Authoritative for `de-duke.com` today. |
+| `google_dns_managed_zone.deduke_org` | `de-duke-org` | **New primary zone** for `de-duke.org`. |
+
+**`de-duke.com` is not retired.** The `.com` **registration** is locked to AWS,
+but its DNS records were migrated to **Google Cloud DNS** before the AWS account
+was closed, and that zone is live, authoritative, and managed by this Terraform
+state. It must keep resolving at all times. `prevent_destroy = true` is set on
+the zone; **never destroy it** while (or after) the `.com` registration is
+recovered. Every `.com` record is pinned to the `legacy_*` variables (exact
+pre-migration hostnames, targets, SPF/verification TXT, and DKIM/bounce values),
+so the legacy zone cannot drift when the `.org` primary is changed.
+
+**`de-duke.org` is the new primary** and must be stable. Its zone is created by
+this apply and becomes authoritative only when the Google Cloud Domains
+registrar nameservers are switched to the values in the `dns_nameservers`
+output. Once `.org` is verified stable, redirect `.com` -> `.org` at Vercel.
+When the `.com` registration is recovered, **both domains run together**; do not
+decommission the `.com` zone. Mobile bundle/package IDs and the Firebase project
+`de-duke-services` are unchanged.
+
+**Do NOT apply until the following `.org` values are supplied** (they come from
+the provider consoles, not from this repo):
+
+1. **Cloud DNS zone created** by this apply; then switch the registrar
+   (Google Cloud Domains) nameservers to the `dns_nameservers` output.
+2. **Google-managed LB certificate** covering `api.de-duke.org` and
+   `cdn.de-duke.org` (the cert only provisions once those names resolve to the
+   LB IP).
+3. **New Google site-verification TXT** for `de-duke.org`, if Search Console
+   DNS verification is used (HTML/analytics methods need no record).
+4. **New Zoho verification TXT** and **Zoho DKIM value** for `de-duke.org`
+   (the `.com` tokens and key are invalid here and stay with the legacy zone).
+5. **ZeptoMail DKIM host/value** and **bounce CNAME** for
+   `send.de-duke.org`.
+6. **Vercel CNAME targets** for `www` and `admin` (re-captured after
+   `de-duke.org` / `admin.de-duke.org` are added to the Vercel projects).
+
+The `.org` DKIM and bounce records are **count-guarded**: while their variables
+are empty they are simply not created, so a plan/apply with the defaults is safe
+but will leave `.org` DKIM/bounce unconfigured. Supply the values in
+`terraform.tfvars` (or via `-var`) and re-apply once available. Their `REPLACE_ME`
+counterparts in Secret Manager must be populated separately.

@@ -20,7 +20,7 @@
 #                                      terraform output
 #   GCP_SERVICE_ACCOUNT     (secret) - de-duke-deploy SA email
 #   GCP_REGION              (variable, optional) - default europe-west1
-#   API_DOMAIN              (variable, optional) - default api.de-duke.com
+#   API_DOMAIN              (variable, optional) - default api.de-duke.org
 
 name: Backend Deploy (GCP)
 
@@ -185,7 +185,7 @@ jobs:
 
       - name: Smoke test -- live domain health
         run: |
-          URL="https://${{ vars.API_DOMAIN || 'api.de-duke.com' }}/health/live"
+          URL="https://${{ vars.API_DOMAIN || 'api.de-duke.org' }}/health/live"
           for i in $(seq 1 12); do
             if curl -fsS "$URL"; then
               echo "Smoke test passed."

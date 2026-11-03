@@ -440,7 +440,7 @@ class _AuthScreenState extends State<AuthScreen> {
 class _LegalNotice extends StatelessWidget {
   const _LegalNotice();
 
-  static const _baseUrl = 'https://de-duke.com';
+  static const _baseUrl = 'https://de-duke.org';
   static const _termsPath = '/legal/terms-of-service';
   static const _privacyPath = '/legal/privacy-policy';
 

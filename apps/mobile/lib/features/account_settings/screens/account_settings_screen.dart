@@ -744,7 +744,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   /// browser. The legal docs are web-hosted (FEAT-037) -- the mobile app
   /// links out rather than embedding them.
   Future<void> _openLegalPage(BuildContext context, String path) async {
-    final uri = Uri.parse('https://de-duke.com$path');
+    final uri = Uri.parse('https://de-duke.org$path');
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

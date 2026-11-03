@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   description: "A property shared from De-Duke.",
 };
 
-const BACKEND_API_URL = process.env.BACKEND_API_URL ?? "https://api.de-duke.com";
+const BACKEND_API_URL = process.env.BACKEND_API_URL ?? "https://api.de-duke.org";
 
 type SharedListingSummary = {
   listing_id: string;
@@ -115,7 +115,7 @@ export default async function SharedListingSummaryPage({
 
       <footer className={styles.footer}>
         Shared via De-Duke &middot;{" "}
-        <a href="https://www.de-duke.com" className={styles.link}>
+        <a href="https://www.de-duke.org" className={styles.link}>
           Learn about De-Duke
         </a>
       </footer>

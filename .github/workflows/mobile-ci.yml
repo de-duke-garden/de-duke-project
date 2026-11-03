@@ -1,8 +1,10 @@
 # Flutter mobile app -- static analysis + unit tests on every PR/push
 # touching apps/mobile/. Not part of architecture.md's backend CI/CD
 # pipeline (the mobile app ships to app stores, not this repo's cloud
-# infra) -- this is verification only, no deploy step. App store
-# submission is a manual release process, not automated here.
+# infra) -- this is verification only, no deploy step. Store releases are
+# NOT part of this workflow: see ios-release.yml (TestFlight / App Store)
+# and android-release.yml (signed AAB -> Google Play) for the release
+# workflows, both triggered manually via workflow_dispatch.
 name: Mobile CI
 
 on:

@@ -3,7 +3,7 @@
 //
 // On Android with the app installed, this page should rarely even render:
 // apps/mobile/android/app/src/main/AndroidManifest.xml registers a
-// verified App Link (autoVerify) for https://de-duke.com/payment-complete
+// verified App Link (autoVerify) for https://de-duke.org/payment-complete
 // (backed by public/.well-known/assetlinks.json below), so Android
 // intercepts the redirect before the browser loads this page at all and
 // opens the app directly at go_router's '/payment-complete' route, which
@@ -77,8 +77,8 @@ function PaymentCompleteContent() {
   // unchanged rather than relying on the app to resolve a reference.
   const transactionId = searchParams.get("transaction_id");
   const fallbackDeepLink = transactionId
-    ? `https://de-duke.com/payment-complete?transaction_id=${encodeURIComponent(transactionId)}`
-    : "https://de-duke.com/payment-complete";
+    ? `https://de-duke.org/payment-complete?transaction_id=${encodeURIComponent(transactionId)}`
+    : "https://de-duke.org/payment-complete";
 
   return (
     <main
