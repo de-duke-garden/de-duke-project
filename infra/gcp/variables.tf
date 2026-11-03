@@ -224,6 +224,7 @@ variable "root_txt_records" {
   type        = list(string)
   default = [
     "\"v=spf1 include:zohomail.com include:zeptomail.net ~all\"",
+    "\"zoho-verification=zb41521471.zmverify.zoho.com\"",
   ]
 }
 
