@@ -313,7 +313,16 @@ resource "google_dns_record_set" "zepto_dkim_org" {
   ttl          = 300
   managed_zone = google_dns_managed_zone.deduke_org.name
   project      = var.gcp_project_id
-  rrdatas      = ["\"${var.zepto_dkim_txt}\""]
+  # ZeptoMail issues a 2048-bit DKIM key (~400 chars), which exceeds DNS's
+  # 255-byte limit for a single character-string. Split it into 255-char
+  # chunks and emit them as multiple quoted strings inside one TXT record;
+  # resolvers reassemble the value.
+  rrdatas = [
+    join(" ", [
+      for i in range(ceil(length(var.zepto_dkim_txt) / 255)) :
+      "\"${substr(var.zepto_dkim_txt, i * 255, 255)}\""
+    ])
+  ]
 }
 
 # ZeptoMail return-path CNAME -- bounce.<send-subdomain>.de-duke.org.

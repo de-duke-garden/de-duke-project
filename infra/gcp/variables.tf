@@ -261,13 +261,13 @@ variable "zoho_dkim_txt" {
 variable "zepto_dkim_host" {
   description = "ZeptoMail DKIM host (<selector>._domainkey.send) from the ZeptoMail dashboard. Empty = record not created."
   type        = string
-  default     = ""
+  default     = "39534._domainkey.send"
 }
 
 variable "zepto_dkim_txt" {
   description = "ZeptoMail DKIM TXT value from the ZeptoMail dashboard. Empty = record not created."
   type        = string
-  default     = ""
+  default     = "k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyee/RGluoS+Fr5gkAytPwn5+LyQLNEMY6ovs1HIXt1Az+wQWT+k+6OQdmsnudwju/4tCPnGfJHg1rBL69ojy5zENxZPGq37xOa4OArTL9vwIQ8/3inUI816mFGLLyfjlIQHFyv+2ZLnBOmhtGIxS+zJlcwMKxOUd3nNSowIqX4z6btfyT8WvPtKE+W5q6TEEelextLL7cCn1ndvqwLYtwJWWz7q86UrJBXyNyN3dsz3t2mDPKRZm2wiHsPmnEKYRVuwa8QHa1d7KjCyxt5QRdU+D8kaFxqpVOwhvABz1+fAiSC934PhgQAEP+XdPx6zRBLiq5Zzgt/gEQCNf/fcoEQIDAQAB"
 }
 
 # ZeptoMail's return-path host follows a provider-standard shape
@@ -282,7 +282,7 @@ variable "zepto_bounce_host" {
 variable "zepto_bounce_cname" {
   description = "ZeptoMail return-path CNAME target from the ZeptoMail dashboard. Empty = record not created."
   type        = string
-  default     = ""
+  default     = "cluster89.zeptomail.com."
 }
 
 # ---------------------------------------------------------------------------
