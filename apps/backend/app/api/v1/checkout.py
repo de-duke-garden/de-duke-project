@@ -82,7 +82,7 @@ async def initiate_checkout(
 
         reference = f"txn_{txn.id}"
         # Sends the guest's post-payment browser redirect to the marketing
-        # site's own `/payment-complete` page (not e.g. api.de-duke.com --
+        # site's own `/payment-complete` page (not e.g. api.de-duke.org --
         # that has no App Links registered for it) with `transaction_id` so
         # the page -- and, once Android intercepts the redirect via the
         # verified App Link, the app itself -- knows which transaction to

@@ -133,7 +133,7 @@ def test_render_welcome_template_uses_branded_shell() -> None:
 
     html = email_service._render_template(email_service.WELCOME, json.dumps({"full_name": "Amaka"}))
     assert "Welcome to De-Duke" in html
-    assert "de-duke.com/logo.png" in html
+    assert "de-duke.org/logo.png" in html
     assert "Amaka" in html
     assert html.startswith("<!DOCTYPE html>")
 

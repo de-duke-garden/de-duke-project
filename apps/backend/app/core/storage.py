@@ -113,7 +113,7 @@ def build_media_url(key: str) -> str:
     level access, no public IAM -- see infra/gcp/storage_cdn.tf) and is
     served only through the global LB's backend bucket with Cloud CDN
     enabled -- a direct storage.googleapis.com URL would 403. The CDN
-    domain (MEDIA_CDN_DOMAIN, e.g. cdn.de-duke.com) is therefore mandatory
+    domain (MEDIA_CDN_DOMAIN, e.g. cdn.de-duke.org) is therefore mandatory
     there. Locally (no LB), media_cdn_domain stays at its REPLACE_ME
     default, so this falls back to an emulator-servable path-style URL
     instead.
