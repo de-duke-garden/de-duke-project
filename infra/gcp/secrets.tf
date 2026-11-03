@@ -34,6 +34,14 @@ resource "google_secret_manager_secret_version" "app_secrets" {
     JWT_SIGNING_SECRET            = "REPLACE_ME"
     GEMINI_API_KEY                = "REPLACE_ME"
   })
+
+  # Live versions are populated by an operator in Secret Manager with the real
+  # third-party credentials. Terraform seeds the REPLACE_ME placeholder on first
+  # creation only -- a later apply must never rotate a live version back to
+  # placeholders. `enabled` is operator-managed for the same reason.
+  lifecycle {
+    ignore_changes = [secret_data, enabled]
+  }
 }
 
 # Database credentials -- auto-generated password, stored as the same
