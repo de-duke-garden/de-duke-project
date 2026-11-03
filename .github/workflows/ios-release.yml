@@ -35,8 +35,8 @@
 #                                              for the native Google Maps iOS SDK.
 #
 # Required repository variables:
-#   API_BASE_URL                               e.g. https://api.de-duke.com
-#   PUBLIC_SHARE_BASE_URL                      e.g. https://de-duke.com
+#   API_BASE_URL                               e.g. https://api.de-duke.org
+#   PUBLIC_SHARE_BASE_URL                      e.g. https://de-duke.org
 #
 # Prerequisite (outside this repo): an app record with bundle ID
 
@@ -124,9 +124,9 @@ jobs:
           PUBLIC_SHARE_BASE_URL: ${{ vars.PUBLIC_SHARE_BASE_URL }}
         run: |
           jq -n \
-            --arg api "${API_BASE_URL:-https://api.de-duke.com}" \
+            --arg api "${API_BASE_URL:-https://api.de-duke.org}" \
             --arg maps "${GOOGLE_MAPS_API_KEY:-}" \
-            --arg share "${PUBLIC_SHARE_BASE_URL:-https://de-duke.com}" \
+            --arg share "${PUBLIC_SHARE_BASE_URL:-https://de-duke.org}" \
             '{API_BASE_URL: $api, GOOGLE_MAPS_API_KEY: $maps, PUBLIC_SHARE_BASE_URL: $share}' > .env.json
 
       - run: flutter pub get
