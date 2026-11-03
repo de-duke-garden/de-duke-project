@@ -238,7 +238,7 @@ variable "dmarc_txt" {
 variable "zoho_dkim_selector" {
   description = "Zoho DKIM selector (the <selector>._domainkey prefix)."
   type        = string
-  default     = "zoho"
+  default     = "zmail"
 }
 
 # Zoho DKIM TXT value (v=DKIM1; k=rsa; p=...). Domain-specific: it is issued
@@ -250,7 +250,7 @@ variable "zoho_dkim_selector" {
 variable "zoho_dkim_txt" {
   description = "Zoho DKIM TXT value for de-duke.org (from the Zoho dashboard). Empty = record not created."
   type        = string
-  default     = ""
+  default     = "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCETSachjB9xEAWO9I2QwAWEskAr1QE60UPHTRYV2ozgbLxGwG/ryKpRZEnz7kULfpsCOBTFHoVyk36LMXVZANUn43wn+M91SbmeM9+1CEtcmGID0/hGQrW3x8YiGO3l9EPkDBkjyMFsY6uwKbvypdPOh+XdUigqb/mQU0Q6NBU2wIDAQAB"
 }
 
 # ---------------------------------------------------------------------------
