@@ -52,10 +52,25 @@ resource "google_compute_global_address" "lb" {
   depends_on = [terraform_data.api_propagation]
 }
 
-# Managed TLS cert. NOTE: cert provisioning only completes once the domains
-# resolve to the LB IP (i.e., after DNS cutover) -- expected pre-cutover.
+# Legacy .com managed TLS cert. Kept attached to the proxy so the old domain
+# keeps serving if its registration is recovered. Never destroy this while the
+# proxy still references it.
 resource "google_compute_managed_ssl_certificate" "lb" {
   name    = "de-duke-lb-cert"
+  project = var.gcp_project_id
+
+  managed {
+    domains = compact([var.legacy_api_domain, var.legacy_cdn_domain])
+  }
+
+  depends_on = [terraform_data.api_propagation]
+}
+
+# New .org managed TLS cert. Provisioning only completes once
+# api.de-duke.org and cdn.de-duke.org resolve to the LB IP, so it stays
+# PROVISIONING until DNS propagates.
+resource "google_compute_managed_ssl_certificate" "lb_org" {
+  name    = "de-duke-lb-cert-org"
   project = var.gcp_project_id
 
   managed {
@@ -98,8 +113,12 @@ resource "google_compute_url_map" "lb" {
 resource "google_compute_target_https_proxy" "lb" {
   name             = "de-duke-lb-proxy"
   project          = var.gcp_project_id
-  url_map          = google_compute_url_map.lb.id
-  ssl_certificates = [google_compute_managed_ssl_certificate.lb.id]
+  url_map = google_compute_url_map.lb.id
+  # Both certs stay attached: .com for recovery, .org as the live primary.
+  ssl_certificates = [
+    google_compute_managed_ssl_certificate.lb.id,
+    google_compute_managed_ssl_certificate.lb_org.id,
+  ]
 
   depends_on = [terraform_data.api_propagation]
 }
