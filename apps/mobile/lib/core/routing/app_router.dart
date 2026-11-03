@@ -369,7 +369,7 @@ final GoRouter appRouter = GoRouter(
     ),
 
     // -- Android App Links / iOS Universal Links landing route. Matches
-    // https://de-duke.com/payment-complete (see
+    // https://de-duke.org/payment-complete (see
     // android/app/src/main/AndroidManifest.xml's autoVerify intent-filter
     // and Settings.marketing_site_url's docstring, backend side) -- when
     // Android/iOS hands this app the incoming URL, go_router matches it by

@@ -61,11 +61,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             <!-- Android App Links: after Paystack checkout, the guest's
-                 browser is redirected to https://de-duke.com/payment-complete
+                 browser is redirected to https://de-duke.org/payment-complete
                  (Settings.marketing_site_url plus the callback_url built in
                  apps/backend/app/api/v1/checkout.py's initiate_checkout).
                  `autoVerify="true"` makes Android confirm this app is the
-                 registered handler for that host via
+                 registered handler for each host via
                  apps/marketing-site/public/.well-known/assetlinks.json
                  (Digital Asset Links) at install time, then intercepts any
                  matching https:// navigation, including one opened by
@@ -74,6 +74,11 @@
                  site's fallback page. go_router's '/payment-complete' route
                  (app_router.dart) receives the full URI (path + query
                  params) and redirects into Transaction Detail.
+                 Domain migration: de-duke.org is the primary marketing
+                 domain; the de-duke.com entries are intentionally retained
+                 so links to the old domain (already shared, bookmarked, or
+                 still indexed) keep resolving into the app during recovery
+                 until traffic to .com has fully tapered off.
                  IMPORTANT: assetlinks.json's sha256_cert_fingerprints must
                  be updated with this app's real release-signing
                  certificate fingerprint (`keytool -list -v -keystore
@@ -83,6 +88,8 @@
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="de-duke.org" android:pathPrefix="/payment-complete"/>
+                <data android:scheme="https" android:host="www.de-duke.org" android:pathPrefix="/payment-complete"/>
                 <data android:scheme="https" android:host="de-duke.com" android:pathPrefix="/payment-complete"/>
                 <data android:scheme="https" android:host="www.de-duke.com" android:pathPrefix="/payment-complete"/>
             </intent-filter>
