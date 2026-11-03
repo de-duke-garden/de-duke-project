@@ -142,5 +142,5 @@ our data governance and change-notice practices.
 ## 15. Contact Us
 
 **De-Duke**
-Email: legal@de-duke.com
+Email: legal@de-duke.org
 

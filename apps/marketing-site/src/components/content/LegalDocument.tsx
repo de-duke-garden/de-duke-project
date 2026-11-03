@@ -68,7 +68,7 @@ export function LegalDocument({ slug }: { slug: LegalDocumentSlug }) {
           <h1>We couldn&apos;t load this document</h1>
           <p>
             Something went wrong loading this page. Try again, or reach us directly at{" "}
-            <a href="mailto:support@de-duke.com">support@de-duke.com</a>.
+            <a href="mailto:support@de-duke.org">support@de-duke.org</a>.
           </p>
           <p>
             <Link href="/">Back to De-Duke home</Link>

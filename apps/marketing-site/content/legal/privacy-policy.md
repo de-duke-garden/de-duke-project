@@ -17,7 +17,7 @@ over it. It applies to all users of the platform — Guests, Hosts, Agents/Agenc
 our Marketing Website.
 
 If you have questions about this policy or want to exercise any of the rights described below,
-contact us at **privacy@de-duke.com**.
+contact us at **privacy@de-duke.org**.
 
 ## 2. Data We Collect
 
@@ -128,7 +128,7 @@ Under the Nigeria Data Protection Act/NDPR and applicable law, you have the righ
 - Withdraw consent for optional features (e.g., location access, push notifications) at any time
   via your device settings
 
-To exercise any of these rights, contact **privacy@de-duke.com**. We will respond within the
+To exercise any of these rights, contact **privacy@de-duke.org**. We will respond within the
 timeframe required by applicable law.
 
 ## 7. Material Changes to This Policy
@@ -153,5 +153,5 @@ Nigeria, we rely on appropriate safeguards consistent with NDPR requirements.
 ## 10. Contact Us
 
 **De-Duke**
-Email: privacy@de-duke.com
+Email: privacy@de-duke.org
 

@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/lib/auth";
 
 // Public paths that never require a session cookie. FEAT-020's Shareable
-// Summary view (Screen 18) moved to the MARKETING site (de-duke.com/s/:token)
+// Summary view (Screen 18) moved to the MARKETING site (de-duke.org/s/:token)
 // -- it no longer lives in this console, so it is no longer allowlisted here.
 const PUBLIC_PATHS = ["/login", "/api/session", "/accept-invite"];
 
