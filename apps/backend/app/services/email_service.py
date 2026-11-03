@@ -181,7 +181,7 @@ async def _send_via_zeptomail(to: str, template: str, context: dict[str, Any]) -
     """Renders `template` + `context` into branded HTML (Jinja2, base.html
     shell) plus a plain-text fallback, then POSTs both to ZeptoMail's
     SendMail API. ZeptoMail requires the sender to be a verified address on
-    the `send.de-duke.org` subdomain; the mail_from uses the verified bounce
+    the `de-duke.org` domain; the mail_from uses the verified bounce
     (return-path) domain."""
     import json
 

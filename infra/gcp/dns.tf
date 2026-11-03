@@ -302,7 +302,7 @@ resource "google_dns_record_set" "zoho_dkim_org" {
   rrdatas      = ["\"${var.zoho_dkim_txt}\""]
 }
 
-# ZeptoMail DKIM -- TXT at <selector>._domainkey.send.de-duke.org.
+# ZeptoMail DKIM -- TXT at <selector>._domainkey.de-duke.org.
 # Both host and value are issued per domain (ZeptoMail dashboard), so this is
 # count-guarded on both: no record is created while either is empty.
 resource "google_dns_record_set" "zepto_dkim_org" {

@@ -27,8 +27,8 @@ resource "google_secret_manager_secret_version" "app_secrets" {
     FIREBASE_SERVICE_ACCOUNT_JSON = "REPLACE_ME"
     FIRESTORE_PROJECT_ID          = "REPLACE_ME"
     ZEPTOMAIL_API_KEY             = "REPLACE_ME" # transactional email (noreply@)
-    ZEPTOMAIL_BOUNCE_DOMAIN       = "bounce-zem.send.de-duke.org"
-    TRANSACTIONAL_SENDER_EMAIL    = "noreply@send.de-duke.org" # must be on the verified send subdomain
+    ZEPTOMAIL_BOUNCE_DOMAIN       = "bounce-zem.de-duke.org"
+    TRANSACTIONAL_SENDER_EMAIL    = "noreply@de-duke.org" # must be on the verified domain
     SENTRY_DSN                    = "REPLACE_ME"
     ANALYTICS_WRITE_KEY           = "REPLACE_ME"
     JWT_SIGNING_SECRET            = "REPLACE_ME"

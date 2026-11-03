@@ -261,7 +261,7 @@ variable "zoho_dkim_txt" {
 variable "zepto_dkim_host" {
   description = "ZeptoMail DKIM host (<selector>._domainkey.send) from the ZeptoMail dashboard. Empty = record not created."
   type        = string
-  default     = "39534._domainkey.send"
+  default     = "39534._domainkey"
 }
 
 variable "zepto_dkim_txt" {
@@ -271,12 +271,12 @@ variable "zepto_dkim_txt" {
 }
 
 # ZeptoMail's return-path host follows a provider-standard shape
-# (bounce-zem.send) but the exact prefix is part of the issued record, so it
+# (bounce-zem) but the exact prefix is part of the issued record, so it
 # is overridable. The CNAME target is what actually gates creation.
 variable "zepto_bounce_host" {
   description = "ZeptoMail return-path CNAME host (bounce.<subdomain>) from the ZeptoMail dashboard."
   type        = string
-  default     = "bounce-zem.send"
+  default     = "bounce-zem"
 }
 
 variable "zepto_bounce_cname" {

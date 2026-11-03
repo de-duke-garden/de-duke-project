@@ -138,14 +138,14 @@ class Settings(BaseSettings):
     firestore_project_id: str = "REPLACE_ME"
     # Transactional email via ZeptoMail (replaces Amazon SES). `zeptomail_api_key`
     # is the SendMail token from the ZeptoMail dashboard; `zeptomail_bounce_domain`
-    # is the return-path subdomain we verified in DNS (bounce-zem.send.de-duke.org).
+    # is the return-path host we verified in DNS (bounce-zem.de-duke.org).
     zeptomail_api_key: str = "REPLACE_ME"
-    zeptomail_bounce_domain: str = "bounce-zem.send.de-duke.org"
+    zeptomail_bounce_domain: str = "bounce-zem.de-duke.org"
     # From-address for all transactional mail. MUST be on the verified
-    # send.de-duke.org subdomain -- ZeptoMail rejects any other sender
-    # domain at auth time (401), since only the send subdomain is verified
-    # for outbound (root de-duke.org is Zoho Mail mailboxes).
-    transactional_sender_email: str = "noreply@send.de-duke.org"
+    # de-duke.org domain -- ZeptoMail rejects any other sender domain at
+    # auth time (401). Zoho Mail mailboxes also live on the root domain,
+    # on separate MX records.
+    transactional_sender_email: str = "noreply@de-duke.org"
     sentry_dsn: str = "REPLACE_ME"
     analytics_write_key: str = "REPLACE_ME"
 

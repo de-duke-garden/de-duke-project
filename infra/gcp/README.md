@@ -262,7 +262,7 @@ the provider consoles, not from this repo):
 4. **New Zoho verification TXT** and **Zoho DKIM value** for `de-duke.org`
    (the `.com` tokens and key are invalid here and stay with the legacy zone).
 5. **ZeptoMail DKIM host/value** and **bounce CNAME** for
-   `send.de-duke.org`.
+   `de-duke.org`.
 6. **Vercel CNAME targets** for `www` and `admin` (re-captured after
    `de-duke.org` / `admin.de-duke.org` are added to the Vercel projects).
 
