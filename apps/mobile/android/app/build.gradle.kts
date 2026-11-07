@@ -23,6 +23,15 @@ if (localPropertiesFile.exists()) {
 }
 val googleMapsApiKey: String = localProperties.getProperty("googleMaps.apiKey", "")
 
+// Upload keystore for Play Store release builds -- key.properties is
+// gitignored and holds the keystore passwords; the .jks itself lives in
+// android/app/upload-keystore.jks (also gitignored). Never commit either.
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
 android {
     namespace = "com.deduke.de_duke_mobile"
     compileSdk = flutter.compileSdkVersion
@@ -45,11 +54,22 @@ android {
         manifestPlaceholders["googleMapsApiKey"] = googleMapsApiKey
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String
+            keyPassword = keystoreProperties["keyPassword"] as String
+            storeFile = file(keystoreProperties["storeFile"] as String)
+            storePassword = keystoreProperties["storePassword"] as String
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Release builds are signed with the dedicated upload keystore
+            // (android/key.properties + android/app/upload-keystore.jks) --
+            // never the debug key, which Play would otherwise adopt as the
+            // permanent upload key.
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
