@@ -10,7 +10,8 @@ export type VisitorPlatform = "ios" | "android" | "desktop";
 // Google Play Console assign these once the app is submitted. Kept in one
 // place so a real listing URL only ever needs to change here.
 export const APP_STORE_URL = "https://apps.apple.com/app/de-duke/id0000000000";
-export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.deduke.app";
+export const PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=com.deduke.de_duke_mobile";
 
 /**
  * Detects the visitor's platform from `navigator.userAgent`.
