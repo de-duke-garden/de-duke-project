@@ -21,6 +21,13 @@
 #     `deliver` with submit_for_review: false -- metadata, screenshots and
 #     the final "Submit for Review" stay in App Store Connect's web UI.
 #
+#   * Retry: almost every upload failure is Apple-side (an expired program
+#     agreement, a transient App Store Connect error), and the IPA from a
+#     failed run is still a correct, signed binary. The IPA artifact is
+#     therefore uploaded even when a step failed, and a dispatch with
+#     `reuse-ipa-from-run: <run id>` downloads that artifact and goes
+#     straight to the upload lane, skipping signing sync and the build.
+#
 # Required repository secrets:
 #   APPLE_TEAM_ID                              Apple Developer Team ID (Membership page)
 #   APP_STORE_CONNECT_API_KEY_KEY_ID           ASC API key ID
@@ -74,6 +81,10 @@ on:
         description: "Version (CFBundleShortVersionString). Blank = pubspec.yaml version"
         type: string
         default: ""
+      reuse-ipa-from-run:
+        description: "Retry only: run ID of a prior run whose IPA artifact to upload as-is (skips signing + build). Blank = build from source"
+        type: string
+        default: ""
 
 concurrency:
   group: ios-release
@@ -86,6 +97,13 @@ jobs:
     # macos-15's DEFAULT Xcode is 16.4 (iOS 18.5 SDK) and would be rejected
     # with a 409 at upload time, so do not downgrade this label.
     runs-on: macos-26
+    # Least privilege. `actions: read` is what lets the retry path read a
+    # prior run's IPA artifact (gh api run lookup + gh run download); nothing
+    # here writes to the repo, and the match repo authenticates with its own
+    # PAT secret rather than this token.
+    permissions:
+      contents: read
+      actions: read
     defaults:
       run:
         working-directory: apps/mobile
@@ -108,6 +126,9 @@ jobs:
           working-directory: apps/mobile/ios
 
       - name: Install Flutter
+        # Skipped on a retry: uploading an already-built IPA needs Ruby and
+        # fastlane only, so the Flutter toolchain is dead weight there.
+        if: ${{ inputs.reuse-ipa-from-run == '' }}
         uses: subosito/flutter-action@v2
         with:
           # Matches apps/mobile/.fvmrc and mobile-ci.yml -- keep in sync.
@@ -118,6 +139,8 @@ jobs:
       - name: Write production .env.json
         # .env.prod.json is gitignored (contains the real Maps key), so the
         # release build reconstructs .env.json from repo variables/secrets.
+        # Only the build reads it, so a retry does not need it either.
+        if: ${{ inputs.reuse-ipa-from-run == '' }}
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
@@ -130,14 +153,18 @@ jobs:
             '{API_BASE_URL: $api, GOOGLE_MAPS_API_KEY: $maps, PUBLIC_SHARE_BASE_URL: $share}' > .env.json
 
       - run: flutter pub get
+        if: ${{ inputs.reuse-ipa-from-run == '' }}
 
       - name: Bootstrap signing assets (first run only)
-        if: inputs.bootstrap
+        # Signing paths are all build-path only: a retry uploads an IPA that
+        # is already signed, so match must not run (and `bootstrap: true`
+        # alongside reuse-ipa-from-run is meaningless, not an error).
+        if: ${{ inputs.bootstrap && inputs.reuse-ipa-from-run == '' }}
         working-directory: apps/mobile/ios
         run: bundle exec fastlane ios bootstrap_match
 
       - name: Sync signing assets (read-only)
-        if: ${{ !inputs.bootstrap }}
+        if: ${{ !inputs.bootstrap && inputs.reuse-ipa-from-run == '' }}
         working-directory: apps/mobile/ios
         run: bundle exec fastlane ios match_appstore
 
@@ -149,6 +176,8 @@ jobs:
         # EMPTY placeholder (frontend-owned), so inject insert-or-replace:
         # `Set` when the key already exists, `Add` when it does not -- the
         # two states are robust to commit ordering. Never inline the secret.
+        # The plist change only matters to an archive, so a retry skips it.
+        if: ${{ inputs.reuse-ipa-from-run == '' }}
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: |
@@ -159,6 +188,9 @@ jobs:
           fi
 
       - name: Build release IPA
+        # Skipped on a retry: the whole point of reuse-ipa-from-run is that
+        # this archive (the 15 minute part) already happened once.
+        if: ${{ inputs.reuse-ipa-from-run == '' }}
         env:
           BUILD_NUMBER: ${{ inputs.build-number || github.run_number }}
           BUILD_NAME: ${{ inputs.build-name }}
@@ -192,9 +224,82 @@ jobs:
           if [ -n "$BUILD_NAME" ]; then ARGS+=(--build-name="$BUILD_NAME"); fi
           flutter build ipa "${ARGS[@]}"
 
-      - name: Locate built IPA
+      - name: Download IPA from a prior run (retry)
+        # The alternative to building: pull the artifact the failed run
+        # already uploaded. The artifact is named from the SOURCE run's
+        # number, and a run ID is not a run number, so the expected name is
+        # resolved through the API instead of guessed -- a wrong or stale
+        # IPA must fail here, never reach App Store Connect.
+        if: ${{ inputs.reuse-ipa-from-run != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REUSE_RUN_INPUT: ${{ inputs.reuse-ipa-from-run }}
+          DISTRIBUTION: ${{ inputs.distribution }}
+          BUILD_NUMBER_INPUT: ${{ inputs.build-number }}
+          BUILD_NAME_INPUT: ${{ inputs.build-name }}
+        run: |
+          set -u
+          # Accept the bare run ID or a full run URL pasted from the browser
+          # (the trailing path segment is the same number either way).
+          SOURCE_RUN=$(printf '%s' "$REUSE_RUN_INPUT" | tr -d '[:space:]' | sed 's#.*/##')
+          case "$SOURCE_RUN" in
+            '' | *[!0-9]*)
+              echo "::error::reuse-ipa-from-run must be a run ID (the number at the end of the run URL), got '${REUSE_RUN_INPUT}'."
+              exit 1
+              ;;
+          esac
+
+          if ! RUN_JSON=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN"); then
+            echo "::error::Cannot read run $SOURCE_RUN in $GITHUB_REPOSITORY. Check the ID, and that the run is in this repository (a fork or a deleted run cannot be reused)."
+            exit 1
+          fi
+          SOURCE_RUN_NUMBER=$(printf '%s' "$RUN_JSON" | jq -r '.run_number')
+          SOURCE_BRANCH=$(printf '%s' "$RUN_JSON" | jq -r '.head_branch')
+          ARTIFACT="de-duke-ios-${DISTRIBUTION}-${SOURCE_RUN_NUMBER}"
+          echo "Run $SOURCE_RUN: number $SOURCE_RUN_NUMBER, branch $SOURCE_BRANCH, expected artifact '$ARTIFACT'"
+
+          # Not fatal: retries are often dispatched from the default branch
+          # while the binary came from a release branch. But the IPA is
+          # uploaded exactly as built, so say which code it contains.
+          if [ "$SOURCE_BRANCH" != "$GITHUB_REF_NAME" ]; then
+            echo "::warning::That IPA was built from '$SOURCE_BRANCH'; this run is on '$GITHUB_REF_NAME'. The binary is uploaded as-is, so build-number/build-name reflect the source run, not this one."
+          fi
+          if [ -n "$BUILD_NUMBER_INPUT" ] || [ -n "$BUILD_NAME_INPUT" ]; then
+            echo "::warning::build-number/build-name are ignored here: the version comes from the downloaded binary."
+          fi
+
+          mkdir -p build/ios/ipa
+          # Strict --name, no wildcard: downloading "whichever artifact is
+          # present" is how a stale binary reaches TestFlight.
+          if ! gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT" --dir build/ios/ipa; then
+            AVAILABLE=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN/artifacts" --jq '.artifacts[].name' 2>/dev/null | tr '\n' ' ' || true)
+            echo "::error::Run $SOURCE_RUN has no artifact named '$ARTIFACT'. Artifacts present: ${AVAILABLE:-none (artifacts expire after the repository retention window)}. Re-dispatch with 'distribution' matching the source run, or leave reuse-ipa-from-run blank to build from source."
+            exit 1
+          fi
+          # The re-upload below globs build/ios/ipa/*.ipa, so pull any nested
+          # .ipa up to the top level: a prefixed path in the artifact must not
+          # turn "reuse the IPA" into "re-upload nothing".
+          find build/ios/ipa -mindepth 2 -type f -name '*.ipa' -exec mv {} build/ios/ipa/ \;
+          ls -l build/ios/ipa
+
+      - name: Locate the IPA to upload
         id: ipa
-        run: echo "path=$PWD/build/ios/ipa/$(ls build/ios/ipa | grep '\.ipa$' | head -n1)" >> "$GITHUB_OUTPUT"
+        # One absolute path feeds both upload lanes. Resolved by search so it
+        # works whether the IPA was just built (build/ios/ipa/Runner.ipa) or
+        # downloaded from a reuse run, and it fails here rather than leaving
+        # fastlane to upload an empty path.
+        run: |
+          set -u
+          ipas=$(find build/ios/ipa -type f -name '*.ipa' 2>/dev/null | sort || true)
+          if [ -z "$ipas" ]; then
+            echo "::error::No .ipa found under build/ios/ipa. The build must have failed before archiving, and no reuse run supplied one."
+            exit 1
+          fi
+          count=$(printf '%s\n' "$ipas" | wc -l | tr -d ' ')
+          if [ "$count" -gt 1 ]; then
+            echo "::warning::Found $count .ipa files under build/ios/ipa; using the first."
+          fi
+          echo "path=$PWD/$(printf '%s\n' "$ipas" | head -n1)" >> "$GITHUB_OUTPUT"
 
       - name: Upload to TestFlight
         if: inputs.distribution == 'testflight'
@@ -211,6 +316,14 @@ jobs:
         run: bundle exec fastlane ios upload_appstore
 
       - name: Upload IPA artifact
+        # Runs even when the upload lane failed: a rejected upload is an
+        # Apple-side problem fixed in App Store Connect, and rebuilding the
+        # same binary for it is the waste this step exists to prevent. It
+        # does not mask the failure -- the job still concludes red -- and
+        # `if-no-files-found: error` still fails a build that produced
+        # nothing. On a retry this re-uploads under this run's name, so the
+        # chain stays downloadable.
+        if: always()
         uses: actions/upload-artifact@v5
         with:
           name: de-duke-ios-${{ inputs.distribution }}-${{ github.run_number }}
