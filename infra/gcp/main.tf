@@ -144,14 +144,25 @@ resource "google_storage_bucket_iam_member" "backend_media" {
 # (storage_cdn.tf) must be able to read objects out of the private media
 # bucket, or every CDN media URL 403s. This is the standard Cloud CDN
 # pattern for a private backend bucket: grant the project's fetch service
-# account roles/storage.objectViewer (the bucket itself stays private --
+# account a bucket-level reader role (the bucket itself stays private --
 # no public IAM). Per GCP docs (cdn/docs/setting-up-cdn-with-bucket), the
 # fetch identity for backend buckets is service-<PROJECT_NUM>@https-lb
 # .iam.gserviceaccount.com, and it is provisioned automatically on first
 # reference (it does not appear in `gcloud iam service-accounts list`).
+#
+# The role is deliberately roles/storage.legacyObjectReader (storage.objects
+# .get only) and NOT roles/storage.objectViewer. objectViewer also carries
+# storage.objects.list, which the LB will exercise on an anonymous caller's
+# behalf: because the backend bucket proxies GET / to
+# https://storage.googleapis.com/<bucket>/ as this service account, the live
+# site answered https://cdn.de-duke.org/ with a 200 ListBucketResult
+# enumerating every object key -- including host verification documents --
+# even though the bucket has no public IAM binding anywhere (verified
+# 2026-11-13). Serving an object needs get only, so list is pure exposure
+# here: Cloud CDN never lists the bucket, it fetches individual keys.
 resource "google_storage_bucket_iam_member" "cdn_fetch_media" {
   bucket = google_storage_bucket.media.name
-  role   = "roles/storage.objectViewer"
+  role   = "roles/storage.legacyObjectReader"
   member = "serviceAccount:service-${var.gcp_project_number}@https-lb.iam.gserviceaccount.com"
 
   depends_on = [terraform_data.api_propagation]
