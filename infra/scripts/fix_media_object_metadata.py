@@ -83,6 +83,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Optional
@@ -133,10 +134,9 @@ class ObjectPlan:
 def _resolve_gcloud(explicit: Optional[str]) -> list[str]:
     """Return the argv prefix used to invoke gcloud.
 
-    On Windows the console entry point is `gcloud.cmd`, which CreateProcess
-    cannot execute directly, so a `.cmd`/`.bat` shim has to go through the
-    command interpreter. Doing this explicitly keeps the rest of the script on
-    shell=False (no quoting or injection surprises from object keys).
+    The returned element is the executable itself; `_run` handles the Windows
+    `.cmd` shim, because how it is launched (not what it is) is the part that
+    differs there.
     """
     candidate = explicit or shutil.which("gcloud") or ""
     if not candidate:
@@ -144,9 +144,6 @@ def _resolve_gcloud(explicit: Optional[str]) -> list[str]:
             "gcloud not found on PATH. Install the Google Cloud SDK, or pass "
             "--gcloud /path/to/gcloud (Windows: ...\\google-cloud-sdk\\bin\\gcloud.cmd)."
         )
-    lowered = candidate.lower()
-    if os.name == "nt" and lowered.endswith((".cmd", ".bat")):
-        return [os.environ.get("COMSPEC", "cmd.exe"), "/c", candidate]
     return [candidate]
 
 
@@ -154,16 +151,58 @@ class GcloudError(RuntimeError):
     """A gcloud invocation exited non-zero."""
 
 
+# Bounds a single gcloud call: the parallel signature reads below fire many
+# short-lived gcloud processes at once, and the SDK's resolver intermittently
+# fails one of them with getaddrinfo/ConnectionError on otherwise healthy
+# network. Those are transient by nature -- the same command succeeds on the
+# next attempt -- so they are retried instead of aborting a 51-object run (or
+# a mid-apply batch) over one lost DNS lookup.
+_TRANSIENT_MARKERS = (
+    "NameResolutionError",
+    "ConnectionError",
+    "getaddrinfo",
+    "Failed to establish a new connection",
+    "Timeout",
+    "Connection reset",
+    "429",
+    "503",
+)
+_ATTEMPTS = 4
+
+
 def _run(prefix: list[str], args: list[str], *, text: bool = True) -> bytes | str:
     """Run a gcloud subcommand, returning raw bytes (or text when asked)."""
-    cmd = [*prefix, *args]
     # GCLOUD_USER_AGENT / CLU less noise: --quiet suppresses "do you want to
     # continue" style prompts, which must never fire in a batch run.
-    cmd.append("--quiet")
-    completed = subprocess.run(cmd, capture_output=True, check=False)
-    if completed.returncode != 0:
+    argv = [*args, "--quiet"]
+    exe = prefix[0]
+    if os.name == "nt" and exe.lower().endswith((".cmd", ".bat")):
+        # Windows only: the SDK's entry point is a `.cmd` shim, which
+        # CreateProcess cannot execute, and routing it through
+        # `cmd /c "<path>"` loses the path at its first space (cmd strips the
+        # outer quotes of a /c argument, so it runs `C:\Users\...\Google\Cloud`
+        # instead). A single explicitly quoted command line is the form that
+        # survives a shim path containing spaces. Object keys and values are
+        # still quoted by list2cmdline, never pasted raw.
+        command: str | list[str] = f'"{exe}" ' + subprocess.list2cmdline(argv)
+    else:
+        command = [exe, *argv]
+
+    completed: subprocess.CompletedProcess[bytes] | None = None
+    for attempt in range(1, _ATTEMPTS + 1):
+        if isinstance(command, str):
+            completed = subprocess.run(command, shell=True, capture_output=True)
+        else:
+            completed = subprocess.run(command, capture_output=True)
+        if completed.returncode == 0:
+            break
         stderr = completed.stderr.decode("utf-8", "replace").strip()
-        raise GcloudError(f"{' '.join(cmd)} failed ({completed.returncode}): {stderr}")
+        transient = any(marker in stderr for marker in _TRANSIENT_MARKERS)
+        if not transient or attempt == _ATTEMPTS:
+            shown = command if isinstance(command, str) else " ".join(command)
+            raise GcloudError(f"{shown} failed ({completed.returncode}): {stderr}")
+        time.sleep(2 * attempt)
+    assert completed is not None  # loop always runs at least once
     return completed.stdout.decode("utf-8", "replace") if text else completed.stdout
 
 
