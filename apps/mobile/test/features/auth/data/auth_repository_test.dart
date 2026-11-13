@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart' show FormData, HttpClientAdapter, RequestOptions;
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
@@ -577,6 +578,46 @@ void main() {
       final fields = (captured!.data as FormData).fields;
       expect(fields.any((f) => f.key == 'full_name' && f.value == 'New Name'),
           isTrue);
+    });
+
+    test(
+        'T-023: sends the profile photo part with an explicit, extension-derived content type',
+        () async {
+      final firebaseAuth = MockFirebaseAuth(mockUser: MockUser(uid: 'uid-1'));
+      RequestOptions? captured;
+      final built = _buildRepository(
+        firebaseAuth: firebaseAuth,
+        adapter: () => FakeHttpClientAdapter((options) {
+          captured = options;
+          return (
+            statusCode: 200,
+            body: {
+              'user_id': 'user-1',
+              'full_name': 'Amaka',
+              'email': null,
+              'phone_number': null,
+              'auth_provider': 'firebase',
+              'is_firebase_linked': false,
+              'profile_photo_url': 'https://cdn.test/photo.jpg',
+            },
+          );
+        }),
+      );
+
+      final dir = await Directory.systemTemp.createTemp('auth_repo_test');
+      final photoPath = '${dir.path}/avatar.png';
+      await File(photoPath).writeAsBytes([0, 1, 2, 3]);
+
+      await built.repository.updateProfile(profilePhotoLocalPath: photoPath);
+
+      final photoPart = (captured!.data as FormData)
+          .files
+          .singleWhere((part) => part.key == 'profile_photo');
+      // The part's filename keeps the picked file's real extension (this
+      // endpoint is not filename-matched), and the content type the CDN
+      // will serve comes from that same extension, not a blind default.
+      expect(photoPart.value.filename, 'avatar.png');
+      expect(photoPart.value.contentType?.mimeType, 'image/png');
     });
 
     test('sends clearProfilePhoto as a multipart form field', () async {

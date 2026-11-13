@@ -23,6 +23,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/session_store.dart';
+import '../../../core/utils/upload_mime.dart';
 
 class AuthResult {
   const AuthResult({
@@ -826,6 +827,13 @@ class AuthRepository {
   /// independent of every other field; `profilePhotoLocalPath` takes
   /// precedence if both are somehow set in the same call (matching the
   /// backend's own precedence).
+  ///
+  /// T-023: the photo part carries an explicit `contentType` derived from
+  /// the picked file's path extension. Its filename stays Dio's default
+  /// (the basename, extension included) -- this endpoint is not
+  /// filename-matched, and the CDN serves the part's content type, so
+  /// without the explicit type an unmapped extension used to land as
+  /// application/octet-stream.
   Future<UserProfile> updateProfile({
     String? fullName,
     String? email,
@@ -837,7 +845,10 @@ class AuthRepository {
         if (fullName != null) 'full_name': fullName,
         if (email != null) 'email': email,
         if (profilePhotoLocalPath != null)
-          'profile_photo': await MultipartFile.fromFile(profilePhotoLocalPath),
+          'profile_photo': await MultipartFile.fromFile(
+            profilePhotoLocalPath,
+            contentType: uploadContentTypeForPath(profilePhotoLocalPath),
+          ),
         if (clearProfilePhoto) 'clear_profile_photo': 'true',
       };
       final response = await _apiClient.dio.patch(

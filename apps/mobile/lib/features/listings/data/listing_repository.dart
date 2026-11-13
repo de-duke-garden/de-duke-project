@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/utils/upload_mime.dart';
 import 'listing_models.dart';
 
 class ListingRepository {
@@ -115,6 +116,13 @@ class ListingRepository {
   /// for a video, `processing_status`/`poster_url`) so the caller can
   /// reflect processing state immediately rather than re-fetching the
   /// whole listing.
+  ///
+  /// T-023: each part carries an explicit `contentType` from the picked
+  /// file's path extension. The part filename stays Dio's default (the
+  /// basename, extension included) -- these parts are matched by field
+  /// name (`file_<tempKey>`), not filename, so an accurate extension in
+  /// the filename is kept per the frozen decision and the content type
+  /// the CDN ends up serving is pinned to the bytes rather than guessed.
   Future<List<ListingMedia>> uploadMedia(
     String listingId,
     List<PendingListingMedia> media,
@@ -123,8 +131,10 @@ class ListingRepository {
       'media_meta': jsonEncode(media.map((m) => m.toMetaJson()).toList()),
     };
     for (final item in media) {
-      formMap['file_${item.tempKey}'] =
-          await MultipartFile.fromFile(item.localPath);
+      formMap['file_${item.tempKey}'] = await MultipartFile.fromFile(
+        item.localPath,
+        contentType: uploadContentTypeForPath(item.localPath),
+      );
     }
     final response = await _apiClient.dio.post(
       '/v1/listings/$listingId/media',

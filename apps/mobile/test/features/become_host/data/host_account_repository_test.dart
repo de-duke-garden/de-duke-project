@@ -12,7 +12,7 @@ library;
 
 import 'dart:io';
 
-import 'package:dio/dio.dart' show FormData;
+import 'package:dio/dio.dart' show FormData, RequestOptions;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:de_duke_mobile/core/api/api_client.dart';
@@ -120,7 +120,7 @@ void main() {
       // layer still map the response body's `detail` correctly. Use a
       // temp file created for real so we exercise past the file-read
       // step and into the actual HTTP call.
-      final tempPath = await _writeTempFile();
+      final tempPath = await _writeTempFile('photo.jpg');
       await expectLater(
         () => repository.submit(
           hostType: HostType.owner,
@@ -132,13 +132,72 @@ void main() {
       );
     });
 
+    test(
+        'T-023: sends a real content type per part while every filename stays its bare temp key',
+        () async {
+      // Regression surface for the served-as-octet-stream production bug:
+      // the parts' filenames are extension-less temp keys (the backend
+      // matches parts against `submission`'s declared temp keys by
+      // filename), so without an explicit contentType Dio used to default
+      // every part to application/octet-stream and the CDN served host
+      // photos/documents as octet-stream. The content type must come from
+      // the picked file's own path extension, and the filenames must stay
+      // byte-identical temp keys -- renaming a part to carry its
+      // extension would break the backend's correlation and 422 the
+      // whole submission.
+      RequestOptions? captured;
+      final repository = _buildRepository(
+        adapter: () => FakeHttpClientAdapter((options) {
+          captured = options;
+          return (
+            statusCode: 200,
+            body: {
+              'id': 'host-1',
+              'host_type': 'owner',
+              'status': 'in_review',
+              'status_reason': null,
+              'host_photo_url': 'https://cdn.test/photo.jpg',
+              'bio': 'A short bio',
+            },
+          );
+        }),
+      );
+
+      final photoPath = await _writeTempFile('photo.jpg');
+      final docPath = await _writeTempFile('cac_cert.png');
+
+      await repository.submit(
+        hostType: HostType.owner,
+        bio: 'A short bio',
+        profilePhotoLocalPath: photoPath,
+        documents: [
+          PendingDocument(
+            field: 'cac_cert_doc_url',
+            tempKey: 'cac_cert_doc_url',
+            localPath: docPath,
+          ),
+        ],
+      );
+
+      final parts = (captured!.data as FormData).files;
+      expect(parts.length, 2);
+
+      final photoPart =
+          parts.singleWhere((part) => part.value.filename == 'profile_photo');
+      expect(photoPart.value.contentType?.mimeType, 'image/jpeg');
+
+      final docPart = parts
+          .singleWhere((part) => part.value.filename == 'cac_cert_doc_url');
+      expect(docPart.value.contentType?.mimeType, 'image/png');
+    });
+
     test('maps a connection error to the "offline" sentinel', () async {
       final client = ApiClient(
           baseUrl: 'https://api.test', sessionStore: FakeSessionStore());
       client.dio.httpClientAdapter = ConnectionErrorHttpClientAdapter();
       final repository = HostAccountRepository(client);
 
-      final tempPath = await _writeTempFile();
+      final tempPath = await _writeTempFile('photo.jpg');
       await expectLater(
         () => repository.submit(
           hostType: HostType.owner,
@@ -202,9 +261,9 @@ void main() {
   });
 }
 
-Future<String> _writeTempFile() async {
+Future<String> _writeTempFile(String name) async {
   final dir = await Directory.systemTemp.createTemp('host_account_test');
-  final file = File('${dir.path}/photo.jpg');
+  final file = File('${dir.path}/$name');
   await file.writeAsBytes([0, 1, 2, 3]);
   return file.path;
 }

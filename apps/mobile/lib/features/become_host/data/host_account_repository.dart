@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../../core/api/api_client.dart';
+import '../../../core/utils/upload_mime.dart';
 import 'host_account_models.dart';
 
 class HostAccountException implements Exception {
@@ -54,6 +55,16 @@ class HostAccountRepository {
   /// per document, each with its filename set to its declared temp_key so
   /// the backend can match it without index-encoded field names.
   ///
+  /// T-023: the part filenames here MUST stay bare temp keys with no
+  /// extension (and the profile photo's MUST stay `profile_photo`) -- the
+  /// backend matches every `files` part against the temp keys declared in
+  /// `submission` by part filename, so renaming a part to carry its
+  /// extension would break the correlation and 422 the whole submission.
+  /// The served content type is fixed instead by setting each part's
+  /// explicit `contentType` from the picked file's own path extension --
+  /// without it Dio defaults these extension-less parts to
+  /// application/octet-stream, which is what the CDN then serves.
+  ///
   /// Reading the picked local files (`MultipartFile.fromFile`) used to
   /// happen OUTSIDE this method's try/catch, so a stale/unreadable local
   /// path (e.g. the OS reclaiming `image_picker`'s cache file between
@@ -98,9 +109,15 @@ class HostAccountRepository {
     try {
       files = [
         await MultipartFile.fromFile(profilePhotoLocalPath,
-            filename: profilePhotoTempKey),
+            filename: profilePhotoTempKey,
+            // T-023: content type from the picked file's extension -- the
+            // part filename is the bare temp key, so Dio has nothing to
+            // sniff and would otherwise send application/octet-stream.
+            contentType: uploadContentTypeForPath(profilePhotoLocalPath)),
         for (final doc in documents)
-          await MultipartFile.fromFile(doc.localPath, filename: doc.tempKey),
+          await MultipartFile.fromFile(doc.localPath,
+              filename: doc.tempKey,
+              contentType: uploadContentTypeForPath(doc.localPath)),
       ];
     } catch (e, stackTrace) {
       // No crash-reporting SDK is wired into this app yet. Logged via BOTH
@@ -158,7 +175,14 @@ class HostAccountRepository {
     MultipartFile? photo;
     if (photoLocalPath != null) {
       try {
-        photo = await MultipartFile.fromFile(photoLocalPath);
+        // T-023: explicit content type from the picked file's extension.
+        // The part filename is not used for matching on this endpoint
+        // (the backend binds the `photo` field name), so Dio's default
+        // basename filename keeps its real extension -- fine per the
+        // frozen decision that only the verification submission's parts
+        // must carry bare temp-key filenames.
+        photo = await MultipartFile.fromFile(photoLocalPath,
+            contentType: uploadContentTypeForPath(photoLocalPath));
       } catch (e, stackTrace) {
         developer.log(
           'HostAccountRepository.updateProfile: failed to read the picked local photo',
