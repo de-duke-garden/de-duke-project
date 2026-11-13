@@ -20,6 +20,7 @@ import anyio
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.media_urls import render_media_urls
 from app.models.host_account import HostAccount
 from app.models.listing import (
     CommercialListing,
@@ -415,6 +416,11 @@ def listing_to_dict(
     Listing Detail (mobile) and the Admin Web Console's Chat Oversight
     property context panel, closing the long-documented-but-never-built
     "shown on their listings" intent for HostAccount.bio (schema.md).
+
+    Every media field is rendered against the current CDN host on the way
+    out (`render_media_urls`): the database holds object keys, and the
+    listing bundle is returned as a plain dict, so this function -- not a
+    response schema -- is the last stop before JSON (T-021).
     """
     out: dict[str, Any] = {
         "id": listing.id,
@@ -484,7 +490,7 @@ def listing_to_dict(
             "house_rules": shortlet.house_rules,
             "blocked_dates": shortlet.blocked_dates,
         }
-    return out
+    return render_media_urls(out)
 
 
 def touch_updated_at(listing: Listing) -> None:

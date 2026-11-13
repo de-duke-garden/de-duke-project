@@ -7,6 +7,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.core.media_urls import OptionalMediaURL
+
 
 class InitiateCheckoutRequest(BaseModel):
     transaction_id: str
@@ -58,7 +60,10 @@ class TransactionDetail(TransactionSummary):
     payment_processor_reference: str | None
     paid_at: datetime | None
     hold_expires_at: datetime | None
-    receipt_url: str | None = None
+    # Receipt.pdf_url's stored object key, rendered against the current CDN
+    # host (T-021). Null until a receipt PDF exists; "" for the legacy
+    # pre-generation rows whose pdf_url was left empty.
+    receipt_url: OptionalMediaURL = None
     # Two-sided commission model (product decision) -- the full breakdown
     # behind gross_amount/net_payout_amount/commission_amount above.
     # Nullable only for legacy transactions predating the split (see

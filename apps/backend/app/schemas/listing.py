@@ -18,6 +18,8 @@ client alone.
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.core.media_urls import MediaURL, OptionalMediaURL
+
 
 class LocationIn(BaseModel):
     """Client supplies lat/lng (from any of the three Screen 7 input methods:
@@ -167,9 +169,11 @@ class ListingUpdateIn(BaseModel):
 class ListingMediaOut(BaseModel):
     id: str
     media_type: str  # image | video
-    media_url: str
+    # Rendered from the stored object key against the current CDN host --
+    # never the raw column value (app/core/media_urls.py, T-021).
+    media_url: MediaURL
     # Video-only -- always None for an image.
-    poster_url: str | None = None
+    poster_url: OptionalMediaURL = None
     duration_seconds: float | None = None
     # pending | ready | failed | None (None only for legacy/image rows
     # predating this field, where it's meaningless anyway). See
@@ -202,7 +206,7 @@ class ListingOut(BaseModel):
     # missing (defensive -- shouldn't occur for a live listing, since a
     # HostAccount is required to create one at all).
     host_bio: str | None = None
-    host_photo_url: str | None = None
+    host_photo_url: OptionalMediaURL = None
     host_type: str | None = None
     media: list[ListingMediaOut] = Field(default_factory=list)
     commercial: dict | None = None
@@ -223,7 +227,7 @@ class ListingSummaryOut(BaseModel):
     status_reason: str | None
     location_city: str
     location_state: str
-    primary_image_url: str | None = None
+    primary_image_url: OptionalMediaURL = None
 
 
 class ListingListResponse(BaseModel):

@@ -18,9 +18,14 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel
 
 import app.models  # noqa: F401  -- populates SQLModel.metadata before create_all
-from app.core import cache
+from app.core import cache, storage
 from app.core.db import get_session
 from app.main import app
+
+#: The live media host. Pinned for every test by _stub_media_storage below,
+#: so response URLs are real: a stored `https://cdn.de-duke.com/<key>` row
+#: must come back out as `https://cdn.de-duke.org/<key>` (T-021).
+TEST_MEDIA_CDN_DOMAIN = "cdn.de-duke.org"
 
 test_engine = create_async_engine(
     "sqlite+aiosqlite:///:memory:",
@@ -155,31 +160,62 @@ def mock_firebase_verify(
         yield
 
 
-async def _fake_upload_to_media_storage(upload, *, prefix: str) -> str:
-    """Deterministic stand-in for app.core.storage.upload_file -- endpoint
-    tests (host account verification, listing image upload) only care that
-    *a* URL is returned and persisted, not that a real S3/LocalStack call
+async def _fake_upload_file_key(upload, *, prefix: str) -> str:
+    """Deterministic stand-in for app.core.storage.upload_file_key --
+    endpoint tests (host account verification, listing image upload) only
+    care that *a key* is returned and persisted, not that a real GCS call
     happened. storage.py's own upload/URL-building logic is covered in
-    isolation by test_storage.py."""
-    return f"https://test-media.example/{prefix}/{upload.filename or 'upload'}"
+    isolation by test_storage.py.
+
+    Returns an object key (never a URL), matching the real contract: the
+    read path is what turns it into `https://{TEST_MEDIA_CDN_DOMAIN}/<key>`
+    (see _stub_media_storage below).
+    """
+    return f"{prefix}/{upload.filename or 'upload'}"
+
+
+async def _fake_upload_bytes_key(
+    body: bytes, *, prefix: str, filename: str, content_type: str | None = None
+) -> str:
+    """Bytes-upload counterpart of `_fake_upload_file_key` above (listing
+    video + poster uploads)."""
+    return f"{prefix}/{filename or 'upload'}"
 
 
 @pytest.fixture(autouse=True)
 def _stub_media_storage(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patches the name each call site bound at import time (`from
-    app.core.storage import upload_file as upload_to_media_storage`) --
-    patching app.core.storage.upload_file itself would not affect those
-    already-bound references."""
+    app.core.storage import upload_file_key`) -- patching
+    app.core.storage.upload_file_key itself would not affect those
+    already-bound references.
+
+    Also pins the media CDN domain for every test. Read paths now derive a
+    URL from the stored object key on every response
+    (app/core/media_urls.py), and storage.build_media_url deliberately
+    raises on an unconfigured environment -- so without this every test
+    that returns a media field would 500 in a repo whose .env leaves
+    MEDIA_CDN_DOMAIN at REPLACE_ME. It is set to the real production host
+    on purpose: it is exactly the host the T-021 migration rewrites to, so
+    the regression test reads the way the incident did.
+    """
+    monkeypatch.setattr(storage.settings, "media_cdn_domain", TEST_MEDIA_CDN_DOMAIN)
+    monkeypatch.setattr(storage.settings, "gcs_endpoint_url", "")
+    monkeypatch.setattr(storage.settings, "media_local_public_base_url", "")
+
     monkeypatch.setattr(
-        "app.services.verification_service.upload_to_media_storage",
-        _fake_upload_to_media_storage,
+        "app.services.verification_service.upload_file_key",
+        _fake_upload_file_key,
     )
     monkeypatch.setattr(
-        "app.api.v1.listings.upload_to_media_storage",
-        _fake_upload_to_media_storage,
+        "app.api.v1.listings.upload_file_key",
+        _fake_upload_file_key,
+    )
+    monkeypatch.setattr(
+        "app.api.v1.listings.upload_bytes_key",
+        _fake_upload_bytes_key,
     )
     # FEAT-041 -- User.profile_photo_url upload (auth_service.update_profile).
     monkeypatch.setattr(
-        "app.services.auth_service.upload_to_media_storage",
-        _fake_upload_to_media_storage,
+        "app.services.auth_service.upload_file_key",
+        _fake_upload_file_key,
     )

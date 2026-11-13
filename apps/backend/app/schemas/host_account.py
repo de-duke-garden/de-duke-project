@@ -11,6 +11,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.media_urls import MediaURL, OptionalMediaURL
+
 REQUIRED_DOCUMENT_FIELDS: dict[str, list[str]] = {
     "owner": [],
     "agent": [
@@ -92,7 +94,10 @@ class HostAccountStatusResponse(BaseModel):
     host_type: str
     status: str
     status_reason: str | None
-    host_photo_url: str
+    # Derived on read from the stored object key (app/core/media_urls.py,
+    # T-021) -- see that module for why this is a validator and not a
+    # build_media_url call in the router.
+    host_photo_url: MediaURL
     bio: str
 
 
@@ -100,31 +105,37 @@ class HostAccountDetailResponse(BaseModel):
     """GET /admin/host-accounts/:id -- Screen 27 detail panel. Includes
     every possible type-specific document/field as optional; the frontend
     renders only the ones relevant to `host_type` (per REQUIRED_DOCUMENT_FIELDS/
-    REQUIRED_TEXT_FIELDS above, which define exactly which fields apply)."""
+    REQUIRED_TEXT_FIELDS above, which define exactly which fields apply).
+
+    Every *_url field here is a stored object key rendered against the
+    current CDN host on the way out (app/core/media_urls.py, T-021) --
+    including the type-specific documents below, which are copied into the
+    detail dict generically by verification_service.get_submission_detail_full.
+    """
 
     id: str
     user_id: str
     host_type: str
     status: str
     status_reason: str | None
-    host_photo_url: str
+    host_photo_url: MediaURL
     bio: str
     created_at: str
 
     # Agent
-    cac_cert_doc_url: str | None = None
-    industry_license_url: str | None = None
-    proof_of_address_url: str | None = None
-    rep_id_url: str | None = None
+    cac_cert_doc_url: OptionalMediaURL = None
+    industry_license_url: OptionalMediaURL = None
+    proof_of_address_url: OptionalMediaURL = None
+    rep_id_url: OptionalMediaURL = None
     # Company
-    cac_reg_doc_url: str | None = None
+    cac_reg_doc_url: OptionalMediaURL = None
     # Lawyer
     nba_enrol_no: str | None = None
-    valid_practicing_cert_url: str | None = None
-    govt_issued_id_url: str | None = None
+    valid_practicing_cert_url: OptionalMediaURL = None
+    govt_issued_id_url: OptionalMediaURL = None
     # Architect
     arcon_reg_no: str | None = None
-    practice_license_url: str | None = None
+    practice_license_url: OptionalMediaURL = None
     # Surveyor
     surcon_reg_no: str | None = None
     # Lawyer/Architect/Surveyor

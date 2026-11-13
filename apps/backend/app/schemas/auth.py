@@ -7,6 +7,8 @@ note.
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
+from app.core.media_urls import OptionalMediaURL
+
 
 class FirebaseExchangeRequest(BaseModel):
     """Screen 1 (Sign-Up / Login) -- the single entry point for every
@@ -89,7 +91,8 @@ class UserProfileResponse(BaseModel):
     # auth_provider (unlike email) -- distinct from FEAT-042's
     # HostAccount.host_photo_url (the host-verification photo shown on a
     # host's listings). See auth_service.update_profile's docstring.
-    profile_photo_url: str | None = None
+    # Rendered from the stored object key on the way out (T-021).
+    profile_photo_url: OptionalMediaURL = None
 
 
 # PATCH /v1/user/profile is multipart (not JSON) since `profile_photo_url`

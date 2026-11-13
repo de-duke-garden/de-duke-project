@@ -8,6 +8,8 @@ a Listing model field.
 
 from pydantic import BaseModel
 
+from app.core.media_urls import OptionalMediaURL
+
 
 class HostDashboardListingItem(BaseModel):
     """One listing card on Screen 12. `is_stale` is computed server-side
@@ -24,7 +26,7 @@ class HostDashboardListingItem(BaseModel):
     status_reason: str | None
     view_count: int
     inquiry_count: int
-    primary_image_url: str | None
+    primary_image_url: OptionalMediaURL
     is_stale: bool
 
 

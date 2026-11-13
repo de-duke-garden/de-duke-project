@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel, Field
 
+from app.core.media_urls import OptionalMediaURL
+
 
 class ModerationQueueItemOut(BaseModel):
     # FEAT-025 AC (post-FEAT-009): discriminates "new Owner listing"
@@ -21,7 +23,7 @@ class ModerationQueueItemOut(BaseModel):
     host_account_id: str | None
     host_type: str | None
     created_at: str
-    primary_image_url: str | None = None
+    primary_image_url: OptionalMediaURL = None
 
     # Populated only for queue_item_type in (listing_report,
     # conversation_report) -- None for new_listing_review items.

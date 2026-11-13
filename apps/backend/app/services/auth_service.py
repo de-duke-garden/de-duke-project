@@ -41,7 +41,7 @@ from sqlmodel import select
 from app.core import cache
 from app.core import firebase as firebase_core
 from app.core.security import UserRole, create_access_token, hash_password, verify_password
-from app.core.storage import upload_file as upload_to_media_storage
+from app.core.storage import upload_file_key
 from app.models.user import User
 from app.services.email_service import PASSWORD_RESET, WELCOME, notify_user
 
@@ -477,9 +477,10 @@ async def update_profile(
             )
         user.email = email
     if profile_photo is not None:
-        user.profile_photo_url = await upload_to_media_storage(
-            profile_photo, prefix=f"users/{user.id}"
-        )
+        # Stored as an object key, never a URL -- the URL is derived on read
+        # (app/core/media_urls.py), so a CDN domain change re-renders every
+        # existing avatar instead of stranding it on the old host (T-021).
+        user.profile_photo_url = await upload_file_key(profile_photo, prefix=f"users/{user.id}")
     elif clear_profile_photo:
         user.profile_photo_url = None
 

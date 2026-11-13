@@ -11,7 +11,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.core.storage import upload_file as upload_to_media_storage
+from app.core.storage import upload_file_key
 from app.models.host_account import (
     HostAccount,
     HostAccountAgent,
@@ -40,13 +40,16 @@ _SUBTYPE_TABLES = {
 
 async def _store_file(upload: UploadFile, *, user_id: str) -> str:
     """Persists an uploaded verification document/photo to the File Storage
-    Service (GCS + Cloud CDN, app/core/storage.py) and returns its durable URL.
+    Service (GCS + Cloud CDN, app/core/storage.py) and returns its object
+    key, which is what the *_url columns store (T-021: a URL minted here
+    would point at whatever CDN host was configured at upload time, forever).
+    The public URL is derived on read by app/core/media_urls.py.
 
     Namespaced by user_id (not host_account.id) because the profile photo
     is uploaded before the HostAccount row -- and therefore its id -- exists
     (see submit_host_account below).
     """
-    return await upload_to_media_storage(upload, prefix=f"host-accounts/{user_id}")
+    return await upload_file_key(upload, prefix=f"host-accounts/{user_id}")
 
 
 async def get_own_submission(session: AsyncSession, *, user_id: str) -> HostAccount | None:
@@ -140,19 +143,19 @@ async def submit_host_account(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Missing profile photo file for the declared profile_photo_temp_key.",
         )
-    photo_url = await _store_file(profile_photo_upload, user_id=user_id)
+    photo_key = await _store_file(profile_photo_upload, user_id=user_id)
 
     host_account = HostAccount(
         user_id=user_id,
         host_type=payload.host_type.value,
-        host_photo_url=photo_url,
+        host_photo_url=photo_key,
         bio=payload.bio,
         status="in_review",
     )
     session.add(host_account)
     await session.flush()  # assign host_account.id before creating the subtype row
 
-    document_urls: dict[str, str] = {}
+    document_keys: dict[str, str] = {}
     for doc in payload.documents:
         upload = files_by_temp_key.get(doc.temp_key)
         if upload is None:
@@ -160,44 +163,44 @@ async def submit_host_account(
                 f"Missing file for declared document field '{doc.field}' (temp_key={doc.temp_key})."
             )
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
-        document_urls[doc.field] = await _store_file(upload, user_id=user_id)
+        document_keys[doc.field] = await _store_file(upload, user_id=user_id)
 
     subtype_model = _SUBTYPE_TABLES[payload.host_type]
     subtype_kwargs: dict[str, object] = {"host_account_id": host_account.id}
     if payload.host_type == HostType.LAWYER:
         subtype_kwargs.update(
             nba_enrol_no=payload.nba_enrol_no,
-            valid_practicing_cert_url=document_urls.get("valid_practicing_cert_url"),
-            govt_issued_id_url=document_urls.get("govt_issued_id_url"),
-            proof_of_address_url=document_urls.get("proof_of_address_url"),
+            valid_practicing_cert_url=document_keys.get("valid_practicing_cert_url"),
+            govt_issued_id_url=document_keys.get("govt_issued_id_url"),
+            proof_of_address_url=document_keys.get("proof_of_address_url"),
             ref_phone_no=payload.ref_phone_no,
         )
     elif payload.host_type == HostType.ARCHITECT:
         subtype_kwargs.update(
             arcon_reg_no=payload.arcon_reg_no,
-            practice_license_url=document_urls.get("practice_license_url"),
-            govt_issued_id_url=document_urls.get("govt_issued_id_url"),
+            practice_license_url=document_keys.get("practice_license_url"),
+            govt_issued_id_url=document_keys.get("govt_issued_id_url"),
             ref_phone_no=payload.ref_phone_no,
         )
     elif payload.host_type == HostType.SURVEYOR:
         subtype_kwargs.update(
             surcon_reg_no=payload.surcon_reg_no,
-            practice_license_url=document_urls.get("practice_license_url"),
-            govt_issued_id_url=document_urls.get("govt_issued_id_url"),
+            practice_license_url=document_keys.get("practice_license_url"),
+            govt_issued_id_url=document_keys.get("govt_issued_id_url"),
             ref_phone_no=payload.ref_phone_no,
         )
     elif payload.host_type == HostType.AGENT:
         subtype_kwargs.update(
-            cac_cert_doc_url=document_urls.get("cac_cert_doc_url"),
-            industry_license_url=document_urls.get("industry_license_url"),
-            proof_of_address_url=document_urls.get("proof_of_address_url"),
-            rep_id_url=document_urls.get("rep_id_url"),
+            cac_cert_doc_url=document_keys.get("cac_cert_doc_url"),
+            industry_license_url=document_keys.get("industry_license_url"),
+            proof_of_address_url=document_keys.get("proof_of_address_url"),
+            rep_id_url=document_keys.get("rep_id_url"),
         )
     elif payload.host_type == HostType.COMPANY:
         subtype_kwargs.update(
-            cac_reg_doc_url=document_urls.get("cac_reg_doc_url"),
-            proof_of_address_url=document_urls.get("proof_of_address_url"),
-            rep_id_url=document_urls.get("rep_id_url"),
+            cac_reg_doc_url=document_keys.get("cac_reg_doc_url"),
+            proof_of_address_url=document_keys.get("proof_of_address_url"),
+            rep_id_url=document_keys.get("rep_id_url"),
         )
     # Owner: no additional fields beyond host_account_id.
 

@@ -4,6 +4,8 @@ Summary for Internal Approval) -- Screen 17 (Generate) / Screen 18
 
 from pydantic import BaseModel, Field
 
+from app.core.media_urls import OptionalMediaURL
+
 
 class ShareCreateOut(BaseModel):
     """Response for POST /v1/listings/{id}/share -- Screen 17's "Generated"
@@ -37,7 +39,10 @@ class SharedListingSummaryOut(BaseModel):
     price_label: str  # e.g. "sale", "lease", "per night"
     key_terms: list[str] = Field(default_factory=list)
     verification_status: str  # verified | unverified
-    primary_image_url: str | None = None
+    # Stored object key of the listing's primary image, rendered against
+    # the current CDN host (T-021) -- the public share page is the one
+    # surface a non-app visitor sees, so a dead host here is a dead link.
+    primary_image_url: OptionalMediaURL = None
     listing_is_active: bool
 
 

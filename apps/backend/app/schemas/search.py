@@ -12,6 +12,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.media_urls import OptionalMediaURL
+
 
 class ListingTypeFilter(StrEnum):
     commercial = "commercial"
@@ -146,7 +148,9 @@ class ListingSearchResult(BaseModel):
     # Field name kept for API stability; semantics per
     # listing_service.is_listing_verified.
     is_verified_host: bool = False
-    primary_image_url: str | None = None
+    # Stored object key of the listing's primary image, rendered against
+    # the current CDN host (T-021).
+    primary_image_url: OptionalMediaURL = None
     created_at: str
 
     bathrooms: int | None = None

@@ -29,6 +29,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
+from app.core.media_urls import render_media_urls
 from app.core.security import (
     CurrentUser,
     UserRole,
@@ -36,8 +37,7 @@ from app.core.security import (
     get_current_user_optional,
     require_roles,
 )
-from app.core.storage import upload_bytes as upload_bytes_to_media_storage
-from app.core.storage import upload_file as upload_to_media_storage
+from app.core.storage import upload_bytes_key, upload_file_key
 from app.models.host_account import HostAccount
 from app.models.listing import (
     CommercialListing,
@@ -336,7 +336,8 @@ async def upload_listing_media_endpoint(
     """Structured multi-file upload: `media_meta` (JSON array of
     MediaMetaIn) + one multipart file field per temp_key, named
     `file_<temp_key>`. Each file is uploaded to the File Storage Service
-    (GCS + Cloud CDN, app/core/storage.py) and its durable CDN URL persisted.
+    (GCS + Cloud CDN, app/core/storage.py) and its object key persisted --
+    the public URL is derived on read (app/core/media_urls.py, T-021).
 
     A `media_type='video'` item is additionally validated against
     MAX_VIDEO_BYTES/MAX_VIDEO_DURATION_SECONDS/MAX_VIDEOS_PER_LISTING
@@ -410,16 +411,20 @@ async def upload_listing_media_endpoint(
                     ),
                 )
 
-            content_type = upload_file.content_type or "video/mp4"
-            media_url = await upload_bytes_to_media_storage(
+            # No "or 'video/mp4'" fallback here any more: upload_bytes_key
+            # resolves the stored Content-Type itself (client declaration,
+            # then magic bytes, then extension), so a clip a client declared
+            # nothing useful for still lands as video/mp4 rather than
+            # application/octet-stream (T-021).
+            media_key = await upload_bytes_key(
                 video_bytes,
                 prefix=f"listings/{listing_id}",
                 filename=upload_file.filename or "video.mp4",
-                content_type=content_type,
+                content_type=upload_file.content_type,
             )
-            poster_url = None
+            poster_key = None
             if poster_bytes is not None:
-                poster_url = await upload_bytes_to_media_storage(
+                poster_key = await upload_bytes_key(
                     poster_bytes,
                     prefix=f"listings/{listing_id}/posters",
                     filename="poster.jpg",
@@ -429,19 +434,19 @@ async def upload_listing_media_endpoint(
             item = ListingMedia(
                 listing_id=listing_id,
                 media_type="video",
-                media_url=media_url,
-                poster_url=poster_url,
+                media_url=media_key,
+                poster_url=poster_key,
                 duration_seconds=duration_seconds,
-                processing_status="ready" if poster_url is not None else "failed",
+                processing_status="ready" if poster_key is not None else "failed",
                 display_order=meta.display_order,
                 is_primary=False,  # MediaMetaIn's own validator already enforces this
             )
         else:
-            media_url = await upload_to_media_storage(upload_file, prefix=f"listings/{listing_id}")
+            media_key = await upload_file_key(upload_file, prefix=f"listings/{listing_id}")
             item = ListingMedia(
                 listing_id=listing_id,
                 media_type="image",
-                media_url=media_url,
+                media_url=media_key,
                 processing_status="ready",
                 display_order=meta.display_order,
                 is_primary=meta.is_primary,
@@ -450,22 +455,27 @@ async def upload_listing_media_endpoint(
         created.append(item)
 
     await session.commit()
-    return {
-        "listing_id": listing_id,
-        "media": [
-            {
-                "id": item.id,
-                "media_type": item.media_type,
-                "media_url": item.media_url,
-                "poster_url": item.poster_url,
-                "duration_seconds": item.duration_seconds,
-                "processing_status": item.processing_status,
-                "display_order": item.display_order,
-                "is_primary": item.is_primary,
-            }
-            for item in created
-        ],
-    }
+    # This endpoint returns a plain dict (no response_model), so the
+    # newly-stored keys are rendered here -- rows carry keys now, and a key
+    # must never reach a client as if it were a URL (app/core/media_urls.py).
+    return render_media_urls(
+        {
+            "listing_id": listing_id,
+            "media": [
+                {
+                    "id": item.id,
+                    "media_type": item.media_type,
+                    "media_url": item.media_url,
+                    "poster_url": item.poster_url,
+                    "duration_seconds": item.duration_seconds,
+                    "processing_status": item.processing_status,
+                    "display_order": item.display_order,
+                    "is_primary": item.is_primary,
+                }
+                for item in created
+            ],
+        }
+    )
 
 
 @router.get("/{listing_id}/availability", response_model=AvailabilityOut)

@@ -51,7 +51,7 @@ from reportlab.pdfgen import canvas
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.storage import upload_bytes
+from app.core.storage import upload_bytes_key
 from app.models.listing import Listing
 from app.models.transaction import Receipt, Transaction
 from app.models.user import User
@@ -320,7 +320,7 @@ async def ensure_receipt(session: AsyncSession, txn: Transaction) -> Receipt | N
         # (canvas drawing, no I/O) -- calling it directly here would block
         # the single asyncio event loop for its entire duration, stalling
         # every OTHER concurrent request this worker is serving, not just
-        # this one (the exact same class of bug `upload_bytes` below
+        # this one (the exact same class of bug `upload_bytes_key` below
         # already avoids for its own synchronous GCS client call, via
         # anyio.to_thread). Offloaded the same way for consistency, even
         # though a single-page render is normally fast -- "normally fast"
@@ -336,7 +336,7 @@ async def ensure_receipt(session: AsyncSession, txn: Transaction) -> Receipt | N
                 payee=payee,
             )
         )
-        pdf_url = await upload_bytes(
+        pdf_key = await upload_bytes_key(
             pdf_bytes,
             prefix=f"receipts/{txn.id}",
             filename=f"{receipt_number}.pdf",
@@ -354,14 +354,14 @@ async def ensure_receipt(session: AsyncSession, txn: Transaction) -> Receipt | N
         return existing
 
     if existing is not None:
-        existing.pdf_url = pdf_url
+        existing.pdf_url = pdf_key
         existing.issued_at = datetime.now(UTC)
         session.add(existing)
         await session.commit()
         await session.refresh(existing)
         return existing
 
-    receipt = Receipt(transaction_id=txn.id, receipt_number=receipt_number, pdf_url=pdf_url)
+    receipt = Receipt(transaction_id=txn.id, receipt_number=receipt_number, pdf_url=pdf_key)
     session.add(receipt)
     await session.commit()
     await session.refresh(receipt)
